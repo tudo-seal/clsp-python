@@ -45,6 +45,6 @@ class SetCover(Generic[S, E]):
         result: deque[set[int]] = deque()
         while covers:
             cover = covers.pop()
-            if (next((False for c in result + covers if c.issubset(cover)), True)):
+            if (all(not c.issubset(cover) for c in result + covers)):
                 result.append(cover)
         return [[sets[j] for j in c] for c in result]
