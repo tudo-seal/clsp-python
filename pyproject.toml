@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "cls-python"
+version = "0.0.1"
+description = ""
+authors = ["Jan Bessai", "Christoph Stahl <christoph.stahl@tu-dortmund.de>"]
+license = "APACHE2"
+readme = ""
+
+[tool.poetry.dependencies]
+python = "^3.10"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pyright]
+exclude = [ ".venv" ]
+venvPath = "."
+venv = ".venv"
