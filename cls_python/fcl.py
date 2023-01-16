@@ -1,23 +1,56 @@
-import functools
-import itertools
-from collections import deque
-from typing import TypeAlias, Callable, Tuple, Iterable, Any
-from multiprocessing import Pool
 import os
+from abc import ABC
+from collections import deque
 from collections.abc import Iterator
+from dataclasses import dataclass
+from dataclasses import field
+from functools import cached_property
+from functools import partial
+from itertools import starmap
+from multiprocessing import pool
+from typing import Any
+from typing import Callable
+from typing import Optional
+from typing import Tuple
+from typing import TypeAlias
 
-from abc import ABC, abstractmethod
-from itertools import chain
-from functools import partial, cached_property
-
-from .enumeration import Enumeration, ComputationStep, EmptyStep
-from .types import *
+from .enumeration import ComputationStep
+from .enumeration import EmptyStep
+from .enumeration import Enumeration
 from .subtypes import Subtypes
+from .types import Arrow
+from .types import Intersection
+from .types import Sequence
+from .types import Type
 
 
 MultiArrow: TypeAlias = Tuple[list[Type], Type]
 State: TypeAlias = list['MultiArrow']
 CoverMachineInstruction: TypeAlias = Callable[[State], Tuple[State, list['CoverMachineInstruction']]]
+
+class PoolWrapper(pool.Pool):
+    """ Only use multiprocessing, when on Posix """
+
+    class DummyPool():
+        """
+        If not on a posix platform, use a DummyPool, that only exports a starmap.
+
+        Only use the first two arguments (function and iterable) from the call, and ignore
+        additional multiprocessing parameters. Then simply call the itertools.starmap function.
+        """
+
+        def starmap(self, function, iterable, *_args, **_kwargs):
+            return starmap(function, iterable)
+
+    def __enter__(self):
+        if os.name == 'posix':
+            return super().__enter__()
+        return PoolWrapper.DummyPool()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if os.name == 'posix':
+            return super().__exit__(exc_type, exc_val, exc_tb)
+        return None
 
 
 @dataclass(frozen=True)
@@ -71,7 +104,7 @@ class Tree(object):
                 case Combinator(_, c):
                     self.results.append(c)
                 case Apply(_, _, _):
-                    f_arg = list()
+                    f_arg : list[Any] = []
                     yield Tree.Evaluator(self.outer.children[0], f_arg)
                     yield Tree.Evaluator(self.outer.children[1], f_arg)
                     self.results.append(partial(f_arg[0])(f_arg[1]))
@@ -100,7 +133,7 @@ class InhabitationResult(object):
     def grouped_rules(self) -> dict[Type, set[Rule]]:
         result: dict[Type, set[Rule]] = dict()
         for rule in self.rules:
-            group: set[Rule] = result.get(rule.target)
+            group: Optional[set[Rule]] = result.get(rule.target)
             if group:
                 group.add(rule)
             else:
@@ -128,7 +161,7 @@ class InhabitationResult(object):
         if not self:
             return False
 
-        reachable: dict[Type, set[Type]] = dict()
+        reachable: dict[Type, set[Type]] = {}
         for (target, rules) in self.grouped_rules.items():
             entry: set[Type] = set()
             for rule in rules:
@@ -169,7 +202,7 @@ class InhabitationResult(object):
         maximum = self.raw.unsafe_max_size()
         size = 0
         values = self.raw.all_values()
-        for i in range(0, maximum+1):
+        for _ in range(0, maximum+1):
             trees = next(values)
             size += len(trees)
         return size
@@ -237,7 +270,7 @@ class FiniteCombinatoryLogic(object):
         self.processes = processes
 
         self.repository = repository
-        with Pool(processes) as pool:
+        with PoolWrapper(processes) as pool:
             self.splitted_repository: dict[object, list[list[MultiArrow]]] = \
                 dict(pool.starmap(FiniteCombinatoryLogic._split_repo,
                      self.repository.items(),
@@ -442,7 +475,7 @@ class FiniteCombinatoryLogic(object):
 
     def _inhabit_cover(self, target: Type, todo_rules: deque[deque[Rule]]) -> bool:
         prime_factors: set[Type] = self.subtypes.minimize(target.organized)
-        with Pool(self.processes) as pool:
+        with PoolWrapper(self.processes) as pool:
             results =\
                 pool.starmap(
                     partial(self._accumulate_covers, target, prime_factors),
@@ -546,4 +579,3 @@ class FiniteCombinatoryLogic(object):
                 case _:
                     result.add(rule)
         return result
-
