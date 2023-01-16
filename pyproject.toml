@@ -1,10 +1,9 @@
 [tool.poetry]
-name = "cls-python"
+name = "cls_python"
 version = "0.0.1"
 description = ""
 authors = ["Jan Bessai", "Christoph Stahl <christoph.stahl@tu-dortmund.de>"]
-license = "APACHE2"
-readme = ""
+license = "Apache-2.0"
 
 [tool.poetry.dependencies]
 python = "^3.10"
