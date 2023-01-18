@@ -4,7 +4,7 @@ from cls_python.setcover import minimal_covers, minimal_elements
 from cls_python.types import Type
 from cls_python.fcl import FiniteCombinatoryLogic
 
-from itertools import accumulate
+from functools import reduce
 from collections.abc import Sequence
 
 def _compare_multiarrow_arguments(fcl: FiniteCombinatoryLogic, lesser: MultiArrow, greater: MultiArrow) -> bool:
@@ -25,7 +25,7 @@ def _compute_subqueries(fcl: FiniteCombinatoryLogic, combinator_type: list[Multi
     # possibilities to cover target using targets of multi-arrows in combinator_type
     covers: list[list[MultiArrow]] = minimal_covers(sets, elements, contains)
     # merge multi-arrows in each cover
-    accumulated_covers = map(lambda ms: accumulate(ms, fcl._merge_multi_arrow), covers)
+    accumulated_covers = map(lambda ms: reduce(fcl._merge_multi_arrow, ms), covers)
     compare_ma_args = lambda m1, m2: _compare_multiarrow_arguments(fcl, m2, m1)
     # remove redundant multi-arrows
     return minimal_elements(accumulated_covers, compare_ma_args)

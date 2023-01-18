@@ -11,14 +11,24 @@ def minimal_elements(elements: Sequence[E], compare: Callable[[E, E], bool]) -> 
     `compare(e1, e2) == True` iff `e1` smaller or equal to `e2`.
     """
 
-    result: deque[E] = deque()
     candidates: deque[E] = deque(elements)
+    result: deque[E] = deque()
     while candidates:
+        new_candidates: deque[E] = deque()
         e1 = candidates.pop()
-        if (all(not compare(e2, e1) for e2 in result + candidates)):
-            result.appendleft(e1)
+        while candidates:
+            e2 = candidates.pop()
+            if compare(e1, e2):
+                continue # e2 is redundant
+            elif compare(e2, e1):
+                e1 = e2 # e1 is redundant
+                candidates.extendleft(new_candidates)
+                new_candidates.clear()
+            else:
+                new_candidates.appendleft(e2)
+        candidates = new_candidates
+        result.appendleft(e1)
     return result
-
 
 def minimal_covers(sets: list[S], to_cover: list[E], contains: Callable[[S, E], bool]) -> list[list[S]]:
     """List minimal covers of elements in to_cover using given sets.
@@ -30,30 +40,34 @@ def minimal_covers(sets: list[S], to_cover: list[E], contains: Callable[[S, E], 
     # sets necessarily included in any cover
     necessary_sets: set[int] = set()
     # for each element e: list of sets containing e
-    relevant_sets: deque[list[int]] = deque()
+    relevant_sets: deque[set[int]] = deque()
     for i in range(len(to_cover)):
-        covering_sets = [j for j in range(len(sets)) if contains(sets[j], to_cover[i])]
+        covering_sets = {j for j in range(len(sets)) if contains(sets[j], to_cover[i])}
         if len(covering_sets) == 0: # at least one element cannot be covered
             return []
         elif len(covering_sets) == 1: # exactly one set is relevant
-            necessary_sets.add(covering_sets[0])
-        relevant_sets.append(covering_sets)
+            necessary_sets.add(covering_sets.pop())
+        else: # more than one set is relevant
+            relevant_sets.append(covering_sets)
 
-    # overapproximate covers (not necessarily minimal)
+    # collect minimal covers (there is no smaller or equivalent cover)
     covers: deque[set[int]] = deque()
     covers.appendleft(necessary_sets)
     for r in relevant_sets:
-        new_covers: deque[set[int]] = deque()
+        partitioning = (deque(), deque())
         for c in covers:
-            if c.isdisjoint(r):
-                for j in r:
-                    new_c = c.copy()
-                    new_c.add(j)
-                    new_covers.append(new_c)
-            else: # element is already covered by c
-                new_covers.append(c)
-        covers = new_covers
+            partitioning[c.isdisjoint(r)].append(c)
 
-    # collect minimal covers (there is no smaller or equivalent cover)
-    result = minimal_elements(covers, lambda e1, e2: e1.issubset(e2))
-    return [[sets[j] for j in c] for c in result]
+        covers = partitioning[0].copy()
+        for c1 in partitioning[1]:
+            js: set[int] = r.copy()
+            for c2 in partitioning[0]:
+                missing = c2.difference(c1)
+                if len(missing) == 1:
+                    # c2 is a subset of c1 + {missing element}
+                    js.discard(missing.pop())
+            for j in js:
+                new_c = c1.copy()
+                new_c.add(j)
+                covers.append(new_c)
+    return [[sets[j] for j in c] for c in covers]
