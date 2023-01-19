@@ -1,11 +1,40 @@
 
 from cls_python.fcl import MultiArrow
 from cls_python.setcover import minimal_covers, minimal_elements
-from cls_python.types import Type
+from cls_python.types import Omega, Type, Arrow, Intersection
 from cls_python.fcl import FiniteCombinatoryLogic
 
 from functools import reduce
 from collections.abc import Sequence
+from collections import deque
+
+def _multiarrows_from_type(type: Type) -> list[list[MultiArrow]] :
+    def _split_ty(type: Type) -> tuple[Type, Sequence[tuple[Type, Type]]] :
+        """Splits a type into a nullary part and a list of (src, tgt) pairs."""
+
+        nullary: deque[Type] = deque()
+        unary: deque[tuple[Type, Type]] = deque()
+        types: deque[Type] = deque((type))
+        while types:
+            current = types.pop()
+            if current.is_omega:
+                continue
+            match current:
+                case Arrow(src, tgt):
+                    unary.appendleft((src, tgt))
+                case Intersection(sigma, tau):
+                    types.extend(sigma, tau)
+                case _:
+                    nullary.appendleft(current)
+        return (reduce(Intersection, nullary, Omega()), unary)
+
+    result = []
+    while not type.is_omega:
+        type, arrs = _split_ty(type)
+        
+    current = type
+    _split_ty
+    
 
 def _compare_multiarrow_arguments(fcl: FiniteCombinatoryLogic, lesser: MultiArrow, greater: MultiArrow) -> bool:
     """`True` if each argument in `lesser` multi-arrow is smaller or equal to the corresponding argument in `greater` multi-arrow."""

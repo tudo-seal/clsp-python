@@ -2,11 +2,17 @@ import os
 from abc import ABC
 from collections import deque
 from collections.abc import Iterator
-from dataclasses import field, dataclass
-from functools import partial, reduce, cached_property
+from dataclasses import dataclass
+from dataclasses import field
+from functools import cached_property
+from functools import partial
 from itertools import starmap
 from multiprocessing import pool
-from typing import Any, Callable, Optional, Tuple, TypeAlias
+from typing import Any
+from typing import Callable
+from typing import Optional
+from typing import Tuple
+from typing import TypeAlias
 
 from .enumeration import ComputationStep
 from .enumeration import EmptyStep
@@ -16,7 +22,7 @@ from .types import Arrow
 from .types import Intersection
 from .types import Sequence
 from .types import Type
-from .setcover import minimal_covers, minimal_elements
+
 
 MultiArrow: TypeAlias = Tuple[list[Type], Type]
 State: TypeAlias = list['MultiArrow']
@@ -277,8 +283,6 @@ class FiniteCombinatoryLogic(object):
 
     @staticmethod
     def split_ty(ty: Type) -> list[list[MultiArrow]]:
-        """Splits a type into a list of 0-ary, 1-ary, ..., n-ary multi-arrows."""
-
         def safe_split(xss: list[list[MultiArrow]]) -> Tuple[list[MultiArrow], list[list[MultiArrow]]]:
             return (xss[0] if xss else []), xss[1:]
 
@@ -307,62 +311,242 @@ class FiniteCombinatoryLogic(object):
         else:
             return Intersection(sigma, tau)
 
+    @staticmethod
+    def _partition_cover(covered: set[Type], to_cover: set[Type]) -> Tuple[set[Type], set[Type]]:
+        in_covered: set[Type] = set()
+        not_in_covered: set[Type] = set()
+        for ty in to_cover:
+            if ty in covered:
+                in_covered.add(ty)
+            else:
+                not_in_covered.add(ty)
+        return in_covered, not_in_covered
+
+    @staticmethod
+    def _still_possible(splits: list[Tuple[MultiArrow, set[Type]]], to_cover: set[Type]) -> bool:
+        for ty in to_cover:
+            if not any(ty in covered for _, covered in splits):
+                return False
+        return True
+
+    def _merge_multi_arrow(self, arrow1: MultiArrow, arrow2: MultiArrow) -> MultiArrow:
+        return list(map(self._dcap, arrow1[0], arrow2[0])), self._dcap(arrow1[1], arrow2[1])
+
+    def _check_cover(self, splits: list[Tuple[MultiArrow, set[Type]]], to_cover: set[Type]) -> CoverMachineInstruction:
+        def instr(state: list[MultiArrow]) -> Tuple[State, list[CoverMachineInstruction]]:
+            if FiniteCombinatoryLogic._still_possible(splits, to_cover):
+                return state, [self._cover(splits, to_cover)]
+            else:
+                return state, []
+
+        return instr
+
+    def _check_continue_cover(self, splits: list[Tuple[MultiArrow, set[Type]]],
+                              to_cover: set[Type],
+                              current_result: MultiArrow) -> CoverMachineInstruction:
+        def instr(state: list[MultiArrow]) -> Tuple[State, list[CoverMachineInstruction]]:
+            if FiniteCombinatoryLogic._still_possible(splits, to_cover):
+                return state, [self._continue_cover(splits, to_cover, current_result)]
+            else:
+                return state, []
+
+        return instr
+
+    def _continue_cover(self, splits: list[Tuple[MultiArrow, set[Type]]],
+                        to_cover: set[Type],
+                        current_result: MultiArrow) -> CoverMachineInstruction:
+        def instr(state: list[MultiArrow]) -> Tuple[State, list[CoverMachineInstruction]]:
+            if not splits:
+                return state, []
+            m, covered = splits[0]
+            _splits = splits[1:]
+            freshly_covered, uncovered = FiniteCombinatoryLogic._partition_cover(covered, to_cover)
+            if not freshly_covered:
+                return state, [self._continue_cover(_splits, to_cover, current_result)]
+            merged = self._merge_multi_arrow(current_result, m)
+            if not uncovered:
+                return [merged, *state], [self._continue_cover(_splits, to_cover, current_result)]
+            elif merged[0] == current_result[0]:
+                return state, [self._continue_cover(_splits, uncovered, merged)]
+            else:
+                return state, [self._continue_cover(_splits, uncovered, merged),
+                               self._check_continue_cover(_splits, to_cover, current_result)]
+
+        return instr
+
+    def _cover(self, splits: list[Tuple[MultiArrow, set[Type]]], to_cover: set[Type]) -> CoverMachineInstruction:
+        def instr(state: list[MultiArrow]) -> Tuple[State, list[CoverMachineInstruction]]:
+            if not splits:
+                return state, []
+            m, covered = splits[0]
+            _splits = splits[1:]
+            freshly_covered, uncovered = FiniteCombinatoryLogic._partition_cover(covered, to_cover)
+            if not freshly_covered:
+                return state, [self._cover(_splits, to_cover)]
+            elif not uncovered:
+                return [m, *state], [self._check_cover(_splits, to_cover)]
+            else:
+                return state, [self._continue_cover(_splits, uncovered, m),
+                               self._check_cover(_splits, to_cover)]
+
+        return instr
+
+    @staticmethod
+    def _cover_machine(state: State, program: list[CoverMachineInstruction]) -> State:
+        instructions: deque[Iterator[CoverMachineInstruction]] = deque([iter(program)])
+        while instructions:
+            head = instructions.popleft()
+            try:
+                instruction = next(head)
+                instructions.appendleft(head)
+                state, next_instructions = instruction(state)
+                instructions.appendleft(iter(next_instructions))
+            except StopIteration:
+                pass
+        return state
+
+    def _reduce_multi_arrows(self, ms: list[MultiArrow]) -> list[MultiArrow]:
+        def check(lesser_arg_vect: MultiArrow, greater_arg_vect: MultiArrow) -> bool:
+            (lesser_args, greater_args) = (lesser_arg_vect[0], greater_arg_vect[0])
+            return (len(lesser_args) == len(greater_args)
+                    and all(self.subtypes.check_subtype(lesser_arg, greater_arg)
+                            for (lesser_arg, greater_arg) in zip(lesser_args, greater_args)))
+
+        def average_arguments_type_size(m: MultiArrow) -> int:
+            size: int = 0
+            for ty in m[0]:
+                size += ty.size
+            return size / len(m[0]) if m[0] else 0
+
+        result: list[MultiArrow] = []
+        for multi_arrow in sorted(ms, key=average_arguments_type_size):
+            if all(not check(multi_arrow, in_result) for in_result in result):
+                result = [multi_arrow, *(in_result for in_result in result if not check(in_result, multi_arrow))]
+        return result
+
+    def _compute_fail_existing(self, rules: set[Rule], target: Type) -> Tuple[bool, bool]:
+        rest_of_rules: Iterator[Rule] = iter(rules)
+        while to_check := next(rest_of_rules, None):
+            match to_check:
+                case Failed(t) if t == target:
+                    return True, True
+                case Failed(t) if self.subtypes.check_subtype(target, t):
+                    return True, Failed(target) in rest_of_rules
+                case Apply(_, _, arg) if arg == target:
+                    return False, True
+                case _:
+                    continue
+        return False, False
+
+    @staticmethod
+    def _commit_multi_arrow(combinator: object, m: MultiArrow) -> deque[Rule]:
+        result: deque[Rule] = deque()
+        srcs, tgt = m
+        for src in srcs:
+            arr = Arrow(src, tgt)
+            result.appendleft(Apply(tgt, arr, src))
+            tgt = arr
+        result.appendleft(Combinator(tgt, combinator))
+        return result
+
+    @staticmethod
+    def _commit_updates(target: Type,
+                        combinator: object,
+                        covers: Sequence[MultiArrow]) -> deque[deque[Rule]]:
+        result: deque[deque[Rule]] = deque()
+        for cover in covers:
+            result.append(FiniteCombinatoryLogic._commit_multi_arrow(combinator, (cover[0], target)))
+        return result
+
+    def _accumulate_covers(self,
+                           target: Type,
+                           to_cover: set[Type],
+                           combinator: object,
+                           combinator_type: list[list[MultiArrow]]) -> Tuple[deque[deque[Rule]], bool]:
+        def cover_instr(ms: list[MultiArrow]) -> CoverMachineInstruction:
+            splits: list[(MultiArrow, set[Type])] = \
+                list(map(lambda m: (m, set(filter(lambda b: self.subtypes.check_subtype(m[1], b), to_cover))), ms))
+            return self._cover(splits, to_cover)
+
+        covers: list[MultiArrow] = self._cover_machine([], list(map(cover_instr, combinator_type)))
+        next_rules: deque[deque[Rule]] = \
+            FiniteCombinatoryLogic._commit_updates(target, combinator, self._reduce_multi_arrows(covers))
+        return next_rules, not covers
+
+    def _inhabit_cover(self, target: Type, todo_rules: deque[deque[Rule]]) -> bool:
+        prime_factors: set[Type] = self.subtypes.minimize(target.organized)
+        with PoolWrapper(self.processes) as pool:
+            results =\
+                pool.starmap(
+                    partial(self._accumulate_covers, target, prime_factors),
+                    self.splitted_repository.items(),
+                    max(len(self.splitted_repository) // self.processes, 10))
+        failed: bool = True
+        for rules, local_fail in results:
+            if not local_fail:
+                failed = False
+                todo_rules.extend(rules)
+        return failed
+
     def _omega_rules(self, target: Type) -> set[Rule]:
         return {Apply(target, target, target),
                 *map(lambda c: Combinator(target, c), self.splitted_repository.keys())}
 
-    @staticmethod
-    def _combinatory_expression_rules(combinator: object, arguments: list[Type], target: Type) -> set[Rule]:
-        """Set of rules from combinatory expression `combinator(arguments1, ..., argumentn)`."""
-        result: set[Rule] = set()
-        arguments: deque[Type] = deque(arguments)
-        while arguments:
-            argument = arguments.pop()
-            result.add(Apply(target, Arrow(argument, target), argument))
-            target = Arrow(argument, target)
-        result.add(Combinator(target, combinator))
-        return result
+    def _inhabitation_step(self, stable: set[Rule], targets: deque[deque[Rule]]) -> bool:
+        if targets:
+            if targets[0]:
+                target = targets[0].popleft()
+                match target:
+                    case Combinator(_, _):
+                        stable.add(target)
+                    case Apply(_, _, _) if target in stable:
+                        pass
+                    case Apply(_, _, target_type):
+                        failed, existing = self._compute_fail_existing(stable, target_type)
+                        if failed:
+                            if not existing:
+                                stable.add(Failed(target_type))
+                        elif existing:
+                            stable.add(target)
+                        elif target_type.is_omega:
+                            stable |= self._omega_rules(target_type)
+                            stable.add(target)
+                        else:
+                            inhabit_failed = self._inhabit_cover(target_type, targets)
+                            if inhabit_failed:
+                                stable.add(Failed(target_type))
+                                targets.popleft()
+                            else:
+                                stable.add(target)
+                    case _:
+                        raise TypeError(f"Invalid type of rule: {target}")
+            else:
+                targets.popleft()
+        return bool(targets)
 
+    def _inhabitation_machine(self, stable: set[Rule], targets: deque[deque[Rule]]):
+        while self._inhabitation_step(stable, targets):
+            pass
 
     def inhabit(self, *targets: Type) -> InhabitationResult:
-        # dictionary of type |-> sequence of combinatory expressions
-        memo: dict[Type, deque[tuple[object, list[Type]]]] = dict()
-        remaining_targets: deque[Type] = deque(targets)
-        # intermediate rules (stopgap from prior fcl implementation)
         result: set[Rule] = set()
-        while remaining_targets:
-            target = remaining_targets.pop()
-            if memo.get(target) is None:
-                # target type was not seen before
-                paths: list[Type] = list(target._organized())
-                possibilities: deque[tuple[object, list[Type]]] = deque()
-                memo.update({target : possibilities})
-                if target.is_omega:
-                    result |= self._omega_rules(target)
+        all_targets = list(targets)
+        todo_rules: deque[deque[Rule]] = deque()
+        for target in all_targets:
+            if target.is_omega:
+                result |= self._omega_rules(target)
+            else:
+                failed, existing = self._compute_fail_existing(result, target)
+                if failed:
+                    if not existing:
+                        result.add(Failed(target))
                 else:
-                    # try each combinator and arity
-                    for combinator, splitted_types in self.splitted_repository.items():
-                        for splitted_type in splitted_types:
-                            contains = lambda m, t: self.subtypes.check_subtype(m[1], t)
-                            # possibilities to cover target using targets of multi-arrows in splitted_type
-                            covers = list(map(lambda c: list(map(lambda m: m[0], c)), minimal_covers(splitted_type, paths, contains)))
-                            # intersect corresponding arguments of multi-arrows in each cover
-                            accumulated_args = list(map(lambda c: reduce(lambda args1, args2: list(map(self._dcap, args1, args2)), c), covers))
-                            compare_args = lambda greater, lesser: all(starmap(self.subtypes.check_subtype, zip(lesser, greater)))
-                            # remove redundant argument vectors
-                            subqueries = minimal_elements(accumulated_args, compare_args)
-                            for subquery in subqueries:
-                                temp = list(subquery)
-                                temp.reverse()
-                                possibilities.append((combinator, temp))
-                                remaining_targets.extendleft(subquery)
-
-        # convert memo into resulting set of rules
-        for target, possibilities in memo.items():
-            for combinator, arguments in possibilities:
-                result |= self._combinatory_expression_rules(combinator, arguments, target)
-
-        return InhabitationResult(targets=list(targets), rules=FiniteCombinatoryLogic._prune(result))
+                    inhabit_failed = self._inhabit_cover(target, todo_rules)
+                    if inhabit_failed:
+                        result.add(Failed(target))
+                    else:
+                        self._inhabitation_machine(result, todo_rules)
+        return InhabitationResult(targets=all_targets, rules=FiniteCombinatoryLogic._prune(result))
 
     @staticmethod
     def _ground_types_of(rules: set[Rule]) -> set[Type]:
