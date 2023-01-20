@@ -1,12 +1,23 @@
 from collections import deque
-from collections.abc import Sequence, Callable
+from collections.abc import Iterable, Sequence, Callable
 from typing import TypeVar
 
 S = TypeVar('S') # Type of Sets
 E = TypeVar('E') # Type of Elements
 
-def minimal_elements(elements: Sequence[E], compare: Callable[[E, E], bool]) -> Sequence[E] :
-    """Enumerate minimal elements with respect to compare.
+def partition(predicate: Callable[[E], bool], elements: Iterable[E]) -> tuple[deque[E], deque[E]]:
+    """Partition elements into (elements not satisfying predicate, elements satisfying predicate)."""
+
+    partitioning: tuple[deque[set[int]], deque[set[int]]] = (deque(), deque())
+    for element in elements:
+        if predicate(element):
+            partitioning[1].append(element)
+        else:
+            partitioning[0].append(element)
+    return partitioning
+
+def maximal_elements(elements: Sequence[E], compare: Callable[[E, E], bool]) -> Sequence[E] :
+    """Enumerate maximal elements with respect to compare.
     
     `compare(e1, e2) == True` iff `e1` smaller or equal to `e2`.
     """
@@ -18,9 +29,9 @@ def minimal_elements(elements: Sequence[E], compare: Callable[[E, E], bool]) -> 
         e1 = candidates.pop()
         while candidates:
             e2 = candidates.pop()
-            if compare(e1, e2):
+            if compare(e2, e1):
                 continue # e2 is redundant
-            elif compare(e2, e1):
+            elif compare(e1, e2):
                 e1 = e2 # e1 is redundant
                 candidates.extendleft(new_candidates)
                 new_candidates.clear()
@@ -54,17 +65,14 @@ def minimal_covers(sets: list[S], to_cover: list[E], contains: Callable[[S, E], 
     covers: deque[set[int]] = deque()
     covers.appendleft(necessary_sets)
     for r in relevant_sets:
-        partitioning = (deque(), deque())
-        for c in covers:
-            partitioning[c.isdisjoint(r)].append(c)
-
+        partitioning = partition(r.isdisjoint, covers)
         covers = partitioning[0].copy()
         for c1 in partitioning[1]:
             js: set[int] = r.copy()
             for c2 in partitioning[0]:
                 missing = c2.difference(c1)
                 if len(missing) == 1:
-                    # c2 is a subset of c1 + {missing element}
+                    # c2 is a subset of c1 + {one missing element}
                     js.discard(missing.pop())
             for j in js:
                 new_c = c1.copy()

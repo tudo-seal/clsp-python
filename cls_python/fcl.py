@@ -1,11 +1,8 @@
-import os
 from abc import ABC
 from collections import deque
-from collections.abc import Iterator
+from collections.abc import Iterator, Iterable
 from dataclasses import field, dataclass
 from functools import partial, reduce, cached_property
-from itertools import starmap
-from multiprocessing import pool
 from typing import Any, Callable, Optional, Tuple, TypeAlias
 
 from .enumeration import ComputationStep
@@ -16,36 +13,9 @@ from .types import Arrow
 from .types import Intersection
 from .types import Sequence
 from .types import Type
-from .setcover import minimal_covers, minimal_elements
+from .setcover import minimal_covers, maximal_elements, partition
 
 MultiArrow: TypeAlias = Tuple[list[Type], Type]
-State: TypeAlias = list['MultiArrow']
-CoverMachineInstruction: TypeAlias = Callable[[State], Tuple[State, list['CoverMachineInstruction']]]
-
-class PoolWrapper(pool.Pool):
-    """ Only use multiprocessing, when on Posix """
-
-    class DummyPool():
-        """
-        If not on a posix platform, use a DummyPool, that only exports a starmap.
-
-        Only use the first two arguments (function and iterable) from the call, and ignore
-        additional multiprocessing parameters. Then simply call the itertools.starmap function.
-        """
-
-        def starmap(self, function, iterable, *_args, **_kwargs):
-            return starmap(function, iterable)
-
-    def __enter__(self):
-        if os.name == 'posix':
-            return super().__enter__()
-        return PoolWrapper.DummyPool()
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if os.name == 'posix':
-            return super().__exit__(exc_type, exc_val, exc_tb)
-        return None
-
 
 @dataclass(frozen=True)
 class Rule(ABC):
@@ -260,44 +230,30 @@ class InhabitationResult(object):
 
 class FiniteCombinatoryLogic(object):
 
-    def __init__(self, repository: dict[object, Type], subtypes: Subtypes, processes=os.cpu_count()):
-        self.processes = processes
-
-        self.repository = repository
-        with PoolWrapper(processes) as pool:
-            self.splitted_repository: dict[object, list[list[MultiArrow]]] = \
-                dict(pool.starmap(FiniteCombinatoryLogic._split_repo,
-                     self.repository.items(),
-                     chunksize=max(len(self.repository) // processes, 10)))
+    def __init__(self, repository: dict[object, Type], subtypes: Subtypes):
+        self.repository: dict[object, list[list[MultiArrow]]] = \
+            {c : list(FiniteCombinatoryLogic._function_types(ty)) for c, ty in repository.items()}
         self.subtypes = subtypes
 
     @staticmethod
-    def _split_repo(c: object, ty: Type) -> Tuple[object, list[list[MultiArrow]]]:
-        return c, FiniteCombinatoryLogic.split_ty(ty)
+    def _function_types(ty: Type) -> Iterable[list[MultiArrow]] :
+        """Presents a type as a list of 0-ary, 1-ary, ..., n-ary function types."""
 
-    @staticmethod
-    def split_ty(ty: Type) -> list[list[MultiArrow]]:
-        """Splits a type into a list of 0-ary, 1-ary, ..., n-ary multi-arrows."""
+        def unary_function_types(ty: type) -> Iterable[tuple[Type, Type]] :
+            tys: deque[Type] = deque((ty, ))
+            while tys:
+                match tys.pop():
+                    case Arrow(src, tgt) if not tgt.is_omega:
+                        yield (src, tgt)
+                    case Intersection(sigma, tau):
+                        tys.extend((sigma, tau))
 
-        def safe_split(xss: list[list[MultiArrow]]) -> Tuple[list[MultiArrow], list[list[MultiArrow]]]:
-            return (xss[0] if xss else []), xss[1:]
-
-        def split_rec(to_split: Type, srcs: list[Type], delta: list[list[MultiArrow]]) -> list[list[MultiArrow]]:
-            match to_split:
-                case Arrow(src, tgt):
-                    xs, xss = safe_split(delta)
-                    next_srcs = [src, *srcs]
-                    return [[(next_srcs, tgt), *xs], *split_rec(tgt, next_srcs, xss)]
-                case Intersection(sigma, tau) if sigma.is_omega:
-                    return split_rec(tau, srcs, delta)
-                case Intersection(sigma, tau) if tau.is_omega:
-                    return split_rec(sigma, srcs, delta)
-                case Intersection(sigma, tau):
-                    return split_rec(sigma, srcs, split_rec(tau, srcs, delta))
-                case _:
-                    return delta
-
-        return [] if ty.is_omega else [[([], ty)], *split_rec(ty, [], [])]
+        current = [([], ty)]
+        while len(current) != 0:
+            yield current
+            current = [(args + [new_arg], new_tgt) for (args, tgt) in current
+                for (new_arg, new_tgt) in unary_function_types(tgt) ]
+            
 
     def _dcap(self, sigma: Type, tau: Type) -> Type:
         if self.subtypes.check_subtype(sigma, tau):
@@ -309,20 +265,18 @@ class FiniteCombinatoryLogic(object):
 
     def _omega_rules(self, target: Type) -> set[Rule]:
         return {Apply(target, target, target),
-                *map(lambda c: Combinator(target, c), self.splitted_repository.keys())}
+                *map(lambda c: Combinator(target, c), self.repository.keys())}
 
     @staticmethod
-    def _combinatory_expression_rules(combinator: object, arguments: list[Type], target: Type) -> set[Rule]:
-        """Set of rules from combinatory expression `combinator(arguments1, ..., argumentn)`."""
-        result: set[Rule] = set()
+    def _combinatory_expression_rules(combinator: object, arguments: list[Type], target: Type) -> Iterable[Rule]:
+        """Rules from combinatory expression `combinator(arguments[0], ..., arguments[n])`."""
+
         arguments: deque[Type] = deque(arguments)
         while arguments:
             argument = arguments.pop()
-            result.add(Apply(target, Arrow(argument, target), argument))
+            yield Apply(target, Arrow(argument, target), argument)
             target = Arrow(argument, target)
-        result.add(Combinator(target, combinator))
-        return result
-
+        yield Combinator(target, combinator)
 
     def inhabit(self, *targets: Type) -> InhabitationResult:
         # dictionary of type |-> sequence of combinatory expressions
@@ -341,57 +295,44 @@ class FiniteCombinatoryLogic(object):
                     result |= self._omega_rules(target)
                 else:
                     # try each combinator and arity
-                    for combinator, splitted_types in self.splitted_repository.items():
-                        for splitted_type in splitted_types:
-                            contains = lambda m, t: self.subtypes.check_subtype(m[1], t)
-                            # possibilities to cover target using targets of multi-arrows in splitted_type
-                            covers = list(map(lambda c: list(map(lambda m: m[0], c)), minimal_covers(splitted_type, paths, contains)))
+                    for combinator, combinator_type in self.repository.items():
+                        for nary_types in combinator_type:
+                            # does the target of a multi-arrow contain a given type?
+                            target_contains = lambda m, t: self.subtypes.check_subtype(m[1], t)
+                            # cover target using targets of multi-arrows in nary_types
+                            covers = minimal_covers(nary_types, paths, target_contains)
                             # intersect corresponding arguments of multi-arrows in each cover
-                            accumulated_args = list(map(lambda c: reduce(lambda args1, args2: list(map(self._dcap, args1, args2)), c), covers))
-                            compare_args = lambda greater, lesser: all(starmap(self.subtypes.check_subtype, zip(lesser, greater)))
-                            # remove redundant argument vectors
-                            subqueries = minimal_elements(accumulated_args, compare_args)
-                            for subquery in subqueries:
-                                temp = list(subquery)
-                                temp.reverse()
-                                possibilities.append((combinator, temp))
+                            intersect_args = lambda args1, args2: map(self._dcap, args1, args2)
+                            intersected_args = [reduce(intersect_args, (m[0] for m in ms)) for ms in covers]
+                            # consider only maximal argument vectors
+                            compare_args = lambda args1, args2: all(map(self.subtypes.check_subtype, args1, args2))
+                            for subquery in maximal_elements(intersected_args, compare_args):
+                                possibilities.append((combinator, subquery))
                                 remaining_targets.extendleft(subquery)
-
+        
+        # prune not inhabited types
+        FiniteCombinatoryLogic._prune(memo)
         # convert memo into resulting set of rules
         for target, possibilities in memo.items():
+            if len(possibilities) == 0 and not target.is_omega:
+                result.add(Failed(target))
             for combinator, arguments in possibilities:
-                result |= self._combinatory_expression_rules(combinator, arguments, target)
+                result.update(self._combinatory_expression_rules(combinator, arguments, target))
 
-        return InhabitationResult(targets=list(targets), rules=FiniteCombinatoryLogic._prune(result))
-
+        #return InhabitationResult(targets=list(targets), rules=FiniteCombinatoryLogic._prune(result))
+        return InhabitationResult(targets=list(targets), rules=result)
+    
     @staticmethod
-    def _ground_types_of(rules: set[Rule]) -> set[Type]:
-        ground: set[Type] = set()
-        next_ground: set[Type] = set(rule.target for rule in rules if rule.is_combinator)
+    def _prune(memo: dict[Type, deque[tuple[object, list[Type]]]]) -> None :
+        """Keep only productive grammar rules."""
 
-        while next_ground:
-            ground |= next_ground
-            next_ground = set()
-            for rule in rules:
-                match rule:
-                    case Apply(target, function_type, argument_type) if (function_type in ground
-                                                                         and argument_type in ground
-                                                                         and target not in ground):
-                        next_ground.add(target)
-                    case _: pass
-        return ground
+        ground_types: set[Type] = set()
+        is_ground = lambda args: all(True for arg in args if arg in ground_types)
+        new_ground_types, candidates = partition(lambda ty: any(True for (_, args) in memo[ty] if is_ground(args)), memo.keys())
+        # initialize inhabited (ground) types
+        while new_ground_types:
+            ground_types.update(new_ground_types)
+            new_ground_types, candidates = partition(lambda ty: any(True for _, args in memo[ty] if is_ground(args)), candidates)
 
-    @staticmethod
-    def _prune(rules: set[Rule]) -> set[Rule]:
-        ground_types: set[Type] = FiniteCombinatoryLogic._ground_types_of(rules)
-        result = set()
-        for rule in rules:
-            match rule:
-                case Apply(target, _, _) if target not in ground_types:
-                    result.add(Failed(target))
-                case Apply(_, function_type, argument_type) if not (function_type in ground_types
-                                                                    and argument_type in ground_types):
-                    continue
-                case _:
-                    result.add(rule)
-        return result
+        for target, possibilities in memo.items():
+            memo[target] = deque(possibility for possibility in possibilities if is_ground(possibility[1]))
