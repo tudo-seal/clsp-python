@@ -48,7 +48,7 @@ def random_set() -> list[int]:
   return [randrange(max_elements) for i in range(num_elements)]
 
 current_index = 0
-for _ in range(100000):
+for _ in range(1000000):
   if (current_index % 10000 == 0): print(current_index)
   current_index += 1
   sets = [random_set() for _ in range(randrange(max_sets))]

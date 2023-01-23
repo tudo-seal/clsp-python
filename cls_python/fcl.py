@@ -226,9 +226,9 @@ class InhabitationResult(object):
             return self.raw.map(lambda t: t.evaluate())
         else:
             return self.raw.map(lambda l: list(map(lambda t: t.evaluate(), l)))
-
-
+        
 class FiniteCombinatoryLogic(object):
+
 
     def __init__(self, repository: dict[object, Type], subtypes: Subtypes):
         self.repository: dict[object, list[list[MultiArrow]]] = \
@@ -303,7 +303,7 @@ class FiniteCombinatoryLogic(object):
                             covers = minimal_covers(nary_types, paths, target_contains)
                             # intersect corresponding arguments of multi-arrows in each cover
                             intersect_args: Callable[[list[Type], list[Type]], map[Type]] = \
-                                lambda args1, args2: map(self._dcap, args1, args2)
+                                lambda args1, args2: list(map(self._dcap, args1, args2))
                             intersected_args = [reduce(intersect_args, (m[0] for m in ms)) for ms in covers]
                             # consider only maximal argument vectors
                             compare_args = lambda args1, args2: all(map(self.subtypes.check_subtype, args1, args2))

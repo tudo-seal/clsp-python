@@ -1,6 +1,6 @@
 
 from cls_python.fcl import MultiArrow
-from cls_python.setcover import minimal_covers, minimal_elements
+from cls_python.combinatorics import minimal_covers, minimal_elements
 from cls_python.types import Omega, Type, Arrow, Intersection
 from cls_python.fcl import FiniteCombinatoryLogic
 
