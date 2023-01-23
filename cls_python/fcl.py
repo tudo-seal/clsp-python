@@ -13,7 +13,7 @@ from .types import Arrow
 from .types import Intersection
 from .types import Sequence
 from .types import Type
-from .setcover import minimal_covers, maximal_elements, partition
+from .combinatorics import minimal_covers, maximal_elements, partition
 
 MultiArrow: TypeAlias = Tuple[list[Type], Type]
 
@@ -239,7 +239,7 @@ class FiniteCombinatoryLogic(object):
     def _function_types(ty: Type) -> Iterable[list[MultiArrow]] :
         """Presents a type as a list of 0-ary, 1-ary, ..., n-ary function types."""
 
-        def unary_function_types(ty: type) -> Iterable[tuple[Type, Type]] :
+        def unary_function_types(ty: Type) -> Iterable[tuple[Type, Type]] :
             tys: deque[Type] = deque((ty, ))
             while tys:
                 match tys.pop():
@@ -248,11 +248,11 @@ class FiniteCombinatoryLogic(object):
                     case Intersection(sigma, tau):
                         tys.extend((sigma, tau))
 
-        current = [([], ty)]
+        current: list[MultiArrow] = [([], ty)]
         while len(current) != 0:
             yield current
             current = [(args + [new_arg], new_tgt) for (args, tgt) in current
-                for (new_arg, new_tgt) in unary_function_types(tgt) ]
+                for (new_arg, new_tgt) in unary_function_types(tgt)]
             
 
     def _dcap(self, sigma: Type, tau: Type) -> Type:
@@ -271,9 +271,9 @@ class FiniteCombinatoryLogic(object):
     def _combinatory_expression_rules(combinator: object, arguments: list[Type], target: Type) -> Iterable[Rule]:
         """Rules from combinatory expression `combinator(arguments[0], ..., arguments[n])`."""
 
-        arguments: deque[Type] = deque(arguments)
-        while arguments:
-            argument = arguments.pop()
+        remaining_arguments: deque[Type] = deque(arguments)
+        while remaining_arguments:
+            argument = remaining_arguments.pop()
             yield Apply(target, Arrow(argument, target), argument)
             target = Arrow(argument, target)
         yield Combinator(target, combinator)
@@ -302,7 +302,8 @@ class FiniteCombinatoryLogic(object):
                             # cover target using targets of multi-arrows in nary_types
                             covers = minimal_covers(nary_types, paths, target_contains)
                             # intersect corresponding arguments of multi-arrows in each cover
-                            intersect_args = lambda args1, args2: map(self._dcap, args1, args2)
+                            intersect_args: Callable[[list[Type], list[Type]], map[Type]] = \
+                                lambda args1, args2: map(self._dcap, args1, args2)
                             intersected_args = [reduce(intersect_args, (m[0] for m in ms)) for ms in covers]
                             # consider only maximal argument vectors
                             compare_args = lambda args1, args2: all(map(self.subtypes.check_subtype, args1, args2))

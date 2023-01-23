@@ -8,7 +8,7 @@ E = TypeVar('E') # Type of Elements
 def partition(predicate: Callable[[E], bool], elements: Iterable[E]) -> tuple[deque[E], deque[E]]:
     """Partition elements into (elements not satisfying predicate, elements satisfying predicate)."""
 
-    partitioning: tuple[deque[set[int]], deque[set[int]]] = (deque(), deque())
+    partitioning: tuple[deque[E], deque[E]] = (deque(), deque())
     for element in elements:
         if predicate(element):
             partitioning[1].append(element)
@@ -50,7 +50,7 @@ def minimal_covers(sets: list[S], to_cover: list[E], contains: Callable[[S, E], 
     """
     # sets necessarily included in any cover
     necessary_sets: set[int] = set()
-    # for each element e: list of sets containing e
+    # for each element e: sets containing e
     relevant_sets: deque[set[int]] = deque()
     for i in range(len(to_cover)):
         covering_sets = {j for j in range(len(sets)) if contains(sets[j], to_cover[i])}
