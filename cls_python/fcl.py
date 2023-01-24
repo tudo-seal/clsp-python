@@ -9,10 +9,7 @@ from .enumeration import ComputationStep
 from .enumeration import EmptyStep
 from .enumeration import Enumeration
 from .subtypes import Subtypes
-from .types import Arrow
-from .types import Intersection
-from .types import Sequence
-from .types import Type
+from .types import Type, Arrow, Intersection, Omega
 from .combinatorics import minimal_covers, maximal_elements, partition
 
 MultiArrow: TypeAlias = Tuple[list[Type], Type]
@@ -253,15 +250,7 @@ class FiniteCombinatoryLogic(object):
             yield current
             current = [(args + [new_arg], new_tgt) for (args, tgt) in current
                 for (new_arg, new_tgt) in unary_function_types(tgt)]
-            
 
-    def _dcap(self, sigma: Type, tau: Type) -> Type:
-        if self.subtypes.check_subtype(sigma, tau):
-            return sigma
-        elif self.subtypes.check_subtype(tau, sigma):
-            return tau
-        else:
-            return Intersection(sigma, tau)
 
     def _omega_rules(self, target: Type) -> set[Rule]:
         return {Apply(target, target, target),
@@ -298,13 +287,14 @@ class FiniteCombinatoryLogic(object):
                     for combinator, combinator_type in self.repository.items():
                         for nary_types in combinator_type:
                             # does the target of a multi-arrow contain a given type?
-                            target_contains = lambda m, t: self.subtypes.check_subtype(m[1], t)
+                            target_contains: Callable[[MultiArrow, Type], bool] = \
+                                lambda m, t: self.subtypes.check_subtype(m[1], t)
                             # cover target using targets of multi-arrows in nary_types
                             covers = minimal_covers(nary_types, paths, target_contains)
                             # intersect corresponding arguments of multi-arrows in each cover
                             intersect_args: Callable[[list[Type], list[Type]], map[Type]] = \
-                                lambda args1, args2: list(map(self._dcap, args1, args2))
-                            intersected_args = [reduce(intersect_args, (m[0] for m in ms)) for ms in covers]
+                                lambda args1, args2: map(Intersection, args1, args2)
+                            intersected_args = (list(reduce(intersect_args, (m[0] for m in ms))) for ms in covers)
                             # consider only maximal argument vectors
                             compare_args = lambda args1, args2: all(map(self.subtypes.check_subtype, args1, args2))
                             for subquery in maximal_elements(intersected_args, compare_args):
