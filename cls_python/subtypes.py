@@ -1,89 +1,55 @@
-from abc import ABC, abstractmethod
-from collections.abc import Iterator, Sequence
-from typing import TypeAlias, Callable
+from collections import deque
 
 from .types import *
-
-SubtypeInstruction: TypeAlias = Callable[[list[bool | Type], list['SubtypeInstruction']], None]
 
 class Subtypes(object):
     def __init__(self, environment: dict[object, set]):
         self.environment = self._transitive_closure(self._reflexive_closure(environment))
 
-    def _tgt_for_srcs(self, gte: Type, inseq: Sequence[Tuple[Type, Type]]) -> Iterator[Type]:
-        for src, tgt in inseq:
-            if self.check_subtype(gte, src):
-                yield tgt
-
-    def check_subtype(self, subtype: Type, supertype: Type) -> bool:
+    def _check_subtype_rec(self, subtypes: deque[Type], supertype: Type) -> bool :
+        if supertype.is_omega:
+            return True
         match supertype:
-            case Omega():
-                return True
-            case Constructor(_, arg):
-                casted = self.cast(supertype, subtype)
-                return len(casted) > 0 and self.check_subtype(Type.intersect(casted), arg)
-            case Arrow(src, tgt):
-                return tgt.is_omega or self.check_subtype(
-                    Type.intersect(list(self._tgt_for_srcs(src, self.cast(supertype, subtype)))),
-                    tgt
-                )
-            case Product(l, r):
-                casted = self.cast(supertype, subtype)
-                if casted:
-                    (ls, rs) = tuple(zip(*casted))
-                    return len(ls) > 0 \
-                        and self.check_subtype(Type.intersect(ls), l) \
-                        and self.check_subtype(Type.intersect(rs), r)
-                else:
-                    return False
+            case Constructor(name2, arg2):
+                casted: deque[Type] = deque()
+                while subtypes:
+                    match subtypes.pop():
+                        case Constructor(name1, arg1):
+                            if name2 == name1 or name2 in self.environment.get(name1, {}):
+                               casted.append(arg1)
+                        case Intersection(l, r):
+                            subtypes.extend((l, r))
+                return len(casted) != 0 and self._check_subtype_rec(casted, arg2)
+            case Arrow(src2, tgt2):
+                casted: deque[Type] = deque()
+                while subtypes:
+                    match subtypes.pop():
+                        case Arrow(src1, tgt1):
+                            if self._check_subtype_rec(deque((src2, )), src1):
+                               casted.append(tgt1)
+                        case Intersection(l, r):
+                            subtypes.extend((l, r))
+                return len(casted) != 0 and self._check_subtype_rec(casted, tgt2)
+            case Product(l2, r2):
+                casted_l: deque[Type] = deque()
+                casted_r: deque[Type] = deque()
+                while subtypes:
+                    match subtypes.pop():
+                        case Product(l1, r1):
+                            casted_l.append(l1)
+                            casted_r.append(r1)
+                        case Intersection(l, r):
+                            subtypes.extend((l, r))
+                return len(casted_l) != 0 and len(casted_r) != 0 and self._check_subtype_rec(casted_l, l2) and self._check_subtype_rec(casted_r, r2)
             case Intersection(l, r):
-                return self.check_subtype(subtype, l) and self.check_subtype(subtype, r)
+                return self._check_subtype_rec(subtypes, l) and self._check_subtype_rec(subtypes, r)
             case _:
-                raise TypeError(f"Unsupported type: {supertype}")
+                raise TypeError(f"Unsupported type in check_subtype: {supertype}")
 
-    def cast(self, to: Type, castee: Type) -> Sequence:
-        match to:
-            case Omega():
-                return [to]
-            case Arrow(_, tgt) if tgt.is_omega:
-                return [(Omega(), Omega())]
-            case Arrow(_, _):
-                def cast_rec(other, delta):
-                    match other:
-                        case Arrow(osrc, otgt):
-                            return [(osrc, otgt), *delta]
-                        case Intersection(l, r):
-                            return cast_rec(l, cast_rec(r, delta))
-                        case _:
-                            return delta
+    def check_subtype(self, subtype: Type, supertype: Type) -> bool :
+        """Decides whether subtype <= supertype."""
 
-                return cast_rec(castee, [])
-            case Constructor(name, _):
-                def cast_rec(other, delta):
-                    match other:
-                        case Constructor(oname, oarg):
-                            if name in self.environment.get(oname, {oname}):
-                                return [oarg, *delta]
-                            return delta
-                        case Intersection(l, r):
-                            return cast_rec(l, cast_rec(r, delta))
-                        case _:
-                            return delta
-
-                return cast_rec(castee, [])
-            case Product(_, _):
-                def cast_rec(other, delta):
-                    match other:
-                        case Product(oleft, oright):
-                            return [(oleft, oright), *delta]
-                        case Intersection(l, r):
-                            return cast_rec(l, cast_rec(r, delta))
-                        case _:
-                            return delta
-
-                return cast_rec(castee, [])
-            case _:
-                raise TypeError(f"Unsupported type: {to}")
+        return self._check_subtype_rec(deque((subtype, )), supertype)
 
     @staticmethod
     def _reflexive_closure(env: dict[object, set]) -> dict[object, set]:

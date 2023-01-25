@@ -277,7 +277,7 @@ class FiniteCombinatoryLogic(object):
             target = remaining_targets.pop()
             if memo.get(target) is None:
                 # target type was not seen before
-                paths: list[Type] = list(target._organized())
+                paths: list[Type] = list(target.organized)
                 possibilities: deque[tuple[object, list[Type]]] = deque()
                 memo.update({target : possibilities})
                 if target.is_omega:
