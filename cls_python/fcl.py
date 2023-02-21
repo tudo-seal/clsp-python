@@ -14,6 +14,7 @@ from .combinatorics import minimal_covers, maximal_elements, partition
 
 MultiArrow: TypeAlias = Tuple[list[Type], Type]
 
+
 @dataclass(frozen=True)
 class Rule(ABC):
     target: Type = field(init=True, kw_only=True)
@@ -47,17 +48,19 @@ class Apply(Rule):
     argument_type: Type = field(init=True)
 
     def __str__(self):
-        return f"@({str(self.function_type)}, {str(self.argument_type)}) : {self.target}"
+        return (
+            f"@({str(self.function_type)}, {str(self.argument_type)}) : {self.target}"
+        )
 
 
 @dataclass(frozen=True)
 class Tree(object):
     rule: Rule = field(init=True)
-    children: Tuple['Tree', ...] = field(init=True, default_factory=lambda: ())
+    children: Tuple["Tree", ...] = field(init=True, default_factory=lambda: ())
 
     class Evaluator(ComputationStep):
-        def __init__(self, outer: 'Tree', results: list[Any]):
-            self.outer: 'Tree' = outer
+        def __init__(self, outer: "Tree", results: list[Any]):
+            self.outer: "Tree" = outer
             self.results = results
 
         def __iter__(self) -> Iterator[ComputationStep]:
@@ -65,7 +68,7 @@ class Tree(object):
                 case Combinator(_, c):
                     self.results.append(c)
                 case Apply(_, _, _):
-                    f_arg : list[Any] = []
+                    f_arg: list[Any] = []
                     yield Tree.Evaluator(self.outer.children[0], f_arg)
                     yield Tree.Evaluator(self.outer.children[1], f_arg)
                     self.results.append(partial(f_arg[0])(f_arg[1]))
@@ -80,9 +83,12 @@ class Tree(object):
 
     def __str__(self):
         match self.rule:
-            case Combinator(_, _): return str(self.rule)
-            case Apply(_, _, _): return f"{str(self.children[0])}({str(self.children[1])})"
-            case _: return f"{str(self.rule)} @ ({', '.join(map(str, self.children))})"
+            case Combinator(_, _):
+                return str(self.rule)
+            case Apply(_, _, _):
+                return f"{str(self.children[0])}({str(self.children[1])})"
+            case _:
+                return f"{str(self.rule)} @ ({', '.join(map(str, self.children))})"
 
 
 @dataclass(frozen=True)
@@ -143,7 +149,9 @@ class InhabitationResult(object):
                 can_reach = reachable[target]
                 if target in can_reach:
                     return True
-                newly_reached = set().union(*(reachable[reached] for reached in can_reach))
+                newly_reached = set().union(
+                    *(reachable[reached] for reached in can_reach)
+                )
                 for new_target in newly_reached:
                     if target == new_target:
                         return True
@@ -163,7 +171,7 @@ class InhabitationResult(object):
         maximum = self.raw.unsafe_max_size()
         size = 0
         values = self.raw.all_values()
-        for _ in range(0, maximum+1):
+        for _ in range(0, maximum + 1):
             trees = next(values)
             size += len(trees)
         return size
@@ -179,13 +187,15 @@ class InhabitationResult(object):
         return Enumeration.singleton(Tree(r, ()))
 
     @staticmethod
-    def apply_result(result: dict[Type, Enumeration[Tree]], r: Apply) -> Enumeration[Tree]:
+    def apply_result(
+        result: dict[Type, Enumeration[Tree]], r: Apply
+    ) -> Enumeration[Tree]:
         def mkapp(left_and_right):
             return Tree(r, (left_and_right[0], left_and_right[1]))
 
         def apf():
-            return (result[r.function_type] * result[r.argument_type]) \
-                    .map(mkapp).pay()
+            return (result[r.function_type] * result[r.argument_type]).map(mkapp).pay()
+
         applied = Enumeration.lazy(apf)
         return applied
 
@@ -214,7 +224,9 @@ class InhabitationResult(object):
         else:
             result: Enumeration[list[Tree]] = Enumeration.singleton([])
             for target in self.targets:
-                result = (result * self.enumeration_map[target]).map(lambda x: [*x[0], x[1]])
+                result = (result * self.enumeration_map[target]).map(
+                    lambda x: [*x[0], x[1]]
+                )
             return result
 
     @cached_property
@@ -223,21 +235,22 @@ class InhabitationResult(object):
             return self.raw.map(lambda t: t.evaluate())
         else:
             return self.raw.map(lambda l: list(map(lambda t: t.evaluate(), l)))
-        
+
+
 class FiniteCombinatoryLogic(object):
-
-
     def __init__(self, repository: dict[object, Type], subtypes: Subtypes):
-        self.repository: dict[object, list[list[MultiArrow]]] = \
-            {c : list(FiniteCombinatoryLogic._function_types(ty)) for c, ty in repository.items()}
+        self.repository: dict[object, list[list[MultiArrow]]] = {
+            c: list(FiniteCombinatoryLogic._function_types(ty))
+            for c, ty in repository.items()
+        }
         self.subtypes = subtypes
 
     @staticmethod
-    def _function_types(ty: Type) -> Iterable[list[MultiArrow]] :
+    def _function_types(ty: Type) -> Iterable[list[MultiArrow]]:
         """Presents a type as a list of 0-ary, 1-ary, ..., n-ary function types."""
 
-        def unary_function_types(ty: Type) -> Iterable[tuple[Type, Type]] :
-            tys: deque[Type] = deque((ty, ))
+        def unary_function_types(ty: Type) -> Iterable[tuple[Type, Type]]:
+            tys: deque[Type] = deque((ty,))
             while tys:
                 match tys.pop():
                     case Arrow(src, tgt) if not tgt.is_omega:
@@ -248,16 +261,22 @@ class FiniteCombinatoryLogic(object):
         current: list[MultiArrow] = [([], ty)]
         while len(current) != 0:
             yield current
-            current = [(args + [new_arg], new_tgt) for (args, tgt) in current
-                for (new_arg, new_tgt) in unary_function_types(tgt)]
-
+            current = [
+                (args + [new_arg], new_tgt)
+                for (args, tgt) in current
+                for (new_arg, new_tgt) in unary_function_types(tgt)
+            ]
 
     def _omega_rules(self, target: Type) -> set[Rule]:
-        return {Apply(target, target, target),
-                *map(lambda c: Combinator(target, c), self.repository.keys())}
+        return {
+            Apply(target, target, target),
+            *map(lambda c: Combinator(target, c), self.repository.keys()),
+        }
 
     @staticmethod
-    def _combinatory_expression_rules(combinator: object, arguments: list[Type], target: Type) -> Iterable[Rule]:
+    def _combinatory_expression_rules(
+        combinator: object, arguments: list[Type], target: Type
+    ) -> Iterable[Rule]:
         """Rules from combinatory expression `combinator(arguments[0], ..., arguments[n])`."""
 
         remaining_arguments: deque[Type] = deque(arguments)
@@ -279,7 +298,7 @@ class FiniteCombinatoryLogic(object):
                 # target type was not seen before
                 paths: list[Type] = list(target.organized)
                 possibilities: deque[tuple[object, list[Type]]] = deque()
-                memo.update({target : possibilities})
+                memo.update({target: possibilities})
                 if target.is_omega:
                     result |= self._omega_rules(target)
                 else:
@@ -287,20 +306,29 @@ class FiniteCombinatoryLogic(object):
                     for combinator, combinator_type in self.repository.items():
                         for nary_types in combinator_type:
                             # does the target of a multi-arrow contain a given type?
-                            target_contains: Callable[[MultiArrow, Type], bool] = \
-                                lambda m, t: self.subtypes.check_subtype(m[1], t)
+                            target_contains: Callable[
+                                [MultiArrow, Type], bool
+                            ] = lambda m, t: self.subtypes.check_subtype(m[1], t)
                             # cover target using targets of multi-arrows in nary_types
                             covers = minimal_covers(nary_types, paths, target_contains)
                             # intersect corresponding arguments of multi-arrows in each cover
-                            intersect_args: Callable[[list[Type], list[Type]], map[Type]] = \
-                                lambda args1, args2: map(Intersection, args1, args2)
-                            intersected_args = (list(reduce(intersect_args, (m[0] for m in ms))) for ms in covers)
+                            intersect_args: Callable[
+                                [list[Type], list[Type]], map[Type]
+                            ] = lambda args1, args2: map(Intersection, args1, args2)
+                            intersected_args = (
+                                list(reduce(intersect_args, (m[0] for m in ms)))
+                                for ms in covers
+                            )
                             # consider only maximal argument vectors
-                            compare_args = lambda args1, args2: all(map(self.subtypes.check_subtype, args1, args2))
-                            for subquery in maximal_elements(intersected_args, compare_args):
+                            compare_args = lambda args1, args2: all(
+                                map(self.subtypes.check_subtype, args1, args2)
+                            )
+                            for subquery in maximal_elements(
+                                intersected_args, compare_args
+                            ):
                                 possibilities.append((combinator, subquery))
                                 remaining_targets.extendleft(subquery)
-        
+
         # prune not inhabited types
         FiniteCombinatoryLogic._prune(memo)
         # convert memo into resulting set of rules
@@ -308,22 +336,34 @@ class FiniteCombinatoryLogic(object):
             if len(possibilities) == 0 and not target.is_omega:
                 result.add(Failed(target))
             for combinator, arguments in possibilities:
-                result.update(self._combinatory_expression_rules(combinator, arguments, target))
+                result.update(
+                    self._combinatory_expression_rules(combinator, arguments, target)
+                )
 
-        #return InhabitationResult(targets=list(targets), rules=FiniteCombinatoryLogic._prune(result))
+        # return InhabitationResult(targets=list(targets), rules=FiniteCombinatoryLogic._prune(result))
         return InhabitationResult(targets=list(targets), rules=result)
-    
+
     @staticmethod
-    def _prune(memo: dict[Type, deque[tuple[object, list[Type]]]]) -> None :
+    def _prune(memo: dict[Type, deque[tuple[object, list[Type]]]]) -> None:
         """Keep only productive grammar rules."""
 
         ground_types: set[Type] = set()
         is_ground = lambda args: all(True for arg in args if arg in ground_types)
-        new_ground_types, candidates = partition(lambda ty: any(True for (_, args) in memo[ty] if is_ground(args)), memo.keys())
+        new_ground_types, candidates = partition(
+            lambda ty: any(True for (_, args) in memo[ty] if is_ground(args)),
+            memo.keys(),
+        )
         # initialize inhabited (ground) types
         while new_ground_types:
             ground_types.update(new_ground_types)
-            new_ground_types, candidates = partition(lambda ty: any(True for _, args in memo[ty] if is_ground(args)), candidates)
+            new_ground_types, candidates = partition(
+                lambda ty: any(True for _, args in memo[ty] if is_ground(args)),
+                candidates,
+            )
 
         for target, possibilities in memo.items():
-            memo[target] = deque(possibility for possibility in possibilities if is_ground(possibility[1]))
+            memo[target] = deque(
+                possibility
+                for possibility in possibilities
+                if is_ground(possibility[1])
+            )

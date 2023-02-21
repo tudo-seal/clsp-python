@@ -1,6 +1,14 @@
 from .types import *
 from .subtypes import Subtypes
-from .fcl import InhabitationResult, FiniteCombinatoryLogic, Combinator, Apply, Failed, Rule, Tree
+from .fcl import (
+    InhabitationResult,
+    FiniteCombinatoryLogic,
+    Combinator,
+    Apply,
+    Failed,
+    Rule,
+    Tree,
+)
 from .cls_json import CLSDecoder, CLSEncoder
 from .debug_util import deep_str
 

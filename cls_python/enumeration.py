@@ -1,7 +1,19 @@
 from abc import abstractmethod, ABC
 from itertools import chain
-from typing import TypeVar, Generic, Iterator, Iterable, Tuple, Callable, Union, Sequence, Optional, overload, \
-    SupportsIndex, NoReturn
+from typing import (
+    TypeVar,
+    Generic,
+    Iterator,
+    Iterable,
+    Tuple,
+    Callable,
+    Union,
+    Sequence,
+    Optional,
+    overload,
+    SupportsIndex,
+    NoReturn,
+)
 from collections import deque
 
 A = TypeVar("A", covariant=True)
@@ -9,9 +21,9 @@ B = TypeVar("B", covariant=True)
 C = TypeVar("C")
 
 
-class ComputationStep(Iterable['ComputationStep'], ABC):
+class ComputationStep(Iterable["ComputationStep"], ABC):
     @abstractmethod
-    def __iter__(self) -> Iterator['ComputationStep']:
+    def __iter__(self) -> Iterator["ComputationStep"]:
         pass
 
     def run(self) -> None:
@@ -27,7 +39,7 @@ class ComputationStep(Iterable['ComputationStep'], ABC):
 
 
 class EmptyStep(ComputationStep):
-    def __iter__(self) -> Iterator['ComputationStep']:
+    def __iter__(self) -> Iterator["ComputationStep"]:
         return
         yield self
 
@@ -38,34 +50,34 @@ class Finite(Sequence[A], ABC):
         self._size = -1
 
     @staticmethod
-    def empty() -> 'Finite[C]':
+    def empty() -> "Finite[C]":
         return FiniteEmpty()
 
     @staticmethod
-    def singleton(value: C) -> 'Finite[C]':
+    def singleton(value: C) -> "Finite[C]":
         return FiniteSingleton(value)
 
     @staticmethod
-    def lazy_singleton(value: Callable[[], C]) -> 'Finite[C]':
+    def lazy_singleton(value: Callable[[], C]) -> "Finite[C]":
         return FiniteLazySingleton(value)
 
     @staticmethod
-    def of(seq: Sequence[C]) -> 'Finite[C]':
+    def of(seq: Sequence[C]) -> "Finite[C]":
         return FiniteOfSequence(seq)
 
-    def _add_opt(self, other: 'Finite[C]') -> 'Finite[Union[C, A]]':
+    def _add_opt(self, other: "Finite[C]") -> "Finite[Union[C, A]]":
         return FiniteUnion(other, self)
 
-    def __add__(self, other: 'Finite[C]') -> 'Finite[Union[A, C]]':
+    def __add__(self, other: "Finite[C]") -> "Finite[Union[A, C]]":
         return other._add_opt(self)
 
-    def _mul_opt(self, other: 'Finite[C]') -> 'Finite[Tuple[C, A]]':
+    def _mul_opt(self, other: "Finite[C]") -> "Finite[Tuple[C, A]]":
         return FiniteProduct(other, self)
 
-    def __mul__(self, other: 'Finite[C]') -> 'Finite[Tuple[A, C]]':
+    def __mul__(self, other: "Finite[C]") -> "Finite[Tuple[A, C]]":
         return other._mul_opt(self)
 
-    def map(self, f: Callable[[A], C]) -> 'Finite[C]':
+    def map(self, f: Callable[[A], C]) -> "Finite[C]":
         return FiniteMap(self, f)
 
     def __len__(self):
@@ -80,10 +92,12 @@ class Finite(Sequence[A], ABC):
         ...
 
     @overload
-    def __getitem__(self, index: slice) -> 'Finite[A]':
+    def __getitem__(self, index: slice) -> "Finite[A]":
         ...
 
-    def __getitem__(self, index: Union[int, Union[SupportsIndex, slice]]) -> Union[A, 'Finite[A]']:
+    def __getitem__(
+        self, index: Union[int, Union[SupportsIndex, slice]]
+    ) -> Union[A, "Finite[A]"]:
         def int_case(index: int) -> A:
             if index < 0 or index >= self.size:
                 raise IndexError(index)
@@ -132,8 +146,8 @@ class Finite(Sequence[A], ABC):
         return self.cache[index]
 
     class LocalClearCacheComputation(ComputationStep):
-        def __init__(self, outer: 'Finite[A]'):
-            self.outer: 'Finite[A]' = outer
+        def __init__(self, outer: "Finite[A]"):
+            self.outer: "Finite[A]" = outer
 
         def __iter__(self) -> Iterator[ComputationStep]:
             self.outer.cache = dict()
@@ -161,13 +175,13 @@ class FiniteEmpty(Finite[NoReturn]):
     def clear_cache_computation(self) -> ComputationStep:
         return EmptyStep()
 
-    def _mul_opt(self, other: 'Finite[C]') -> 'Finite[Tuple[C, A]]':
+    def _mul_opt(self, other: "Finite[C]") -> "Finite[Tuple[C, A]]":
         return self
 
     def __mul__(self, other):
         return self
 
-    def _add_opt(self, other: 'Finite[C]') -> 'Finite[Union[C, A]]':
+    def _add_opt(self, other: "Finite[C]") -> "Finite[Union[C, A]]":
         return other
 
     def __add__(self, other):
@@ -176,7 +190,7 @@ class FiniteEmpty(Finite[NoReturn]):
     def pay(self):
         return self
 
-    def map(self, f: Callable[[A], C]) -> 'Finite[C]':
+    def map(self, f: Callable[[A], C]) -> "Finite[C]":
         return self
 
 
@@ -196,17 +210,19 @@ class FiniteSingleton(Finite[A]):
     def clear_cache_computation(self) -> ComputationStep:
         return EmptyStep()
 
-    def _mul_opt(self, other: 'Finite[C]') -> 'Finite[Tuple[C, A]]':
+    def _mul_opt(self, other: "Finite[C]") -> "Finite[Tuple[C, A]]":
         def g(_x):
             return (_x, self.value)
+
         return other.map(g)
 
     def __mul__(self, other):
         def g(_x):
             return (self.value, _x)
+
         return other.map(g)
 
-    def map(self, f: Callable[[A], C]) -> 'Finite[C]':
+    def map(self, f: Callable[[A], C]) -> "Finite[C]":
         return FiniteSingleton(f(self.value))
 
 
@@ -220,8 +236,8 @@ class FiniteLazySingleton(Finite[A]):
         return EmptyStep()
 
     class SingletonComputation(ComputationStep):
-        def __init__(self, outer: 'FiniteLazySingleton[A]'):
-            self.outer: 'FiniteLazySingleton[A]' = outer
+        def __init__(self, outer: "FiniteLazySingleton[A]"):
+            self.outer: "FiniteLazySingleton[A]" = outer
 
         def __iter__(self) -> Iterator[ComputationStep]:
             self.outer.cache[0] = self.outer.value()
@@ -231,8 +247,8 @@ class FiniteLazySingleton(Finite[A]):
         return self.SingletonComputation(self)
 
     class LocalClearCacheComputation(ComputationStep):
-        def __init__(self, outer: 'Finite[A]'):
-            self.outer: 'Finite[A]' = outer
+        def __init__(self, outer: "Finite[A]"):
+            self.outer: "Finite[A]" = outer
 
         def __iter__(self) -> Iterator[ComputationStep]:
             self.outer.cache = dict()
@@ -248,8 +264,8 @@ class FiniteOfSequence(Finite[A]):
         self.seq: Sequence[A] = seq
 
     class SizeComputation(ComputationStep):
-        def __init__(self, outer: 'FiniteOfSequence[A]'):
-            self.outer: 'FiniteOfSequence[A]' = outer
+        def __init__(self, outer: "FiniteOfSequence[A]"):
+            self.outer: "FiniteOfSequence[A]" = outer
 
         def __iter__(self) -> Iterator[ComputationStep]:
             self.outer.size = len(self.outer.seq)
@@ -259,8 +275,8 @@ class FiniteOfSequence(Finite[A]):
         return self.SizeComputation(self)
 
     class SequenceComputation(ComputationStep):
-        def __init__(self, outer: 'FiniteOfSequence[A]', index: int):
-            self.outer: 'FiniteOfSequence[A]' = outer
+        def __init__(self, outer: "FiniteOfSequence[A]", index: int):
+            self.outer: "FiniteOfSequence[A]" = outer
             self.index = index
 
         def __iter__(self) -> Iterator[ComputationStep]:
@@ -274,14 +290,14 @@ class FiniteOfSequence(Finite[A]):
 
 
 class FiniteSlice(Finite[A]):
-    def __init__(self, over: 'Finite[A]', s: slice):
+    def __init__(self, over: "Finite[A]", s: slice):
         super().__init__()
         self.over: Finite[A] = over
         self.s: slice = s
 
     class SizeComputation(ComputationStep):
-        def __init__(self, outer: 'FiniteSlice[A]'):
-            self.outer: 'FiniteSlice[A]' = outer
+        def __init__(self, outer: "FiniteSlice[A]"):
+            self.outer: "FiniteSlice[A]" = outer
 
         def __iter__(self) -> Iterator[ComputationStep]:
             s = self.outer.s
@@ -295,8 +311,8 @@ class FiniteSlice(Finite[A]):
         return self.SizeComputation(self)
 
     class SliceComputation(ComputationStep):
-        def __init__(self, outer: 'FiniteSlice[A]', index: int):
-            self.outer: 'FiniteSlice[A]' = outer
+        def __init__(self, outer: "FiniteSlice[A]", index: int):
+            self.outer: "FiniteSlice[A]" = outer
             self.index: int = index
 
         def __iter__(self) -> Iterator[ComputationStep]:
@@ -313,8 +329,8 @@ class FiniteSlice(Finite[A]):
         return self.SliceComputation(self, index)
 
     class LocalClearCacheComputation(ComputationStep):
-        def __init__(self, outer: 'FiniteSlice[A]'):
-            self.outer: 'FiniteSlice[A]' = outer
+        def __init__(self, outer: "FiniteSlice[A]"):
+            self.outer: "FiniteSlice[A]" = outer
 
         def __iter__(self) -> Iterator[ComputationStep]:
             yield self.outer.over.clear_cache_computation()
@@ -331,8 +347,8 @@ class FiniteUnion(Finite[A]):
         self.right: Finite[A] = right
 
     class SizeComputation(ComputationStep):
-        def __init__(self, outer: 'FiniteUnion[A]'):
-            self.outer: 'FiniteUnion[A]' = outer
+        def __init__(self, outer: "FiniteUnion[A]"):
+            self.outer: "FiniteUnion[A]" = outer
 
         def __iter__(self) -> Iterator[ComputationStep]:
             yield self.outer.left.cached_size_computation()
@@ -344,8 +360,8 @@ class FiniteUnion(Finite[A]):
         return self.SizeComputation(self)
 
     class UnionComputation(ComputationStep):
-        def __init__(self, outer: 'FiniteUnion[A]', index: int):
-            self.outer: 'FiniteUnion[A]' = outer
+        def __init__(self, outer: "FiniteUnion[A]", index: int):
+            self.outer: "FiniteUnion[A]" = outer
             self.index: int = index
 
         def __iter__(self) -> Iterator[ComputationStep]:
@@ -357,15 +373,17 @@ class FiniteUnion(Finite[A]):
                 self.outer.cache[index] = self.outer.left.get_checked(index)
             else:
                 yield self.outer.right.cached_computation(index - left_size)
-                self.outer.cache[index] = self.outer.right.get_checked(index - left_size)
+                self.outer.cache[index] = self.outer.right.get_checked(
+                    index - left_size
+                )
             yield EmptyStep()
 
     def computation(self, index: int) -> ComputationStep:
         return self.UnionComputation(self, index)
 
     class LocalClearCacheComputation(ComputationStep):
-        def __init__(self, outer: 'FiniteUnion[A]'):
-            self.outer: 'FiniteUnion[A]' = outer
+        def __init__(self, outer: "FiniteUnion[A]"):
+            self.outer: "FiniteUnion[A]" = outer
 
         def __iter__(self) -> Iterator[ComputationStep]:
             yield self.outer.left.clear_cache_computation()
@@ -383,8 +401,8 @@ class FiniteProduct(Finite[Tuple[A, B]], Generic[A, B]):
         self.right: Finite[B] = right
 
     class SizeComputation(ComputationStep):
-        def __init__(self, outer: 'FiniteProduct[A, B]'):
-            self.outer: 'FiniteProduct[A, B]' = outer
+        def __init__(self, outer: "FiniteProduct[A, B]"):
+            self.outer: "FiniteProduct[A, B]" = outer
 
         def __iter__(self) -> Iterator[ComputationStep]:
             yield self.outer.left.cached_size_computation()
@@ -396,8 +414,8 @@ class FiniteProduct(Finite[Tuple[A, B]], Generic[A, B]):
         return self.SizeComputation(self)
 
     class ProductComputation(ComputationStep):
-        def __init__(self, outer: 'FiniteProduct[A, B]', index: int):
-            self.outer: 'FiniteProduct[A, B]' = outer
+        def __init__(self, outer: "FiniteProduct[A, B]", index: int):
+            self.outer: "FiniteProduct[A, B]" = outer
             self.index: int = index
 
         def __iter__(self) -> Iterator[ComputationStep]:
@@ -406,16 +424,18 @@ class FiniteProduct(Finite[Tuple[A, B]], Generic[A, B]):
             size: int = self.outer.right.size
             yield self.outer.left.cached_computation(index // size)
             yield self.outer.right.cached_computation(index % size)
-            self.outer.cache[index] = \
-                (self.outer.left.get_checked(index // size), self.outer.right.get_checked(index % size))
+            self.outer.cache[index] = (
+                self.outer.left.get_checked(index // size),
+                self.outer.right.get_checked(index % size),
+            )
             yield EmptyStep()
 
     def computation(self, index: int) -> ComputationStep:
         return self.ProductComputation(self, index)
 
     class LocalClearCacheComputation(ComputationStep):
-        def __init__(self, outer: 'FiniteProduct[A, B]'):
-            self.outer: 'FiniteProduct[A, B]' = outer
+        def __init__(self, outer: "FiniteProduct[A, B]"):
+            self.outer: "FiniteProduct[A, B]" = outer
 
         def __iter__(self) -> Iterator[ComputationStep]:
             yield self.outer.left.clear_cache_computation()
@@ -427,14 +447,14 @@ class FiniteProduct(Finite[Tuple[A, B]], Generic[A, B]):
 
 
 class FiniteMap(Finite[A], Generic[C, A]):
-    def __init__(self, over: 'Finite[C]', f: Callable[[C], A]):
+    def __init__(self, over: "Finite[C]", f: Callable[[C], A]):
         super().__init__()
         self.over: Finite[C] = over
         self.f: Callable[[C], A] = f
 
     class SizeComputation(ComputationStep):
-        def __init__(self, outer: 'FiniteMap[C, A]'):
-            self.outer: 'FiniteMap[C, A]' = outer
+        def __init__(self, outer: "FiniteMap[C, A]"):
+            self.outer: "FiniteMap[C, A]" = outer
 
         def __iter__(self) -> Iterator[ComputationStep]:
             yield self.outer.over.cached_size_computation()
@@ -445,8 +465,8 @@ class FiniteMap(Finite[A], Generic[C, A]):
         return self.SizeComputation(self)
 
     class MapComputation(ComputationStep):
-        def __init__(self, outer: 'FiniteMap[C, A]', index: int):
-            self.outer: 'FiniteMap[C, A]' = outer
+        def __init__(self, outer: "FiniteMap[C, A]", index: int):
+            self.outer: "FiniteMap[C, A]" = outer
             self.index: int = index
 
         def __iter__(self) -> Iterator[ComputationStep]:
@@ -459,8 +479,8 @@ class FiniteMap(Finite[A], Generic[C, A]):
         return self.MapComputation(self, index)
 
     class LocalClearCacheComputation(ComputationStep):
-        def __init__(self, outer: 'FiniteMap[C, A]'):
-            self.outer: 'FiniteMap[C, A]' = outer
+        def __init__(self, outer: "FiniteMap[C, A]"):
+            self.outer: "FiniteMap[C, A]" = outer
 
         def __iter__(self) -> Iterator[ComputationStep]:
             yield self.outer.over.clear_cache_computation()
@@ -469,9 +489,10 @@ class FiniteMap(Finite[A], Generic[C, A]):
     def clear_cache_computation(self) -> ComputationStep:
         return self.LocalClearCacheComputation(self)
 
-    def map(self, f: Callable[[A], C]) -> 'Finite[C]':
+    def map(self, f: Callable[[A], C]) -> "Finite[C]":
         def g(x):
             return f(self.f(x))
+
         return FiniteMap(self.over, g)
 
 
@@ -481,50 +502,51 @@ class Enumeration(Iterable[A], ABC):
         self.max_size: int = -1
 
     @staticmethod
-    def empty() -> 'Enumeration[C]':
+    def empty() -> "Enumeration[C]":
         return EnumerationEmpty()
 
     @staticmethod
-    def singleton(value: C) -> 'Enumeration[C]':
+    def singleton(value: C) -> "Enumeration[C]":
         return EnumerationSingleton(value)
 
     @staticmethod
-    def lazy_singleton(value: Callable[[], C]) -> 'Enumeration[C]':
+    def lazy_singleton(value: Callable[[], C]) -> "Enumeration[C]":
         return EnumerationLazySingleton(value)
 
     @staticmethod
-    def of(iterable: Iterable[C]) -> 'Enumeration[C]':
+    def of(iterable: Iterable[C]) -> "Enumeration[C]":
         return EnumerationOfIterable(iterable)
 
     @staticmethod
-    def lazy(factory: Callable[[], 'Enumeration[C]']) -> 'Enumeration[C]':
+    def lazy(factory: Callable[[], "Enumeration[C]"]) -> "Enumeration[C]":
         return EnumerationLazy(factory)
 
     @staticmethod
-    def ints() -> 'Enumeration[int]':
+    def ints() -> "Enumeration[int]":
         def inf() -> Iterator[int]:
             x: int = 0
             while True:
                 yield x
                 x = x + 1
+
         return Enumeration.of(inf())
 
-    def _add_opt(self, other: 'Enumeration[C]') -> 'Enumeration[Union[C, A]]':
+    def _add_opt(self, other: "Enumeration[C]") -> "Enumeration[Union[C, A]]":
         return EnumerationUnion(other, self)
 
-    def __add__(self, other: 'Enumeration[C]') -> 'Enumeration[Union[A, C]]':
+    def __add__(self, other: "Enumeration[C]") -> "Enumeration[Union[A, C]]":
         return other._add_opt(self)
 
-    def _mul_opt(self, other: 'Enumeration[C]') -> 'Enumeration[Tuple[C, A]]':
+    def _mul_opt(self, other: "Enumeration[C]") -> "Enumeration[Tuple[C, A]]":
         return EnumerationProduct(other, self)
 
-    def __mul__(self, other: 'Enumeration[C]') -> 'Enumeration[Tuple[A, C]]':
+    def __mul__(self, other: "Enumeration[C]") -> "Enumeration[Tuple[A, C]]":
         return other._mul_opt(self)
 
-    def pay(self) -> 'Enumeration[A]':
+    def pay(self) -> "Enumeration[A]":
         return EnumerationPay(self)
 
-    def map(self, f: Callable[[A], C]) -> 'Enumeration[C]':
+    def map(self, f: Callable[[A], C]) -> "Enumeration[C]":
         return EnumerationMap(self, f)
 
     def __iter__(self) -> Iterator[A]:
@@ -544,10 +566,12 @@ class Enumeration(Iterable[A], ABC):
         ...
 
     @overload
-    def __getitem__(self, index: slice) -> 'Finite[A]':
+    def __getitem__(self, index: slice) -> "Finite[A]":
         ...
 
-    def __getitem__(self, index: Union[int, Union[SupportsIndex, slice]]) -> Union[A, 'Finite[A]']:
+    def __getitem__(
+        self, index: Union[int, Union[SupportsIndex, slice]]
+    ) -> Union[A, "Finite[A]"]:
         def int_case(index: int) -> A:
             items = self.all_values()
             while True:
@@ -560,6 +584,7 @@ class Enumeration(Iterable[A], ABC):
                         index -= part_len
                 except StopIteration:
                     raise IndexError(index)
+
         if isinstance(index, int):
             return int_case(index)
         elif isinstance(index, SupportsIndex):
@@ -589,8 +614,8 @@ class Enumeration(Iterable[A], ABC):
         return self.cache[index]
 
     class LocalClearCacheComputation(ComputationStep):
-        def __init__(self, outer: 'Enumeration[A]'):
-            self.outer: 'Enumeration[A]' = outer
+        def __init__(self, outer: "Enumeration[A]"):
+            self.outer: "Enumeration[A]" = outer
 
         def __iter__(self) -> Iterator[ComputationStep]:
             for entry in self.outer.cache.values():
@@ -639,13 +664,13 @@ class EnumerationEmpty(Enumeration[NoReturn]):
     def clear_cache(self) -> None:
         pass
 
-    def _add_opt(self, other: 'Enumeration[C]') -> 'Enumeration[Union[C, A]]':
+    def _add_opt(self, other: "Enumeration[C]") -> "Enumeration[Union[C, A]]":
         return other
 
     def __add__(self, other):
         return other
 
-    def _mul_opt(self, other: 'Enumeration[C]') -> 'Enumeration[Tuple[C, A]]':
+    def _mul_opt(self, other: "Enumeration[C]") -> "Enumeration[Tuple[C, A]]":
         return self
 
     def __mul__(self, other):
@@ -654,7 +679,7 @@ class EnumerationEmpty(Enumeration[NoReturn]):
     def pay(self):
         return self
 
-    def map(self, f: Callable[[A], C]) -> 'Enumeration[C]':
+    def map(self, f: Callable[[A], C]) -> "Enumeration[C]":
         return self
 
     def max_size_computation(self) -> ComputationStep:
@@ -669,8 +694,8 @@ class EnumerationSingleton(Enumeration[A]):
         self.max_size = 1
 
     class SingletonComputation(ComputationStep):
-        def __init__(self, outer: 'EnumerationSingleton[A]', index: int):
-            self.outer: 'EnumerationSingleton[A]' = outer
+        def __init__(self, outer: "EnumerationSingleton[A]", index: int):
+            self.outer: "EnumerationSingleton[A]" = outer
             self.index = index
 
         def __iter__(self) -> Iterator[ComputationStep]:
@@ -695,13 +720,13 @@ class EnumerationSingleton(Enumeration[A]):
             self.cached_computation(index).run()
             return self.cache[index]
 
-    def _mul_opt(self, other: 'Enumeration[C]') -> 'Enumeration[Tuple[C, A]]':
+    def _mul_opt(self, other: "Enumeration[C]") -> "Enumeration[Tuple[C, A]]":
         return other.map(lambda x: (x, self.value))
 
     def __mul__(self, other):
         return other.map(lambda x: (self.value, x))
 
-    def map(self, f: Callable[[A], C]) -> 'Enumeration[C]':
+    def map(self, f: Callable[[A], C]) -> "Enumeration[C]":
         return EnumerationSingleton(f(self.value))
 
     def max_size_computation(self) -> ComputationStep:
@@ -716,8 +741,8 @@ class EnumerationLazySingleton(Enumeration[A]):
         self.max_size = 1
 
     class LazySingletonComputation(ComputationStep):
-        def __init__(self, outer: 'EnumerationLazySingleton[A]', index: int):
-            self.outer: 'EnumerationLazySingleton[A]' = outer
+        def __init__(self, outer: "EnumerationLazySingleton[A]", index: int):
+            self.outer: "EnumerationLazySingleton[A]" = outer
             self.index = index
 
         def __iter__(self) -> Iterator[ComputationStep]:
@@ -741,8 +766,8 @@ class EnumerationLazySingleton(Enumeration[A]):
         return EmptyStep()
 
     class LocalClearCacheComputation(ComputationStep):
-        def __init__(self, outer: 'EnumerationLazySingleton[A]'):
-            self.outer: 'EnumerationLazySingleton[A]' = outer
+        def __init__(self, outer: "EnumerationLazySingleton[A]"):
+            self.outer: "EnumerationLazySingleton[A]" = outer
 
         def __iter__(self) -> Iterator[ComputationStep]:
             yield Enumeration[A].clear_cache_computation(self.outer)
@@ -760,23 +785,25 @@ class EnumerationUnion(Enumeration[A]):
         self.right: Enumeration[A] = right
 
     class UnionComputation(ComputationStep):
-        def __init__(self, outer: 'EnumerationUnion[A]', index: int):
-            self.outer: 'EnumerationUnion[A]' = outer
+        def __init__(self, outer: "EnumerationUnion[A]", index: int):
+            self.outer: "EnumerationUnion[A]" = outer
             self.index: int = index
 
         def __iter__(self) -> Iterator[ComputationStep]:
             index: int = self.index
             yield self.outer.left.cached_computation(index)
             yield self.outer.right.cached_computation(index)
-            self.outer.cache[index] = self.outer.left.get_values(index) + self.outer.right.get_values(index)
+            self.outer.cache[index] = self.outer.left.get_values(
+                index
+            ) + self.outer.right.get_values(index)
             yield EmptyStep()
 
     def computation(self, index: int) -> ComputationStep:
         return self.UnionComputation(self, index)
 
     class LocalClearCacheComputation(ComputationStep):
-        def __init__(self, outer: 'EnumerationUnion[A]'):
-            self.outer: 'EnumerationUnion[A]' = outer
+        def __init__(self, outer: "EnumerationUnion[A]"):
+            self.outer: "EnumerationUnion[A]" = outer
 
         def __iter__(self) -> Iterator[ComputationStep]:
             yield self.outer.left.clear_cache_computation()
@@ -787,13 +814,15 @@ class EnumerationUnion(Enumeration[A]):
         return self.LocalClearCacheComputation(self)
 
     class MaxSizeComputation(ComputationStep):
-        def __init__(self, outer: 'EnumerationUnion[A]'):
-            self.outer: 'EnumerationUnion[A]' = outer
+        def __init__(self, outer: "EnumerationUnion[A]"):
+            self.outer: "EnumerationUnion[A]" = outer
 
         def __iter__(self):
             yield self.outer.left.cached_max_size_computation()
             yield self.outer.right.cached_max_size_computation()
-            self.outer.max_size = max(self.outer.left.unsafe_max_size(), self.outer.right.unsafe_max_size())
+            self.outer.max_size = max(
+                self.outer.left.unsafe_max_size(), self.outer.right.unsafe_max_size()
+            )
             yield EmptyStep()
 
     def max_size_computation(self) -> ComputationStep:
@@ -807,8 +836,8 @@ class EnumerationProduct(Enumeration[Tuple[A, B]], Generic[A, B]):
         self.right: Enumeration[B] = right
 
     class ProductComputation(ComputationStep):
-        def __init__(self, outer: 'EnumerationProduct[A, B]', index: int):
-            self.outer: 'EnumerationProduct[A, B]' = outer
+        def __init__(self, outer: "EnumerationProduct[A, B]", index: int):
+            self.outer: "EnumerationProduct[A, B]" = outer
             self.index: int = index
 
         def __iter__(self) -> Iterator[ComputationStep]:
@@ -819,7 +848,10 @@ class EnumerationProduct(Enumeration[Tuple[A, B]], Generic[A, B]):
                 yield self.outer.left.cached_computation(left_index)
                 right_index = index - left_index
                 yield self.outer.right.cached_computation(right_index)
-                result = result + (self.outer.left.get_values(left_index) * self.outer.right.get_values(right_index))
+                result = result + (
+                    self.outer.left.get_values(left_index)
+                    * self.outer.right.get_values(right_index)
+                )
             self.outer.cache[index] = result
             yield EmptyStep()
 
@@ -827,8 +859,8 @@ class EnumerationProduct(Enumeration[Tuple[A, B]], Generic[A, B]):
         return self.ProductComputation(self, index)
 
     class LocalClearCacheComputation(ComputationStep):
-        def __init__(self, outer: 'EnumerationProduct[A, B]'):
-            self.outer: 'EnumerationProduct[A, B]' = outer
+        def __init__(self, outer: "EnumerationProduct[A, B]"):
+            self.outer: "EnumerationProduct[A, B]" = outer
 
         def __iter__(self) -> Iterator[ComputationStep]:
             yield self.outer.left.clear_cache_computation()
@@ -839,13 +871,15 @@ class EnumerationProduct(Enumeration[Tuple[A, B]], Generic[A, B]):
         return self.LocalClearCacheComputation(self)
 
     class MaxSizeComputation(ComputationStep):
-        def __init__(self, outer: 'EnumerationProduct[A]'):
-            self.outer: 'EnumerationProduct[A, B]' = outer
+        def __init__(self, outer: "EnumerationProduct[A]"):
+            self.outer: "EnumerationProduct[A, B]" = outer
 
         def __iter__(self):
             yield self.outer.left.cached_max_size_computation()
             yield self.outer.right.cached_max_size_computation()
-            self.outer.max_size = self.outer.left.unsafe_max_size() + self.outer.right.unsafe_max_size()
+            self.outer.max_size = (
+                self.outer.left.unsafe_max_size() + self.outer.right.unsafe_max_size()
+            )
             yield EmptyStep()
 
     def max_size_computation(self) -> ComputationStep:
@@ -858,8 +892,8 @@ class EnumerationPay(Enumeration[A]):
         self.other: Enumeration[A] = other
 
     class PayComputation(ComputationStep):
-        def __init__(self, outer: 'EnumerationPay[A]', index: int):
-            self.outer: 'EnumerationPay[A]' = outer
+        def __init__(self, outer: "EnumerationPay[A]", index: int):
+            self.outer: "EnumerationPay[A]" = outer
             self.index = index
 
         def __iter__(self) -> Iterator[ComputationStep]:
@@ -875,8 +909,8 @@ class EnumerationPay(Enumeration[A]):
         return self.PayComputation(self, index)
 
     class LocalClearCacheComputation(ComputationStep):
-        def __init__(self, outer: 'EnumerationPay[A]'):
-            self.outer: 'EnumerationPay[A]' = outer
+        def __init__(self, outer: "EnumerationPay[A]"):
+            self.outer: "EnumerationPay[A]" = outer
 
         def __iter__(self) -> Iterator[ComputationStep]:
             yield self.outer.other.clear_cache_computation()
@@ -886,8 +920,8 @@ class EnumerationPay(Enumeration[A]):
         return self.LocalClearCacheComputation(self)
 
     class MaxSizeComputation(ComputationStep):
-        def __init__(self, outer: 'EnumerationPay[A]'):
-            self.outer: 'EnumerationPay[A]' = outer
+        def __init__(self, outer: "EnumerationPay[A]"):
+            self.outer: "EnumerationPay[A]" = outer
 
         def __iter__(self):
             yield self.outer.other.cached_max_size_computation()
@@ -905,8 +939,8 @@ class EnumerationOfIterable(Enumeration[A]):
         self.state: Optional[Tuple[bool, int, Iterator[A]]] = None
 
     class IterableComputation(ComputationStep):
-        def __init__(self, outer: 'EnumerationOfIterable[A]', index: int):
-            self.outer: 'EnumerationOfIterable[A]' = outer
+        def __init__(self, outer: "EnumerationOfIterable[A]", index: int):
+            self.outer: "EnumerationOfIterable[A]" = outer
             self.index = index
 
         def __iter__(self) -> Iterator[ComputationStep]:
@@ -933,8 +967,8 @@ class EnumerationOfIterable(Enumeration[A]):
         return self.IterableComputation(self, index)
 
     class LocalClearCacheComputation(ComputationStep):
-        def __init__(self, outer: 'EnumerationOfIterable[A]'):
-            self.outer: 'EnumerationOfIterable[A]' = outer
+        def __init__(self, outer: "EnumerationOfIterable[A]"):
+            self.outer: "EnumerationOfIterable[A]" = outer
 
         def __iter__(self) -> Iterator[ComputationStep]:
             self.outer.state = None
@@ -944,8 +978,8 @@ class EnumerationOfIterable(Enumeration[A]):
         return self.LocalClearCacheComputation(self)
 
     class MaxSizeComputation(ComputationStep):
-        def __init__(self, outer: 'EnumerationOfIterable[A]'):
-            self.outer: 'EnumerationOfIterable[A]' = outer
+        def __init__(self, outer: "EnumerationOfIterable[A]"):
+            self.outer: "EnumerationOfIterable[A]" = outer
 
         def __iter__(self):
             while self.outer.max_size < 0:
@@ -963,8 +997,8 @@ class EnumerationLazy(Enumeration[A]):
         self.value: Optional[Enumeration[A]] = None
 
     class LazyComputation(ComputationStep):
-        def __init__(self, outer: 'EnumerationLazy[A]', index: int):
-            self.outer: 'EnumerationLazy[A]' = outer
+        def __init__(self, outer: "EnumerationLazy[A]", index: int):
+            self.outer: "EnumerationLazy[A]" = outer
             self.index = index
 
         def __iter__(self) -> Iterator[ComputationStep]:
@@ -977,8 +1011,8 @@ class EnumerationLazy(Enumeration[A]):
         return self.LazyComputation(self, index)
 
     class LocalClearCacheComputation(ComputationStep):
-        def __init__(self, outer: 'EnumerationLazy[A]'):
-            self.outer: 'EnumerationLazy[A]' = outer
+        def __init__(self, outer: "EnumerationLazy[A]"):
+            self.outer: "EnumerationLazy[A]" = outer
 
         def __iter__(self) -> Iterator[ComputationStep]:
             if self.outer.value:
@@ -991,8 +1025,8 @@ class EnumerationLazy(Enumeration[A]):
         return self.LocalClearCacheComputation(self)
 
     class MaxSizeComputation(ComputationStep):
-        def __init__(self, outer: 'EnumerationLazy[A]'):
-            self.outer: 'EnumerationLazy[A]' = outer
+        def __init__(self, outer: "EnumerationLazy[A]"):
+            self.outer: "EnumerationLazy[A]" = outer
 
         def __iter__(self):
             if not self.outer.value:
@@ -1012,22 +1046,24 @@ class EnumerationMap(Enumeration[A], Generic[C, A]):
         self.f: Callable[[C], A] = f
 
     class MapComputation(ComputationStep):
-        def __init__(self, outer: 'EnumerationMap[C, A]', index: int):
-            self.outer: 'EnumerationMap[C, A]' = outer
+        def __init__(self, outer: "EnumerationMap[C, A]", index: int):
+            self.outer: "EnumerationMap[C, A]" = outer
             self.index = index
 
         def __iter__(self) -> Iterator[ComputationStep]:
             index: int = self.index
             yield self.outer.over.cached_computation(index)
-            self.outer.cache[index] = self.outer.over.get_values(index).map(self.outer.f)
+            self.outer.cache[index] = self.outer.over.get_values(index).map(
+                self.outer.f
+            )
             yield EmptyStep()
 
     def computation(self, index: int) -> ComputationStep:
         return self.MapComputation(self, index)
 
     class LocalClearCacheComputation(ComputationStep):
-        def __init__(self, outer: 'EnumerationMap[C, A]'):
-            self.outer: 'EnumerationMap[C, A]' = outer
+        def __init__(self, outer: "EnumerationMap[C, A]"):
+            self.outer: "EnumerationMap[C, A]" = outer
 
         def __iter__(self) -> Iterator[ComputationStep]:
             yield self.outer.over.clear_cache_computation()
@@ -1036,14 +1072,15 @@ class EnumerationMap(Enumeration[A], Generic[C, A]):
     def clear_cache_computation(self) -> ComputationStep:
         return self.LocalClearCacheComputation(self)
 
-    def map(self, f: Callable[[A], C]) -> 'Enumeration[C]':
+    def map(self, f: Callable[[A], C]) -> "Enumeration[C]":
         def g(x):
             return f(self.f(x))
+
         return EnumerationMap(self.over, g)
 
     class MaxSizeComputation(ComputationStep):
-        def __init__(self, outer: 'EnumerationMap[C, A]'):
-            self.outer: 'EnumerationMap[C, A]' = outer
+        def __init__(self, outer: "EnumerationMap[C, A]"):
+            self.outer: "EnumerationMap[C, A]" = outer
 
         def __iter__(self):
             yield self.outer.over.cached_max_size_computation()
@@ -1061,8 +1098,8 @@ class EnumerationSlice(Finite[A]):
         self.s: slice = s
 
     class SizeComputation(ComputationStep):
-        def __init__(self, outer: 'EnumerationSlice[A]'):
-            self.outer: 'EnumerationSlice[A]' = outer
+        def __init__(self, outer: "EnumerationSlice[A]"):
+            self.outer: "EnumerationSlice[A]" = outer
 
         def __iter__(self) -> Iterator[ComputationStep]:
             s = self.outer.s
@@ -1076,8 +1113,8 @@ class EnumerationSlice(Finite[A]):
         return self.SizeComputation(self)
 
     class SliceComputation(ComputationStep):
-        def __init__(self, outer: 'EnumerationSlice[A]', index: int):
-            self.outer: 'EnumerationSlice[A]' = outer
+        def __init__(self, outer: "EnumerationSlice[A]", index: int):
+            self.outer: "EnumerationSlice[A]" = outer
             self.index: int = index
 
         def __iter__(self) -> Iterator[ComputationStep]:
@@ -1106,8 +1143,8 @@ class EnumerationSlice(Finite[A]):
         return self.SliceComputation(self, index)
 
     class LocalClearCacheComputation(ComputationStep):
-        def __init__(self, outer: 'EnumerationSlice[A]'):
-            self.outer: 'EnumerationSlice[A]' = outer
+        def __init__(self, outer: "EnumerationSlice[A]"):
+            self.outer: "EnumerationSlice[A]" = outer
 
         def __iter__(self) -> Iterator[ComputationStep]:
             yield self.outer.over.clear_cache_computation()
@@ -1119,24 +1156,30 @@ class EnumerationSlice(Finite[A]):
 
 import fractions
 
+
 class SchweinfurtNumbers(object):
     def __init__(self):
         self._fast = Enumeration.ints().map(self._rec)
 
     def _rec(self, n):
-        if n < 0: return fractions.Fraction(0, 1)
-        elif n == 0: return fractions.Fraction(1, 6)
-        else: return fractions.Fraction(1,6) * \
-                     (-5 * self[n-1] + 2 * self[n-2] + self[n-3])
+        if n < 0:
+            return fractions.Fraction(0, 1)
+        elif n == 0:
+            return fractions.Fraction(1, 6)
+        else:
+            return fractions.Fraction(1, 6) * (
+                -5 * self[n - 1] + 2 * self[n - 2] + self[n - 3]
+            )
 
     def __getitem__(self, n):
         return 0 if n < 0 else self._fast[n]
+
 
 if __name__ == "__main__":
     ints: Enumeration[int] = Enumeration.ints()
     print(ints[999999])
 
-    ps = (ints * ints)
+    ps = ints * ints
     p = ps.all_values()
     for _ in range(0, 10):
         print(*[y for y in next(p)], sep=",")
