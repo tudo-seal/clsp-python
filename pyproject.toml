@@ -7,6 +7,7 @@ license = "Apache-2.0"
 
 [tool.poetry.dependencies]
 python = "^3.10"
+jsonpickle = "^3.0.1"
 
 [build-system]
 requires = ["poetry-core"]
