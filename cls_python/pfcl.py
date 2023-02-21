@@ -16,11 +16,12 @@ from .types import Arrow, Constructor, Intersection, Omega, Type
 # ([sigma_1, ..., sigma_n], tau) means sigma_1 -> ... -> sigma_n -> tau
 MultiArrow: TypeAlias = Tuple[list[Type], Type]
 # (tau_0, tau_1, ..., tau_n) means tau_0 and (not tau_1) and ... and (not tau_n)
-Clause: TypeAlias = tuple[Type, ...]
+Clause: TypeAlias = tuple[Type, frozenset[Type]]
 
 
 def show_clause(clause: Clause) -> str:
-    return " and not ".join(map(str, clause))
+    flat_clause: Iterable[Type] = chain([clause[0]], clause[1])
+    return " and not ".join(map(str, flat_clause))
 
 
 def show_grammar(
@@ -338,6 +339,15 @@ class FiniteCombinatoryLogic(object):
         )
         return maximal_elements(intersected_args, compare_args)
 
+    @staticmethod
+    def list_of_types_to_clause(types: Iterable[Type]) -> Clause:
+        """Given a list of types, where the first element represents a positive type, and the
+        remaining elements represent negative types, create a Clause"""
+
+        list_representation = list(types)
+
+        return (list_representation[0], frozenset(list_representation[1:]))
+
     def _combine_arguments(
         self, positive_arguments: list[list[Type]], negative_arguments: list[list[Type]]
     ) -> list[list[Clause]]:
@@ -353,7 +363,10 @@ class FiniteCombinatoryLogic(object):
                     new_args[i].append(neg[i])
                     new_result.append(new_args)
             result = new_result
-        return list(list(map(tuple, args)) for args in result)
+        return list(
+            list(map(FiniteCombinatoryLogic.list_of_types_to_clause, args))
+            for args in result
+        )
 
     @staticmethod
     def clause_to_type(clause: Clause) -> Type:
@@ -372,9 +385,9 @@ class FiniteCombinatoryLogic(object):
                 # paths: list[Type] = list(target.organized)
                 possibilities: deque[tuple[object, list[Clause]]] = deque()
                 memo.update({target: possibilities})
-                all_paths: tuple[list[Type], ...] = tuple(
-                    list(ty.organized) for ty in target
-                )
+
+                all_positive_paths: list[Type] = list(target[0].organized)
+                all_negative_paths = [list(ty.organized) for ty in target[1]]
 
                 # TODO deal with omega
                 # if target.is_omega:
@@ -384,12 +397,12 @@ class FiniteCombinatoryLogic(object):
                 for combinator, combinator_type in self.repository.items():
                     for nary_types in combinator_type:
                         positive_arguments: list[list[Type]] = list(
-                            self._subqueries(nary_types, all_paths[0])
+                            self._subqueries(nary_types, all_positive_paths)
                         )
                         negative_arguments: list[list[Type]] = list(
                             chain.from_iterable(
                                 self._subqueries(nary_types, paths)
-                                for paths in all_paths[1:]
+                                for paths in all_negative_paths
                             )
                         )
                         for subquery in self._combine_arguments(
@@ -422,10 +435,10 @@ class FiniteCombinatoryLogic(object):
         )
 
     @staticmethod
-    def _prune(memo: dict[Type, deque[tuple[object, list[Type]]]]) -> None:
+    def _prune(memo: dict[Clause, deque[tuple[object, list[Clause]]]]) -> None:
         """Keep only productive grammar rules."""
 
-        ground_types: set[Type] = set()
+        ground_types: set[Clause] = set()
         is_ground = lambda args: all(True for arg in args if arg in ground_types)
         new_ground_types, candidates = partition(
             lambda ty: any(True for (_, args) in memo[ty] if is_ground(args)),
