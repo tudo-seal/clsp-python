@@ -4,19 +4,24 @@ from abc import ABC
 from collections import deque
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
-from functools import cached_property, partial, reduce
+from functools import partial, reduce
 from itertools import chain
-from typing import Any, Callable, Optional, Tuple, TypeAlias
+from typing import Any, Callable, Sequence, TypeAlias, TypeVar
 
+from .boolean import BooleanTerm, minimal_dnf_as_list
 from .combinatorics import maximal_elements, minimal_covers, partition
-from .enumeration import ComputationStep, EmptyStep, Enumeration
+from .enumeration import ComputationStep, EmptyStep
 from .subtypes import Subtypes
-from .types import Arrow, Constructor, Intersection, Omega, Type
+from .types import Arrow, Constructor, Intersection, Type
 
 # ([sigma_1, ..., sigma_n], tau) means sigma_1 -> ... -> sigma_n -> tau
-MultiArrow: TypeAlias = Tuple[list[Type], Type]
+MultiArrow: TypeAlias = tuple[list[Type], Type]
 # (tau_0, tau_1, ..., tau_n) means tau_0 and (not tau_1) and ... and (not tau_n)
 Clause: TypeAlias = tuple[Type, frozenset[Type]]
+
+TreeGrammar: TypeAlias = dict[
+    Clause | BooleanTerm[Type], deque[tuple[object, list[Clause]]]
+]
 
 
 def show_clause(clause: Clause) -> str:
@@ -24,12 +29,11 @@ def show_clause(clause: Clause) -> str:
     return " and not ".join(map(str, flat_clause))
 
 
-def show_grammar(
-    grammar: dict[Clause, deque[tuple[object, list[Clause]]]]
-) -> Iterable[str]:
+def show_grammar(grammar: TreeGrammar) -> Iterable[str]:
     for clause, possibilities in grammar.items():
+        lhs = str(clause) if isinstance(clause, BooleanTerm) else show_clause(clause)
         yield (
-            show_clause(clause)
+            lhs
             + " => "
             + "; ".join(
                 (str(combinator) + "(" + ", ".join(map(show_clause, args)) + ")")
@@ -38,7 +42,7 @@ def show_grammar(
         )
 
 
-def mstr(m: MultiArrow):
+def mstr(m: MultiArrow) -> tuple[str, str]:
     return (str(list(map(str, m[0]))), str(m[1]))
 
 
@@ -53,7 +57,7 @@ class Failed(Rule):
     target: Type = field()
     is_combinator: bool = field(default=False, init=False)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Failed({str(self.target)})"
 
 
@@ -63,7 +67,7 @@ class Combinator(Rule):
     is_combinator: bool = field(default=True, init=False)
     combinator: object = field(init=True)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Combinator({str(self.target)}, {str(self.combinator)})"
 
 
@@ -74,7 +78,7 @@ class Apply(Rule):
     function_type: Type = field(init=True)
     argument_type: Type = field(init=True)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (
             f"@({str(self.function_type)}, {str(self.argument_type)}) : {self.target}"
         )
@@ -83,7 +87,7 @@ class Apply(Rule):
 @dataclass(frozen=True)
 class Tree(object):
     rule: Rule = field(init=True)
-    children: Tuple["Tree", ...] = field(init=True, default_factory=lambda: ())
+    children: tuple["Tree", ...] = field(init=True, default_factory=lambda: ())
 
     class Evaluator(ComputationStep):
         def __init__(self, outer: "Tree", results: list[Any]):
@@ -108,7 +112,7 @@ class Tree(object):
         self.Evaluator(self, result).run()
         return result[0]
 
-    def __str__(self):
+    def __str__(self) -> str:
         match self.rule:
             case Combinator(_, _):
                 return str(self.rule.combinator)
@@ -120,152 +124,6 @@ class Tree(object):
             # case Combinator(_, _): return str(self.rule)
             # case Apply(_, _, _): return f"{str(self.children[0])}({str(self.children[1])})"
             # case _: return f"{str(self.rule)} @ ({', '.join(map(str, self.children))})"
-
-
-@dataclass(frozen=True)
-class InhabitationResult(object):
-    targets: list[Type] = field(init=True)
-    rules: set[Rule] = field(init=True)
-
-    @cached_property
-    def grouped_rules(self) -> dict[Type, set[Rule]]:
-        result: dict[Type, set[Rule]] = dict()
-        for rule in self.rules:
-            group: Optional[set[Rule]] = result.get(rule.target)
-            if group:
-                group.add(rule)
-            else:
-                result[rule.target] = {rule}
-        return result
-
-    def check_empty(self, target: Type) -> bool:
-        for rule in self.grouped_rules.get(target, {Failed(target)}):
-            if isinstance(rule, Failed):
-                return True
-        return False
-
-    @cached_property
-    def non_empty(self) -> bool:
-        for target in self.targets:
-            if self.check_empty(target):
-                return False
-        return bool(self.targets)
-
-    def __bool__(self) -> bool:
-        return self.non_empty
-
-    @cached_property
-    def infinite(self) -> bool:
-        if not self:
-            return False
-
-        reachable: dict[Type, set[Type]] = {}
-        for target, rules in self.grouped_rules.items():
-            entry: set[Type] = set()
-            for rule in rules:
-                match rule:
-                    case Apply(target, lhs, rhs):
-                        next_reached: set[Type] = {lhs, rhs}
-                        entry.update(next_reached)
-                    case _:
-                        pass
-            reachable[target] = entry
-
-        changed: bool = True
-        to_check: set[Type] = set(self.targets)
-        while changed:
-            changed = False
-            next_to_check = set()
-            for target in to_check:
-                can_reach = reachable[target]
-                if target in can_reach:
-                    return True
-                newly_reached = set().union(
-                    *(reachable[reached] for reached in can_reach)
-                )
-                for new_target in newly_reached:
-                    if target == new_target:
-                        return True
-                    elif new_target not in to_check:
-                        changed = True
-                        next_to_check.add(new_target)
-                        can_reach.add(new_target)
-                    elif new_target not in can_reach:
-                        changed = True
-                        can_reach.add(new_target)
-            to_check.update(next_to_check)
-        return False
-
-    def size(self) -> int:
-        if self.infinite:
-            return -1
-        maximum = self.raw.unsafe_max_size()
-        size = 0
-        values = self.raw.all_values()
-        for _ in range(0, maximum + 1):
-            trees = next(values)
-            size += len(trees)
-        return size
-
-    def __getitem__(self, target: Type) -> Enumeration[Tree]:
-        if target in self.enumeration_map:
-            return self.enumeration_map[target]
-        else:
-            return Enumeration.empty()
-
-    @staticmethod
-    def combinator_result(r: Combinator) -> Enumeration[Tree]:
-        return Enumeration.singleton(Tree(r, ()))
-
-    @staticmethod
-    def apply_result(
-        result: dict[Type, Enumeration[Tree]], r: Apply
-    ) -> Enumeration[Tree]:
-        def mkapp(left_and_right):
-            return Tree(r, (left_and_right[0], left_and_right[1]))
-
-        def apf():
-            return (result[r.function_type] * result[r.argument_type]).map(mkapp).pay()
-
-        applied = Enumeration.lazy(apf)
-        return applied
-
-    @cached_property
-    def enumeration_map(self) -> dict[Type, Enumeration[Tree]]:
-        result: dict[Type, Enumeration[Tree]] = dict()
-        for target, rules in self.grouped_rules.items():
-            _enum: Enumeration[Tree] = Enumeration.empty()
-            for rule in rules:
-                match rule:
-                    case Combinator(_, _) as r:
-                        _enum = _enum + InhabitationResult.combinator_result(r)
-                    case Apply(_, _, _) as r:
-                        _enum = _enum + InhabitationResult.apply_result(result, r)
-                    case _:
-                        pass
-            result[target] = _enum
-        return result
-
-    @cached_property
-    def raw(self) -> Enumeration[Tree | list[Tree]]:
-        if not self:
-            return Enumeration.empty()
-        if len(self.targets) == 1:
-            return self.enumeration_map[self.targets[0]]
-        else:
-            result: Enumeration[list[Tree]] = Enumeration.singleton([])
-            for target in self.targets:
-                result = (result * self.enumeration_map[target]).map(
-                    lambda x: [*x[0], x[1]]
-                )
-            return result
-
-    @cached_property
-    def evaluated(self) -> Enumeration[Any | list[Any]]:
-        if len(self.targets) == 1:
-            return self.raw.map(lambda t: t.evaluate())
-        else:
-            return self.raw.map(lambda l: list(map(lambda t: t.evaluate(), l)))
 
 
 class FiniteCombinatoryLogic(object):
@@ -319,7 +177,7 @@ class FiniteCombinatoryLogic(object):
 
     def _subqueries(
         self, nary_types: list[MultiArrow], paths: list[Type]
-    ) -> list[list[Type]]:
+    ) -> Sequence[list[Type]]:
         # does the target of a multi-arrow contain a given type?
         target_contains: Callable[
             [MultiArrow, Type], bool
@@ -328,7 +186,7 @@ class FiniteCombinatoryLogic(object):
         covers = minimal_covers(nary_types, paths, target_contains)
         # intersect corresponding arguments of multi-arrows in each cover
         intersect_args: Callable[
-            [list[Type], list[Type]], map[Type]
+            [Iterable[Type], Iterable[Type]], Any  # TODO: Fix types
         ] = lambda args1, args2: map(Intersection, args1, args2)
         intersected_args = (
             list(reduce(intersect_args, (m[0] for m in ms))) for ms in covers
@@ -369,15 +227,42 @@ class FiniteCombinatoryLogic(object):
         )
 
     @staticmethod
-    def clause_to_type(clause: Clause) -> Type:
+    def clause_to_type(clause: Clause | BooleanTerm[Type]) -> Type:
         return Constructor(name=clause)
 
-    def inhabit(self, *targets: Clause) -> InhabitationResult:
+    def boolean_to_clauses(self, target: BooleanTerm[Type]) -> list[Clause]:
+        dnf = minimal_dnf_as_list(target)
+
+        clauses: list[Clause] = []
+
+        for encoded_clause in dnf:
+            encoded_negatives, encoded_positives = partition(
+                lambda lit: lit[0], encoded_clause
+            )
+            positives = [lit[1] for lit in encoded_positives]
+            negatives = [lit[1] for lit in encoded_negatives]
+
+            positive_intersection = reduce(Intersection, positives)
+
+            clauses.append((positive_intersection, frozenset(negatives)))
+
+        return clauses
+
+    def inhabit(self, *targets: Clause | BooleanTerm[Type]) -> TreeGrammar:
+        clause_targets = []
+        boolean_terms = {}
+        for target in targets:
+            if isinstance(target, BooleanTerm):
+                boolean_terms[target] = self.boolean_to_clauses(target)
+                clause_targets.extend(boolean_terms[target])
+            else:
+                clause_targets.append(target)
+
         # dictionary of type |-> sequence of combinatory expressions
-        memo: dict[Clause, deque[tuple[object, list[Clause]]]] = dict()
-        remaining_targets: deque[Clause] = deque(targets)
-        # intermediate rules (stopgap from prior fcl implementation)
-        result: set[Rule] = set()
+        memo: TreeGrammar = dict()
+
+        remaining_targets: deque[Clause] = deque(clause_targets)
+
         while remaining_targets:
             target = remaining_targets.pop()
             if memo.get(target) is None:
@@ -386,13 +271,14 @@ class FiniteCombinatoryLogic(object):
                 possibilities: deque[tuple[object, list[Clause]]] = deque()
                 memo.update({target: possibilities})
 
+                # If the positive part is omega, skip this iteration, since this would inhabit
+                # mostly "Junk"
+                if target[0].is_omega:
+                    continue
+
                 all_positive_paths: list[Type] = list(target[0].organized)
                 all_negative_paths = [list(ty.organized) for ty in target[1]]
 
-                # TODO deal with omega
-                # if target.is_omega:
-                #    result |= self._omega_rules(target)
-                # else:
                 # try each combinator and arity
                 for combinator, combinator_type in self.repository.items():
                     for nary_types in combinator_type:
@@ -411,44 +297,41 @@ class FiniteCombinatoryLogic(object):
                             possibilities.append((combinator, subquery))
                             remaining_targets.extendleft(subquery)
 
+        # generate rules for the boolean_terms
+        for term, clauses in boolean_terms.items():
+            rhs_of_clauses: deque[tuple[object, list[Clause]]] = deque(
+                (rhs for clause in clauses for rhs in memo[clause])
+            )
+            memo[term] = rhs_of_clauses
+
         # prune not inhabited types
         FiniteCombinatoryLogic._prune(memo)
-        for s in show_grammar(memo):
-            print(s)
-        # convert memo into resulting set of rules
-        for target, possibilities in memo.items():
-            if len(possibilities) == 0:
-                result.add(Failed(FiniteCombinatoryLogic.clause_to_type(target)))
-            for combinator, arguments in possibilities:
-                result.update(
-                    self._combinatory_expression_rules(
-                        combinator,
-                        arguments,
-                        FiniteCombinatoryLogic.clause_to_type(target),
-                    )
-                )
 
-        # return InhabitationResult(targets=list(targets), rules=FiniteCombinatoryLogic._prune(result))
-        return InhabitationResult(
-            targets=list(map(FiniteCombinatoryLogic.clause_to_type, targets)),
-            rules=result,
-        )
+        return memo
 
     @staticmethod
-    def _prune(memo: dict[Clause, deque[tuple[object, list[Clause]]]]) -> None:
+    def _prune(memo: TreeGrammar) -> None:
         """Keep only productive grammar rules."""
 
-        ground_types: set[Clause] = set()
-        is_ground = lambda args: all(True for arg in args if arg in ground_types)
+        def is_ground(
+            args: list[Clause], ground_types: set[Clause | BooleanTerm[Type]]
+        ) -> bool:
+            return all(True for arg in args if arg in ground_types)
+
+        ground_types: set[Clause | BooleanTerm[Type]] = set()
         new_ground_types, candidates = partition(
-            lambda ty: any(True for (_, args) in memo[ty] if is_ground(args)),
+            lambda ty: any(
+                True for (_, args) in memo[ty] if is_ground(args, ground_types)
+            ),
             memo.keys(),
         )
         # initialize inhabited (ground) types
         while new_ground_types:
             ground_types.update(new_ground_types)
             new_ground_types, candidates = partition(
-                lambda ty: any(True for _, args in memo[ty] if is_ground(args)),
+                lambda ty: any(
+                    True for _, args in memo[ty] if is_ground(args, ground_types)
+                ),
                 candidates,
             )
 
@@ -456,5 +339,5 @@ class FiniteCombinatoryLogic(object):
             memo[target] = deque(
                 possibility
                 for possibility in possibilities
-                if is_ground(possibility[1])
+                if is_ground(possibility[1], ground_types)
             )
