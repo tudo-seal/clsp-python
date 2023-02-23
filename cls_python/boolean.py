@@ -36,12 +36,21 @@ Usage
 -----
 
     The boolean terms are generic over a type variable T. The only constraint on T is, that it is
-    hashable. To satisfy the python type checker, it is enough to specify the T at the topmost
+    hashable. To satisfy the python type checker, it is enough to specify the type variable T any
     level.
 
-    term = And[str]([Or([Var("A"), And([Neg(Var("D")), Var("B")])]), Var("C")])
+    term = And[str](Or(Var("A"), And(Not(Var("D")), Var("B"))), Var("C"))
     print(term) # ((A | (~D & B)) & C)
     print(minimal_dnf(term)) # ((C & B & ~D) | (C & A))
+
+    Additionally, we can (optionally) omit the `Var` constructor to write terms in a shorter way
+
+    term: BooleanTerm[str] = And(Or("A", And(Not("D"), "B")), "C")
+
+    As a final way to declare boolean terms, we can use the &, | and ~ symbols. Since they are
+    explicitly declared for boolean terms, we cannot omit the Var Constructor.
+
+    term: BooleanTerm[str] = Var("A") | (~(Var("D") & Var("B"))) & Var("C")
 
 Example for the encoding
 ------------------------
@@ -94,10 +103,10 @@ to cover all minterms.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import cached_property
 from itertools import chain, compress, groupby
-from typing import Generic, Iterator, TypeAlias, TypeVar
+from typing import Generic, Iterable, Optional, TypeAlias, TypeVar
 
 from .combinatorics import minimal_covers
 
@@ -109,15 +118,26 @@ corresponds to the values of the variables, the binary representation of the sec
 corresponds to the variables actually used."""
 
 
-@dataclass
 class BooleanTerm(Generic[T], ABC):
     """Parent class for all constructors of boolean terms.
 
     The generic paramater T is the type of the variabes. The only constraint on T is, that it is
     hashable.
-    """
 
-    _evaluate_cache: dict[int, bool] = field(init=False, default_factory=dict)
+    The following constructors exist:
+
+        * And
+        * Or
+        * Not
+        * Var
+
+    The constructors And and Or can be of any arity, Not and Var take exactly one parameter.
+    When building a formula, any subterm, that is not explicitly a BooleanTerm (or a child object),
+    is interpreted as a Var, so the following calls are equivalient:
+
+        And(Or(Var("a"), Var("b")), Not(Var("c")))
+
+    """
 
     def _mask_signature(self, signature: list[T]) -> int:
         """int: Given a signature, return a bit vector indicating which variables are in the term
@@ -139,14 +159,22 @@ class BooleanTerm(Generic[T], ABC):
     def variables(self) -> frozenset[T]:
         """frozenset[T]: Return the variables used in this term"""
 
-    def evaluate(self, mapping: Mapping, signature: list[T]) -> bool:
+    def evaluate(
+        self,
+        mapping: Mapping,
+        signature: list[T],
+        evaluate_cache: Optional[dict[tuple[BooleanTerm[T], int], bool]] = None,
+    ) -> bool:
         """bool: Evaluate the term given a variable mapping
 
         Results of this evaluation are cached.
 
         Note:
-            The second field of a mapping is completely ignored in this evaluation.
-            To guarantee a correct result, it should be 0.
+            - The second field of a mapping is completely ignored in this evaluation.
+              To guarantee a correct result, it should be 0.
+            - This could have been an evaluate method for each child class. But to incorporate the
+              caching and limit the amount of function calls, it was done at the parent class.
+
 
         Args:
             mapping (Mapping): The mapping containing the truth values for the variables
@@ -157,8 +185,10 @@ class BooleanTerm(Generic[T], ABC):
         interesting_variables = mapping[0] & self._mask_signature(signature)
 
         # Use a cached result, if such an evaluation was already queried
-        if interesting_variables in self._evaluate_cache:
-            return self._evaluate_cache[interesting_variables]
+        if evaluate_cache is None:
+            evaluate_cache = {}
+        if (self, interesting_variables) in evaluate_cache:
+            return evaluate_cache[(self, interesting_variables)]
 
         value = False
         match self:
@@ -168,8 +198,8 @@ class BooleanTerm(Generic[T], ABC):
             case Or(inner):
                 # an Or-term evaluates to true iff any of its subterms evaluate to true
                 value = any(subterm.evaluate(mapping, signature) for subterm in inner)
-            case Neg(inner):
-                # a Neg-Term evaluates to true iff its subterm evaluate to false
+            case Not(inner):
+                # a Not-Term evaluates to true iff its subterm evaluate to false
                 value = not inner.evaluate(mapping, signature)
             case Var(_):
                 # interesting_variables has exactly one 1, if the only variable of this subterm is
@@ -177,19 +207,49 @@ class BooleanTerm(Generic[T], ABC):
                 value = interesting_variables != 0
 
         # cache the result for future lookups
-        self._evaluate_cache[interesting_variables] = value
+        evaluate_cache[(self, interesting_variables)] = value
+
         return value
 
     @abstractmethod
     def __str__(self) -> str:
         ...
 
+    @abstractmethod
+    def __hash__(self) -> int:
+        ...
 
-@dataclass
+    def __invert__(self) -> BooleanTerm[T]:
+        return Not[T](self)
+
+    def __or__(self, other: BooleanTerm[T]) -> BooleanTerm[T]:
+        if not isinstance(other, BooleanTerm):
+            raise RuntimeError(
+                "Only an instance of BooleanTerm can be used in a disjuntion with a BooleanTerm"
+            )
+
+        return Or[T](self, other)
+
+    def __and__(self, other: BooleanTerm[T]) -> BooleanTerm[T]:
+        if not isinstance(other, BooleanTerm):
+            raise RuntimeError(
+                "Only an instance of BooleanTerm can be used in a conjuntion with a BooleanTerm"
+            )
+
+        return And[T](self, other)
+
+
 class And(BooleanTerm[T]):
     """And constructor for boolean terms, takes a list of subterms"""
 
-    inner: list[BooleanTerm[T]]
+    __match_args__ = ("inner",)
+
+    inner: frozenset[BooleanTerm[T]]
+
+    def __init__(self, *inner: BooleanTerm[T] | T):
+        self.inner = frozenset(
+            i if isinstance(i, BooleanTerm) else Var(i) for i in inner
+        )
 
     @cached_property
     def variables(self) -> frozenset[T]:
@@ -200,12 +260,21 @@ class And(BooleanTerm[T]):
     def __str__(self) -> str:
         return f"({' & '.join(str(subterm) for subterm in self.inner)})"
 
+    def __hash__(self) -> int:
+        return hash((And, self.inner))
 
-@dataclass
+
 class Or(BooleanTerm[T]):
     """Or constructor for boolean terms, takes a list of subterms"""
 
-    inner: list[BooleanTerm[T]]
+    __match_args__ = ("inner",)
+
+    inner: frozenset[BooleanTerm[T]]
+
+    def __init__(self, *inner: BooleanTerm[T] | T):
+        self.inner = frozenset(
+            i if isinstance(i, BooleanTerm) else Var(i) for i in inner
+        )
 
     @cached_property
     def variables(self) -> frozenset[T]:
@@ -216,8 +285,11 @@ class Or(BooleanTerm[T]):
     def __str__(self) -> str:
         return f"({' | '.join(str(subterm) for subterm in self.inner)})"
 
+    def __hash__(self) -> int:
+        return hash((Or, self.inner))
 
-@dataclass
+
+@dataclass(frozen=True)
 class Var(BooleanTerm[T]):
     """Variable constructor for boolean terms. The name can be of any hashable type T"""
 
@@ -230,12 +302,22 @@ class Var(BooleanTerm[T]):
     def __str__(self) -> str:
         return str(self.name)
 
+    def __hash__(self) -> int:
+        return hash((Var, self.name))
 
-@dataclass
-class Neg(BooleanTerm[T]):
+
+class Not(BooleanTerm[T]):
     """Negation constructor for boolean terms."""
 
+    __match_args__ = ("inner",)
+
     inner: BooleanTerm[T]
+
+    def __init__(self, inner: BooleanTerm[T] | T):
+        if isinstance(inner, BooleanTerm):
+            self.inner = inner
+        else:
+            self.inner = Var(inner)
 
     @cached_property
     def variables(self) -> frozenset[T]:
@@ -243,6 +325,9 @@ class Neg(BooleanTerm[T]):
 
     def __str__(self) -> str:
         return f"~{self.inner}"
+
+    def __hash__(self) -> int:
+        return hash((Not, self.inner))
 
 
 def mapping_lt(mapping: Mapping, other: Mapping) -> bool:
@@ -271,13 +356,15 @@ def to_clause(mapping: Mapping, signature: list[T]) -> list[BooleanTerm[T]]:
         for x in range(len(signature) - 1, -1, -1)
     )
     positive_literals = (Var(x) for x in compress(signature, positives))
-    negative_literals = (Neg(Var(x)) for x in compress(signature, negatives))
+    negative_literals: Iterable[BooleanTerm[T]] = (
+        Not(Var(x)) for x in compress(signature, negatives)
+    )
 
     return list(chain(positive_literals, negative_literals))
 
 
-def generate_all_variable_mappings(length_of_signature: int) -> Iterator[Mapping]:
-    """Iterator[Mapping]: Generate all possible variable mappings for a signature of a given length
+def generate_all_variable_mappings(length_of_signature: int) -> Iterable[Mapping]:
+    """Iterable[Mapping]: Generate all possible variable mappings for a signature of a given length
 
     Since a mapping is encoded by an integer, this is done by counting to 2**length_of_signature.
     The result is sorted by the amount of 1s in the binary representation of the integer.
@@ -289,22 +376,25 @@ def generate_all_variable_mappings(length_of_signature: int) -> Iterator[Mapping
     )
 
 
-def get_minterms(term: BooleanTerm[T], signature: list[T]) -> Iterator[Mapping]:
-    """Iterator[Mapping]: Generate all mappings for a term, that evaluate to true
+def get_minterms(term: BooleanTerm[T], signature: list[T]) -> Iterable[Mapping]:
+    """Iterable[Mapping]: Generate all mappings for a term, that evaluate to true
 
     The result is sorted by the amount of variables, that are mapped to true.
     """
     all_variable_mappings = list(generate_all_variable_mappings(len(signature)))
 
+    evaluate_cache: dict[tuple[BooleanTerm[T], int], bool] = {}
+
     return filter(
-        lambda mapping: term.evaluate(mapping, signature), all_variable_mappings
+        lambda mapping: term.evaluate(mapping, signature, evaluate_cache),
+        all_variable_mappings,
     )
 
 
 def get_prime_implicants(
     minterms: list[Mapping], length_of_signature: int
-) -> Iterator[Mapping]:
-    """Iterator[Mapping]: Computes the prime implicants for given minterms.
+) -> Iterable[Mapping]:
+    """Iterable[Mapping]: Computes the prime implicants for given minterms.
 
     The minterms must be sorted by the number of positive mappings.
     """
@@ -389,7 +479,7 @@ def get_prime_implicants(
         merged = set()
 
 
-def minimal_dnf(term: BooleanTerm[T]) -> BooleanTerm[T]:
+def minimal_dnf(term: BooleanTerm[T]) -> Or[T]:
     """BooleanTerm[T]: Compute the minimal dnf for a given boolean term
 
     The result is in dnf. If the result is "Or(And([]))", it corresponds to the value True, if the
@@ -402,8 +492,44 @@ def minimal_dnf(term: BooleanTerm[T]) -> BooleanTerm[T]:
     minimal_primes = minimal_covers(list(primes), minterms, mapping_lt)
 
     if len(minimal_primes) == 0:
-        return Or([])
+        return Or()
 
     return Or[T](
-        [And[T](to_clause(implicant, signature)) for implicant in minimal_primes[0]]
+        *(And[T](*to_clause(implicant, signature)) for implicant in minimal_primes[0])
     )
+
+
+def minimal_dnf_as_list(term: BooleanTerm[T]) -> list[list[tuple[bool, T]]]:
+    """list[list[tuple[bool, T]]]: Computes the minimal dnf and returns the result stripped of all
+                                   Constructors.
+
+    Since the format of the dnf is well known, this makes it easier to iterate over the clauses
+    of the dnf of a term."""
+
+    dnf_term = minimal_dnf(term)
+
+    if not isinstance(dnf_term, Or):
+        raise RuntimeError(
+            "minimal_dnf, did not return a dnf. This is most likely a bug."
+        )
+
+    output_list = []
+    for clause in dnf_term.inner:
+        if not isinstance(clause, And):
+            raise RuntimeError(
+                "minimal_dnf, did not return a dnf. This is most likely a bug."
+            )
+
+        clause_list = []
+        for literal in clause.inner:
+            match literal:
+                case Var(name):
+                    clause_list.append((True, name))
+                case Not(Var(name)):
+                    clause_list.append((False, name))
+                case _:
+                    raise RuntimeError(
+                        "minimal_dnf, did not return a dnf. This is most likely a bug."
+                    )
+        output_list.append(clause_list)
+    return output_list
