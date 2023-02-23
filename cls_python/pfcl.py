@@ -270,12 +270,13 @@ class FiniteCombinatoryLogic(object):
                 # paths: list[Type] = list(target.organized)
                 possibilities: deque[tuple[object, list[Clause]]] = deque()
                 memo.update({target: possibilities})
-
-                # If the positive part is omega, skip this iteration, since this would inhabit
-                # mostly "Junk"
+                # If the positive part is omega, then the result is junk
                 if target[0].is_omega:
                     continue
-
+                # If the positive part is a subtype of the negative part, then there are no inhabitants
+                if any(True for ty in target[1] if self.subtypes.check_subtype(target[0], ty)):
+                    continue
+                
                 all_positive_paths: list[Type] = list(target[0].organized)
                 all_negative_paths = [list(ty.organized) for ty in target[1]]
 
