@@ -4,9 +4,9 @@
 # Here, the indexed type [1, Section 4] is the tree grammar, where indices are non-terminals.
 # Uniqueness is guaranteed by python's set (instead of list) data structure.
 
-import itertools
+import itertools, functools
 from collections import deque
-from typing import Iterable, Optional, TypeAlias, TypeVar
+from typing import Any, Iterable, Optional, TypeAlias, TypeVar, Callable
 
 I = TypeVar("I")  # non-terminals
 Tree: TypeAlias = tuple[object, tuple["Tree", ...]]
@@ -71,6 +71,24 @@ def enumerate_terms(
                 result.add(term)
                 yield term
 
+def interpret_term(term: Tree) -> Any:
+    """Recursively evaluate given term."""
+
+    terms: deque[Tree] = deque((term, ))
+    combinators: deque[tuple[Callable, int]] = deque()
+    # decompose terms
+    while terms:
+        t = terms.pop()
+        combinators.append((t[0], len(t[1])))
+        terms.extend(reversed(t[1]))
+    results: deque[Any] = deque()
+    # apply/call decomposed terms
+    while combinators:
+        (c, n) = combinators.pop()
+        for _ in range(n):
+            c = functools.partial(c, results.pop())
+        results.append(c())
+    return results.pop()
 
 def test():
     d = {"X": [("a", []), ("b", ["X", "Y"])], "Y": [("c", []), ("d", ["Y", "X"])]}
@@ -90,6 +108,32 @@ def test():
 
     print("Time: ", timeit.default_timer() - start)
 
+def test2():
+    class A(object):
+        def __call__(self) -> str:
+            return "A"
+
+    class B(object):
+        def __call__(self, a: str, b: str) -> str:
+            return f"({a}) ->B-> ({b})"
+
+    class C(object):
+        def __call__(self) -> str:
+            return "C"
+
+    class D(object):
+        def __call__(self, a: str, b: str) -> str:
+            return f"({a}) ->D-> ({b})"
+
+    d = { "X" : [(A(), []), (B(), ["X", "Y"])], "Y" : [(C(), []), (D(), ["Y", "X"])] }
+
+    import timeit
+    start = timeit.default_timer()
+
+    for i,r in enumerate(itertools.islice(enumerate_terms("X", d, max_count = 100),1000000)):
+        print(i, interpret_term(r))
+
+    print('Time: ', timeit.default_timer() - start)
 
 if __name__ == "__main__":
-    test()
+    test2()
