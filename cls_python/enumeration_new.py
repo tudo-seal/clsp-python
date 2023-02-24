@@ -75,7 +75,7 @@ def interpret_term(term: Tree) -> Any:
     """Recursively evaluate given term."""
 
     terms: deque[Tree] = deque((term, ))
-    combinators: deque[tuple[Callable, int]] = deque()
+    combinators: deque[tuple[Any, int]] = deque()
     # decompose terms
     while terms:
         t = terms.pop()

@@ -14,27 +14,27 @@ class Subtypes(object):
             return True
         match supertype:
             case Constructor(name2, arg2):
-                casted: deque[Type] = deque()
+                casted_constr: deque[Type] = deque()
                 while subtypes:
                     match subtypes.pop():
                         case Constructor(name1, arg1):
                             if name2 == name1 or name2 in self.environment.get(
                                 name1, {}
                             ):
-                                casted.append(arg1)
+                                casted_constr.append(arg1)
                         case Intersection(l, r):
                             subtypes.extend((l, r))
-                return len(casted) != 0 and self._check_subtype_rec(casted, arg2)
+                return len(casted_constr) != 0 and self._check_subtype_rec(casted_constr, arg2)
             case Arrow(src2, tgt2):
-                casted: deque[Type] = deque()
+                casted_arr: deque[Type] = deque()
                 while subtypes:
                     match subtypes.pop():
                         case Arrow(src1, tgt1):
                             if self._check_subtype_rec(deque((src2,)), src1):
-                                casted.append(tgt1)
+                                casted_arr.append(tgt1)
                         case Intersection(l, r):
                             subtypes.extend((l, r))
-                return len(casted) != 0 and self._check_subtype_rec(casted, tgt2)
+                return len(casted_arr) != 0 and self._check_subtype_rec(casted_arr, tgt2)
             case Product(l2, r2):
                 casted_l: deque[Type] = deque()
                 casted_r: deque[Type] = deque()
