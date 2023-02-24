@@ -1,6 +1,5 @@
 # Propositional Finite Combinatory Logic
 
-from abc import ABC
 from collections import deque
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
@@ -10,7 +9,6 @@ from typing import Any, Callable, Sequence, TypeAlias, TypeVar
 
 from .boolean import BooleanTerm, minimal_dnf_as_list
 from .combinatorics import maximal_elements, minimal_covers, partition
-from .enumeration import ComputationStep, EmptyStep
 from .subtypes import Subtypes
 from .types import Arrow, Constructor, Intersection, Type
 
@@ -22,7 +20,6 @@ Clause: TypeAlias = tuple[Type, frozenset[Type]]
 TreeGrammar: TypeAlias = dict[
     Clause | BooleanTerm[Type], deque[tuple[object, list[Clause]]]
 ]
-
 
 def show_clause(clause: Clause) -> str:
     flat_clause: Iterable[Type] = chain([clause[0]], clause[1])
@@ -41,90 +38,8 @@ def show_grammar(grammar: TreeGrammar) -> Iterable[str]:
             )
         )
 
-
 def mstr(m: MultiArrow) -> tuple[str, str]:
     return (str(list(map(str, m[0]))), str(m[1]))
-
-
-@dataclass(frozen=True)
-class Rule(ABC):
-    target: Type = field(init=True, kw_only=True)
-    is_combinator: bool = field(init=True, kw_only=True)
-
-
-@dataclass(frozen=True)
-class Failed(Rule):
-    target: Type = field()
-    is_combinator: bool = field(default=False, init=False)
-
-    def __str__(self) -> str:
-        return f"Failed({str(self.target)})"
-
-
-@dataclass(frozen=True)
-class Combinator(Rule):
-    target: Type = field()
-    is_combinator: bool = field(default=True, init=False)
-    combinator: object = field(init=True)
-
-    def __str__(self) -> str:
-        return f"Combinator({str(self.target)}, {str(self.combinator)})"
-
-
-@dataclass(frozen=True)
-class Apply(Rule):
-    target: Type = field()
-    is_combinator: bool = field(default=False, init=False)
-    function_type: Type = field(init=True)
-    argument_type: Type = field(init=True)
-
-    def __str__(self) -> str:
-        return (
-            f"@({str(self.function_type)}, {str(self.argument_type)}) : {self.target}"
-        )
-
-
-@dataclass(frozen=True)
-class Tree(object):
-    rule: Rule = field(init=True)
-    children: tuple["Tree", ...] = field(init=True, default_factory=lambda: ())
-
-    class Evaluator(ComputationStep):
-        def __init__(self, outer: "Tree", results: list[Any]):
-            self.outer: "Tree" = outer
-            self.results = results
-
-        def __iter__(self) -> Iterator[ComputationStep]:
-            match self.outer.rule:
-                case Combinator(_, c):
-                    self.results.append(c)
-                case Apply(_, _, _):
-                    f_arg: list[Any] = []
-                    yield Tree.Evaluator(self.outer.children[0], f_arg)
-                    yield Tree.Evaluator(self.outer.children[1], f_arg)
-                    self.results.append(partial(f_arg[0])(f_arg[1]))
-                case _:
-                    raise TypeError(f"Cannot apply rule: {self.outer.rule}")
-            yield EmptyStep()
-
-    def evaluate(self) -> Any:
-        result: list[Any] = []
-        self.Evaluator(self, result).run()
-        return result[0]
-
-    def __str__(self) -> str:
-        match self.rule:
-            case Combinator(_, _):
-                return str(self.rule.combinator)
-            case Apply(_, _, _):
-                return f"{str(self.children[0])}({str(self.children[1])})"
-            case _:
-                return f"{str(self.rule)} @ ({', '.join(map(str, self.children))})"
-
-            # case Combinator(_, _): return str(self.rule)
-            # case Apply(_, _, _): return f"{str(self.children[0])}({str(self.children[1])})"
-            # case _: return f"{str(self.rule)} @ ({', '.join(map(str, self.children))})"
-
 
 class FiniteCombinatoryLogic(object):
     def __init__(self, repository: dict[object, Type], subtypes: Subtypes):
@@ -156,25 +71,6 @@ class FiniteCombinatoryLogic(object):
                 for (new_arg, new_tgt) in unary_function_types(tgt)
             ]
 
-    def _omega_rules(self, target: Type) -> set[Rule]:
-        return {
-            Apply(target, target, target),
-            *map(lambda c: Combinator(target, c), self.repository.keys()),
-        }
-
-    @staticmethod
-    def _combinatory_expression_rules(
-        combinator: object, arguments: list[Clause], target: Type
-    ) -> Iterable[Rule]:
-        """Rules from combinatory expression `combinator(arguments[0], ..., arguments[n])`."""
-
-        remaining_arguments: deque[Clause] = deque(arguments)
-        while remaining_arguments:
-            argument = FiniteCombinatoryLogic.clause_to_type(remaining_arguments.pop())
-            yield Apply(target, Arrow(argument, target), argument)
-            target = Arrow(argument, target)
-        yield Combinator(target, combinator)
-
     def _subqueries(
         self, nary_types: list[MultiArrow], paths: list[Type]
     ) -> Sequence[list[Type]]:
@@ -184,6 +80,8 @@ class FiniteCombinatoryLogic(object):
         ] = lambda m, t: self.subtypes.check_subtype(m[1], t)
         # cover target using targets of multi-arrows in nary_types
         covers = minimal_covers(nary_types, paths, target_contains)
+        if len(covers) == 0:
+            return []
         # intersect corresponding arguments of multi-arrows in each cover
         intersect_args: Callable[
             [Iterable[Type], Iterable[Type]], Any  # TODO: Fix types
@@ -249,7 +147,7 @@ class FiniteCombinatoryLogic(object):
         return clauses
 
     def inhabit(self, *targets: Clause | BooleanTerm[Type]) -> TreeGrammar:
-        clause_targets = []
+        clause_targets: deque[Clause] = deque()
         boolean_terms = {}
         for target in targets:
             if isinstance(target, BooleanTerm):
@@ -261,10 +159,8 @@ class FiniteCombinatoryLogic(object):
         # dictionary of type |-> sequence of combinatory expressions
         memo: TreeGrammar = dict()
 
-        remaining_targets: deque[Clause] = deque(clause_targets)
-
-        while remaining_targets:
-            target = remaining_targets.pop()
+        while clause_targets:
+            target = clause_targets.pop()
             if memo.get(target) is None:
                 # target type was not seen before
                 # paths: list[Type] = list(target.organized)
@@ -286,6 +182,8 @@ class FiniteCombinatoryLogic(object):
                         positive_arguments: list[list[Type]] = list(
                             self._subqueries(nary_types, all_positive_paths)
                         )
+                        if len(positive_arguments) == 0:
+                            continue
                         negative_arguments: list[list[Type]] = list(
                             chain.from_iterable(
                                 self._subqueries(nary_types, paths)
@@ -296,7 +194,7 @@ class FiniteCombinatoryLogic(object):
                             positive_arguments, negative_arguments
                         ):
                             possibilities.append((combinator, subquery))
-                            remaining_targets.extendleft(subquery)
+                            clause_targets.extendleft(subquery)
 
         # generate rules for the boolean_terms
         for term, clauses in boolean_terms.items():

@@ -88,7 +88,7 @@ def interpret_term(term: Tree) -> Any:
         for _ in range(n):
             c = functools.partial(c, results.pop())
 
-        results.append(c() if isinstance(c, Callable) else c)
+        results.append(c() if callable(c) else c)
         
     return results.pop()
 
