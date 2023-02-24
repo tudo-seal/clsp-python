@@ -1,27 +1,19 @@
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Optional, Tuple
-
+import itertools
 
 @dataclass(frozen=True)
 class Type(ABC):
     is_omega: bool = field(init=True, kw_only=True, compare=False)
     size: int = field(init=True, kw_only=True, compare=False)
     organized: set["Type"] = field(init=True, kw_only=True, compare=False)
-    path: Optional[Tuple[list["Type"], "Type"]] = field(
-        init=True, kw_only=True, compare=False
-    )
 
     def __str__(self) -> str:
         return self._str_prec(0)
 
     def __mul__(self, other: "Type") -> "Type":
         return Product(self, other)
-
-    @abstractmethod
-    def _path(self) -> Optional[Tuple[list["Type"], "Type"]]:
-        pass
 
     @abstractmethod
     def _organized(self) -> set["Type"]:
@@ -59,14 +51,12 @@ class Type(ABC):
         del state["is_omega"]
         del state["size"]
         del state["organized"]
-        del state["path"]
         return state
 
     def __setstate__(self, state):
         self.__dict__.update(state)
         self.__dict__["is_omega"] = self._is_omega()
         self.__dict__["size"] = self._size()
-        self.__dict__["path"] = self._path()
         self.__dict__["organized"] = self._organized()
 
 
@@ -75,14 +65,12 @@ class Omega(Type):
     is_omega: bool = field(init=False, compare=False)
     size: bool = field(init=False, compare=False)
     organized: set[Type] = field(init=False, compare=False)
-    path: Optional[Tuple[list["Type"], "Type"]] = field(init=False, compare=False)
 
     def __post_init__(self):
         super().__init__(
             is_omega=self._is_omega(),
             size=self._size(),
             organized=self._organized(),
-            path=self._path(),
         )
 
     def _is_omega(self) -> bool:
@@ -90,9 +78,6 @@ class Omega(Type):
 
     def _size(self) -> int:
         return 1
-
-    def _path(self) -> Optional[Tuple[list["Type"], "Type"]]:
-        return None
 
     def _organized(self) -> set["Type"]:
         return set()
@@ -108,14 +93,12 @@ class Constructor(Type):
     is_omega: bool = field(init=False, compare=False)
     size: int = field(init=False, compare=False)
     organized: set[Type] = field(init=False, compare=False)
-    path: Optional[Tuple[list["Type"], "Type"]] = field(init=False, compare=False)
 
     def __post_init__(self):
         super().__init__(
             is_omega=self._is_omega(),
             size=self._size(),
             organized=self._organized(),
-            path=self._path(),
         )
 
     def _is_omega(self) -> bool:
@@ -124,15 +107,11 @@ class Constructor(Type):
     def _size(self) -> int:
         return 1 + self.arg.size
 
-    def _path(self) -> Optional[Tuple[list["Type"], "Type"]]:
-        return ([], self) if self.arg.path or self.arg == Omega() else None
-
     def _organized(self) -> set["Type"]:
-        return (
-            {self}
-            if self._path()
-            else set(map(lambda ap: Constructor(self.name, ap), self.arg.organized))
-        )
+        if len(self.arg.organized) <= 1:
+            return {self}
+        else:
+            return {Constructor(self.name, ap) for ap in self.arg.organized}
 
     def _str_prec(self, prec: int) -> str:
         if self.arg == Omega():
@@ -148,14 +127,12 @@ class Product(Type):
     is_omega: bool = field(init=False, compare=False)
     size: int = field(init=False, compare=False)
     organized: set[Type] = field(init=False, compare=False)
-    path: Optional[Tuple[list["Type"], "Type"]] = field(init=False, compare=False)
 
     def __post_init__(self):
         super().__init__(
             is_omega=self._is_omega(),
             size=self._size(),
             organized=self._organized(),
-            path=self._path(),
         )
 
     def _is_omega(self) -> bool:
@@ -164,25 +141,12 @@ class Product(Type):
     def _size(self) -> int:
         return 1 + self.left.size + self.right.size
 
-    def _path(self) -> Optional[Tuple[list["Type"], "Type"]]:
-        return (
-            ([], self)
-            if (
-                (self.left == Omega() and self.right == Omega())
-                or (self.left.path and self.right == Omega())
-                or (self.left == Omega() and self.right.path)
-            )
-            else None
-        )
-
     def _organized(self) -> set["Type"]:
-        if self._path():
+        if len(self.left.organized) + len(self.right.organized) <= 1:
             return {self}
         else:
-            return set.union(
-                set(map(lambda lp: Product(lp, Omega()), self.left.organized)),
-                set(map(lambda rp: Product(Omega(), rp), self.right.organized)),
-            )
+            return set(itertools.chain((Product(lp, Omega()) for lp in self.left.organized),
+                                       (Product(Omega(), rp) for rp in self.right.organized)))
 
     def _str_prec(self, prec: int) -> str:
         product_prec: int = 9
@@ -207,14 +171,12 @@ class Arrow(Type):
     is_omega: bool = field(init=False, compare=False)
     size: int = field(init=False, compare=False)
     organized: set[Type] = field(init=False, compare=False)
-    path: Optional[Tuple[list["Type"], "Type"]] = field(init=False, compare=False)
 
     def __post_init__(self):
         super().__init__(
             is_omega=self._is_omega(),
             size=self._size(),
             organized=self._organized(),
-            path=self._path(),
         )
 
     def _is_omega(self) -> bool:
@@ -223,19 +185,13 @@ class Arrow(Type):
     def _size(self) -> int:
         return 1 + self.source.size + self.target.size
 
-    def _path(self) -> Optional[Tuple[list["Type"], "Type"]]:
-        return (
-            ([self.source, *(self.target.path[0])], self.target.path[1])
-            if self.target.path
-            else None
-        )
-
     def _organized(self) -> set["Type"]:
-        return (
-            {self}
-            if self._path()
-            else set(map(lambda tp: Arrow(self.source, tp), self.target.organized))
-        )
+        if len(self.target.organized) == 0:
+            return set()
+        elif len(self.target.organized) == 1:
+            return {self}
+        else:
+            return {Arrow(self.source, tp) for tp in self.target.organized}
 
     def _str_prec(self, prec: int) -> str:
         arrow_prec: int = 8
@@ -255,14 +211,12 @@ class Intersection(Type):
     is_omega: bool = field(init=False, compare=False)
     size: int = field(init=False, compare=False)
     organized: set[Type] = field(init=False, compare=False)
-    path: Optional[Tuple[list["Type"], "Type"]] = field(init=False, compare=False)
 
     def __post_init__(self):
         super().__init__(
             is_omega=self._is_omega(),
             size=self._size(),
             organized=self._organized(),
-            path=self._path(),
         )
 
     def _is_omega(self) -> bool:
@@ -270,9 +224,6 @@ class Intersection(Type):
 
     def _size(self) -> int:
         return 1 + self.left.size + self.right.size
-
-    def _path(self) -> Optional[Tuple[list["Type"], "Type"]]:
-        return None
 
     def _organized(self) -> set["Type"]:
         return set.union(self.left.organized, self.right.organized)
