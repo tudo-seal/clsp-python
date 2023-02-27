@@ -1,5 +1,5 @@
 from collections import deque
-from collections.abc import Iterable, Sequence, Callable
+from collections.abc import Callable, Iterable, Sequence
 from typing import TypeVar
 
 S = TypeVar("S")  # Type of Sets
@@ -21,7 +21,7 @@ def partition(
 
 
 def maximal_elements(
-    elements: Sequence[E], compare: Callable[[E, E], bool]
+    elements: Iterable[E], compare: Callable[[E, E], bool]
 ) -> Sequence[E]:
     """Enumerate maximal elements with respect to compare.
 

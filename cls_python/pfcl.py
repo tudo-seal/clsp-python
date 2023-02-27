@@ -1,32 +1,33 @@
 # Propositional Finite Combinatory Logic
 
 from collections import deque
-from collections.abc import Iterable, Iterator
-from dataclasses import dataclass, field
-from functools import partial, reduce
+from collections.abc import Hashable, Iterable, MutableMapping, Sequence
+from functools import reduce
 from itertools import chain
-from typing import Any, Callable, Sequence, TypeAlias, TypeVar
+from typing import Callable, Generic, TypeAlias, TypeVar, cast
 
 from .boolean import BooleanTerm, minimal_dnf_as_list
 from .combinatorics import maximal_elements, minimal_covers, partition
 from .subtypes import Subtypes
-from .types import Arrow, Constructor, Intersection, Type
+from .types import Arrow, Intersection, Type
+
+T = TypeVar("T", bound=Hashable)
 
 # ([sigma_1, ..., sigma_n], tau) means sigma_1 -> ... -> sigma_n -> tau
-MultiArrow: TypeAlias = tuple[list[Type], Type]
+MultiArrow: TypeAlias = tuple[list[Type[T]], Type[T]]
 # (tau_0, tau_1, ..., tau_n) means tau_0 and (not tau_1) and ... and (not tau_n)
-Clause: TypeAlias = tuple[Type, frozenset[Type]]
+Clause: TypeAlias = tuple[Type[T], frozenset[Type[T]]]
 
-TreeGrammar: TypeAlias = dict[
-    Clause | BooleanTerm[Type], deque[tuple[object, list[Clause]]]
-]
 
-def show_clause(clause: Clause) -> str:
-    flat_clause: Iterable[Type] = chain([clause[0]], clause[1])
+TreeGrammar: TypeAlias = MutableMapping[Clause[T], deque[tuple[T, list[Clause[T]]]]]
+
+
+def show_clause(clause: Clause[T]) -> str:
+    flat_clause: Iterable[Type[T]] = chain([clause[0]], clause[1])
     return " and not ".join(map(str, flat_clause))
 
 
-def show_grammar(grammar: TreeGrammar) -> Iterable[str]:
+def show_grammar(grammar: TreeGrammar[T]) -> Iterable[str]:
     for clause, possibilities in grammar.items():
         lhs = str(clause) if isinstance(clause, BooleanTerm) else show_clause(clause)
         yield (
@@ -38,23 +39,25 @@ def show_grammar(grammar: TreeGrammar) -> Iterable[str]:
             )
         )
 
-def mstr(m: MultiArrow) -> tuple[str, str]:
+
+def mstr(m: MultiArrow[T]) -> tuple[str, str]:
     return (str(list(map(str, m[0]))), str(m[1]))
 
-class FiniteCombinatoryLogic(object):
-    def __init__(self, repository: dict[object, Type], subtypes: Subtypes):
-        self.repository: dict[object, list[list[MultiArrow]]] = {
+
+class FiniteCombinatoryLogic(Generic[T]):
+    def __init__(self, repository: dict[T, Type[T]], subtypes: Subtypes[T]):
+        self.repository: dict[T, list[list[MultiArrow[T]]]] = {
             c: list(FiniteCombinatoryLogic._function_types(ty))
             for c, ty in repository.items()
         }
         self.subtypes = subtypes
 
     @staticmethod
-    def _function_types(ty: Type) -> Iterable[list[MultiArrow]]:
+    def _function_types(ty: Type[T]) -> Iterable[list[MultiArrow[T]]]:
         """Presents a type as a list of 0-ary, 1-ary, ..., n-ary function types."""
 
-        def unary_function_types(ty: Type) -> Iterable[tuple[Type, Type]]:
-            tys: deque[Type] = deque((ty,))
+        def unary_function_types(ty: Type[T]) -> Iterable[tuple[Type[T], Type[T]]]:
+            tys: deque[Type[T]] = deque((ty,))
             while tys:
                 match tys.pop():
                     case Arrow(src, tgt) if not tgt.is_omega:
@@ -62,7 +65,7 @@ class FiniteCombinatoryLogic(object):
                     case Intersection(sigma, tau):
                         tys.extend((sigma, tau))
 
-        current: list[MultiArrow] = [([], ty)]
+        current: list[MultiArrow[T]] = [([], ty)]
         while len(current) != 0:
             yield current
             current = [
@@ -72,11 +75,11 @@ class FiniteCombinatoryLogic(object):
             ]
 
     def _subqueries(
-        self, nary_types: list[MultiArrow], paths: list[Type]
-    ) -> Sequence[list[Type]]:
+        self, nary_types: list[MultiArrow[T]], paths: list[Type[T]]
+    ) -> Sequence[list[Type[T]]]:
         # does the target of a multi-arrow contain a given type?
         target_contains: Callable[
-            [MultiArrow, Type], bool
+            [MultiArrow[T], Type[T]], bool
         ] = lambda m, t: self.subtypes.check_subtype(m[1], t)
         # cover target using targets of multi-arrows in nary_types
         covers = minimal_covers(nary_types, paths, target_contains)
@@ -84,8 +87,9 @@ class FiniteCombinatoryLogic(object):
             return []
         # intersect corresponding arguments of multi-arrows in each cover
         intersect_args: Callable[
-            [Iterable[Type], Iterable[Type]], Any  # TODO: Fix types
-        ] = lambda args1, args2: map(Intersection, args1, args2)
+            [Iterable[Type[T]], Iterable[Type[T]]], list[Type[T]]
+        ] = lambda args1, args2: [Intersection(a, b) for a, b in zip(args1, args2)]
+
         intersected_args = (
             list(reduce(intersect_args, (m[0] for m in ms))) for ms in covers
         )
@@ -96,22 +100,24 @@ class FiniteCombinatoryLogic(object):
         return maximal_elements(intersected_args, compare_args)
 
     @staticmethod
-    def list_of_types_to_clause(types: Iterable[Type]) -> Clause:
+    def list_of_types_to_clause(types: Iterable[Type[T]]) -> Clause[T]:
         """Given a list of types, where the first element represents a positive type, and the
-        remaining elements represent negative types, create a Clause"""
+        remaining elements represent negative types, create a Clause[T]"""
 
         list_representation = list(types)
 
         return (list_representation[0], frozenset(list_representation[1:]))
 
     def _combine_arguments(
-        self, positive_arguments: list[list[Type]], negative_arguments: list[list[Type]]
-    ) -> list[list[Clause]]:
-        result: deque[list[deque[Type]]] = deque()
+        self,
+        positive_arguments: list[list[Type[T]]],
+        negative_arguments: list[list[Type[T]]],
+    ) -> list[list[Clause[T]]]:
+        result: deque[list[deque[Type[T]]]] = deque()
         for pos in positive_arguments:
             result.append(list(map(lambda ty: deque((ty,)), pos)))
         for neg in negative_arguments:
-            new_result: deque[list[deque[Type]]] = deque()
+            new_result: deque[list[deque[Type[T]]]] = deque()
             for i in range(len(neg)):
                 for args in result:
                     new_args = args.copy()
@@ -124,14 +130,10 @@ class FiniteCombinatoryLogic(object):
             for args in result
         )
 
-    @staticmethod
-    def clause_to_type(clause: Clause | BooleanTerm[Type]) -> Type:
-        return Constructor(name=clause)
-
-    def boolean_to_clauses(self, target: BooleanTerm[Type]) -> list[Clause]:
+    def boolean_to_clauses(self, target: BooleanTerm[Type[T]]) -> list[Clause[T]]:
         dnf = minimal_dnf_as_list(target)
 
-        clauses: list[Clause] = []
+        clauses: list[Clause[T]] = []
 
         for encoded_clause in dnf:
             encoded_negatives, encoded_positives = partition(
@@ -146,45 +148,55 @@ class FiniteCombinatoryLogic(object):
 
         return clauses
 
-    def inhabit(self, *targets: Clause | BooleanTerm[Type]) -> TreeGrammar:
-        clause_targets: deque[Clause] = deque()
-        boolean_terms = {}
-        for target in targets:
-            if isinstance(target, BooleanTerm):
-                boolean_terms[target] = self.boolean_to_clauses(target)
-                clause_targets.extend(boolean_terms[target])
+    def inhabit(
+        self, *targets: BooleanTerm[Type[T]] | Type[T]
+    ) -> dict[
+        Clause[T] | BooleanTerm[Type[T]],
+        deque[tuple[T, list[Clause[T] | BooleanTerm[Type[T]]]]],
+    ]:
+        clause_targets: deque[Clause[T]] = deque()
+        boolean_terms: dict[BooleanTerm[Type[T]], list[Clause[T]]] = {}
+
+        for boolean_target in targets:
+            if isinstance(boolean_target, Type):
+                clause_targets.append((boolean_target, frozenset()))
             else:
-                clause_targets.append(target)
+                boolean_terms[boolean_target] = self.boolean_to_clauses(boolean_target)
+                clause_targets.extend(boolean_terms[boolean_target])
 
         # dictionary of type |-> sequence of combinatory expressions
-        memo: TreeGrammar = dict()
+        memo: TreeGrammar[T] = dict()
 
         while clause_targets:
             target = clause_targets.pop()
             if memo.get(target) is None:
                 # target type was not seen before
                 # paths: list[Type] = list(target.organized)
-                possibilities: deque[tuple[object, list[Clause]]] = deque()
+                possibilities: deque[tuple[T, list[Clause[T]]]] = deque()
                 memo.update({target: possibilities})
                 # If the positive part is omega, then the result is junk
                 if target[0].is_omega:
                     continue
                 # If the positive part is a subtype of the negative part, then there are no inhabitants
-                if any(True for ty in target[1] if self.subtypes.check_subtype(target[0], ty)):
+                if any(
+                    True
+                    for ty in target[1]
+                    if self.subtypes.check_subtype(target[0], ty)
+                ):
                     continue
-                
-                all_positive_paths: list[Type] = list(target[0].organized)
+
+                all_positive_paths: list[Type[T]] = list(target[0].organized)
                 all_negative_paths = [list(ty.organized) for ty in target[1]]
 
                 # try each combinator and arity
                 for combinator, combinator_type in self.repository.items():
                     for nary_types in combinator_type:
-                        positive_arguments: list[list[Type]] = list(
+                        positive_arguments: list[list[Type[T]]] = list(
                             self._subqueries(nary_types, all_positive_paths)
                         )
                         if len(positive_arguments) == 0:
                             continue
-                        negative_arguments: list[list[Type]] = list(
+                        negative_arguments: list[list[Type[T]]] = list(
                             chain.from_iterable(
                                 self._subqueries(nary_types, paths)
                                 for paths in all_negative_paths
@@ -196,28 +208,36 @@ class FiniteCombinatoryLogic(object):
                             possibilities.append((combinator, subquery))
                             clause_targets.extendleft(subquery)
 
-        # generate rules for the boolean_terms
-        for term, clauses in boolean_terms.items():
-            rhs_of_clauses: deque[tuple[object, list[Clause]]] = deque(
-                (rhs for clause in clauses for rhs in memo[clause])
-            )
-            memo[term] = rhs_of_clauses
-
         # prune not inhabited types
         FiniteCombinatoryLogic._prune(memo)
 
-        return memo
+        return_memo = cast(
+            dict[
+                Clause[T] | BooleanTerm[Type[T]],
+                deque[tuple[T, list[Clause[T] | BooleanTerm[Type[T]]]]],
+            ],
+            memo,
+        )
+
+        # generate rules for the boolean_terms
+        for term, clauses in boolean_terms.items():
+            rhs_of_clauses = deque(
+                (rhs for clause in clauses for rhs in return_memo[clause])
+            )
+            return_memo[term] = rhs_of_clauses
+
+        return return_memo
 
     @staticmethod
-    def _prune(memo: TreeGrammar) -> None:
+    def _prune(memo: TreeGrammar[T]) -> None:
         """Keep only productive grammar rules."""
 
         def is_ground(
-            args: list[Clause], ground_types: set[Clause | BooleanTerm[Type]]
+            args: list[Clause[T]], ground_types: set[Clause[T] | BooleanTerm[Type[T]]]
         ) -> bool:
             return all(True for arg in args if arg in ground_types)
 
-        ground_types: set[Clause | BooleanTerm[Type]] = set()
+        ground_types: set[Clause[T] | BooleanTerm[Type[T]]] = set()
         new_ground_types, candidates = partition(
             lambda ty: any(
                 True for (_, args) in memo[ty] if is_ground(args, ground_types)

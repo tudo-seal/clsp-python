@@ -1,22 +1,28 @@
-from abc import ABC, abstractmethod
-from collections.abc import Sequence
-from dataclasses import dataclass, field
+from __future__ import annotations
+
 import itertools
+from abc import ABC, abstractmethod
+from collections.abc import Hashable, Sequence
+from dataclasses import dataclass, field
+from typing import Any, Generic, TypeVar
+
+T = TypeVar("T", bound=Hashable, covariant=True)
+
 
 @dataclass(frozen=True)
-class Type(ABC):
+class Type(ABC, Generic[T]):
     is_omega: bool = field(init=True, kw_only=True, compare=False)
     size: int = field(init=True, kw_only=True, compare=False)
-    organized: set["Type"] = field(init=True, kw_only=True, compare=False)
+    organized: set[Type[T]] = field(init=True, kw_only=True, compare=False)
 
     def __str__(self) -> str:
         return self._str_prec(0)
 
-    def __mul__(self, other: "Type") -> "Type":
+    def __mul__(self, other: Type[T]) -> Type[T]:
         return Product(self, other)
 
     @abstractmethod
-    def _organized(self) -> set["Type"]:
+    def _organized(self) -> set[Type[T]]:
         pass
 
     @abstractmethod
@@ -36,24 +42,24 @@ class Type(ABC):
         return f"({s})"
 
     @staticmethod
-    def intersect(types: Sequence["Type"]) -> "Type":
+    def intersect(types: Sequence[Type[T]]) -> Type[T]:
         if len(types) > 0:
             rtypes = reversed(types)
-            result: "Type" = next(rtypes)
+            result: Type[T] = next(rtypes)
             for ty in rtypes:
                 result = Intersection(ty, result)
             return result
         else:
             return Omega()
 
-    def __getstate__(self):
+    def __getstate__(self) -> dict[str, Any]:
         state = self.__dict__.copy()
         del state["is_omega"]
         del state["size"]
         del state["organized"]
         return state
 
-    def __setstate__(self, state):
+    def __setstate__(self, state: dict[str, Any]) -> None:
         self.__dict__.update(state)
         self.__dict__["is_omega"] = self._is_omega()
         self.__dict__["size"] = self._size()
@@ -61,12 +67,12 @@ class Type(ABC):
 
 
 @dataclass(frozen=True)
-class Omega(Type):
+class Omega(Type[T]):
     is_omega: bool = field(init=False, compare=False)
     size: bool = field(init=False, compare=False)
-    organized: set[Type] = field(init=False, compare=False)
+    organized: set[Type[T]] = field(init=False, compare=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         super().__init__(
             is_omega=self._is_omega(),
             size=self._size(),
@@ -79,7 +85,7 @@ class Omega(Type):
     def _size(self) -> int:
         return 1
 
-    def _organized(self) -> set["Type"]:
+    def _organized(self) -> set[Type[T]]:
         return set()
 
     def _str_prec(self, prec: int) -> str:
@@ -87,14 +93,14 @@ class Omega(Type):
 
 
 @dataclass(frozen=True)
-class Constructor(Type):
-    name: object = field(init=True)
-    arg: Type = field(default=Omega(), init=True)
+class Constructor(Type[T]):
+    name: T = field(init=True)
+    arg: Type[T] = field(default=Omega(), init=True)
     is_omega: bool = field(init=False, compare=False)
     size: int = field(init=False, compare=False)
-    organized: set[Type] = field(init=False, compare=False)
+    organized: set[Type[T]] = field(init=False, compare=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         super().__init__(
             is_omega=self._is_omega(),
             size=self._size(),
@@ -107,7 +113,7 @@ class Constructor(Type):
     def _size(self) -> int:
         return 1 + self.arg.size
 
-    def _organized(self) -> set["Type"]:
+    def _organized(self) -> set[Type[T]]:
         if len(self.arg.organized) <= 1:
             return {self}
         else:
@@ -121,14 +127,14 @@ class Constructor(Type):
 
 
 @dataclass(frozen=True)
-class Product(Type):
-    left: Type = field(init=True)
-    right: Type = field(init=True)
+class Product(Type[T]):
+    left: Type[T] = field(init=True)
+    right: Type[T] = field(init=True)
     is_omega: bool = field(init=False, compare=False)
     size: int = field(init=False, compare=False)
-    organized: set[Type] = field(init=False, compare=False)
+    organized: set[Type[T]] = field(init=False, compare=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         super().__init__(
             is_omega=self._is_omega(),
             size=self._size(),
@@ -141,17 +147,21 @@ class Product(Type):
     def _size(self) -> int:
         return 1 + self.left.size + self.right.size
 
-    def _organized(self) -> set["Type"]:
+    def _organized(self) -> set[Type[T]]:
         if len(self.left.organized) + len(self.right.organized) <= 1:
             return {self}
         else:
-            return set(itertools.chain((Product(lp, Omega()) for lp in self.left.organized),
-                                       (Product(Omega(), rp) for rp in self.right.organized)))
+            return set(
+                itertools.chain(
+                    (Product(lp, Omega()) for lp in self.left.organized),
+                    (Product(Omega(), rp) for rp in self.right.organized),
+                )
+            )
 
     def _str_prec(self, prec: int) -> str:
         product_prec: int = 9
 
-        def product_str_prec(other: Type) -> str:
+        def product_str_prec(other: Type[T]) -> str:
             match other:
                 case Product(_, _):
                     return other._str_prec(product_prec)
@@ -161,18 +171,18 @@ class Product(Type):
         result: str = (
             f"{product_str_prec(self.left)} * {self.right._str_prec(product_prec + 1)}"
         )
-        return Type._parens(result) if prec > product_prec else result
+        return Type[T]._parens(result) if prec > product_prec else result
 
 
 @dataclass(frozen=True)
-class Arrow(Type):
-    source: Type = field(init=True)
-    target: Type = field(init=True)
+class Arrow(Type[T]):
+    source: Type[T] = field(init=True)
+    target: Type[T] = field(init=True)
     is_omega: bool = field(init=False, compare=False)
     size: int = field(init=False, compare=False)
-    organized: set[Type] = field(init=False, compare=False)
+    organized: set[Type[T]] = field(init=False, compare=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         super().__init__(
             is_omega=self._is_omega(),
             size=self._size(),
@@ -185,7 +195,7 @@ class Arrow(Type):
     def _size(self) -> int:
         return 1 + self.source.size + self.target.size
 
-    def _organized(self) -> set["Type"]:
+    def _organized(self) -> set[Type[T]]:
         if len(self.target.organized) == 0:
             return set()
         elif len(self.target.organized) == 1:
@@ -205,14 +215,14 @@ class Arrow(Type):
 
 
 @dataclass(frozen=True)
-class Intersection(Type):
-    left: Type = field(init=True)
-    right: Type = field(init=True)
+class Intersection(Type[T]):
+    left: Type[T] = field(init=True)
+    right: Type[T] = field(init=True)
     is_omega: bool = field(init=False, compare=False)
     size: int = field(init=False, compare=False)
-    organized: set[Type] = field(init=False, compare=False)
+    organized: set[Type[T]] = field(init=False, compare=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         super().__init__(
             is_omega=self._is_omega(),
             size=self._size(),
@@ -225,13 +235,13 @@ class Intersection(Type):
     def _size(self) -> int:
         return 1 + self.left.size + self.right.size
 
-    def _organized(self) -> set["Type"]:
+    def _organized(self) -> set[Type[T]]:
         return set.union(self.left.organized, self.right.organized)
 
     def _str_prec(self, prec: int) -> str:
         intersection_prec: int = 10
 
-        def intersection_str_prec(other: Type) -> str:
+        def intersection_str_prec(other: Type[T]) -> str:
             match other:
                 case Intersection(_, _):
                     return other._str_prec(intersection_prec)

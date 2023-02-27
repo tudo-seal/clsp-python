@@ -103,14 +103,15 @@ to cover all minterms.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Hashable, Iterable
 from dataclasses import dataclass
 from functools import cached_property
 from itertools import chain, compress, groupby
-from typing import Generic, Iterable, Optional, TypeAlias, TypeVar
+from typing import Generic, Optional, TypeAlias, TypeVar
 
 from .combinatorics import minimal_covers
 
-T = TypeVar("T")
+T = TypeVar("T", bound=Hashable)
 
 Mapping: TypeAlias = tuple[int, int]
 """Mappings are encoded as a tuple of integers. The binary representation of the first integer

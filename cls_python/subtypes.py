@@ -1,20 +1,24 @@
 from collections import deque
+from collections.abc import Hashable
+from typing import Generic, TypeVar
 
-from .types import *
+from .types import Arrow, Constructor, Intersection, Product, Type
+
+T = TypeVar("T", bound=Hashable)
 
 
-class Subtypes(object):
-    def __init__(self, environment: dict[object, set]):
+class Subtypes(Generic[T]):
+    def __init__(self, environment: dict[T, set[T]]):
         self.environment = self._transitive_closure(
             self._reflexive_closure(environment)
         )
 
-    def _check_subtype_rec(self, subtypes: deque[Type], supertype: Type) -> bool:
+    def _check_subtype_rec(self, subtypes: deque[Type[T]], supertype: Type[T]) -> bool:
         if supertype.is_omega:
             return True
         match supertype:
             case Constructor(name2, arg2):
-                casted_constr: deque[Type] = deque()
+                casted_constr: deque[Type[T]] = deque()
                 while subtypes:
                     match subtypes.pop():
                         case Constructor(name1, arg1):
@@ -24,9 +28,11 @@ class Subtypes(object):
                                 casted_constr.append(arg1)
                         case Intersection(l, r):
                             subtypes.extend((l, r))
-                return len(casted_constr) != 0 and self._check_subtype_rec(casted_constr, arg2)
+                return len(casted_constr) != 0 and self._check_subtype_rec(
+                    casted_constr, arg2
+                )
             case Arrow(src2, tgt2):
-                casted_arr: deque[Type] = deque()
+                casted_arr: deque[Type[T]] = deque()
                 while subtypes:
                     match subtypes.pop():
                         case Arrow(src1, tgt1):
@@ -34,10 +40,12 @@ class Subtypes(object):
                                 casted_arr.append(tgt1)
                         case Intersection(l, r):
                             subtypes.extend((l, r))
-                return len(casted_arr) != 0 and self._check_subtype_rec(casted_arr, tgt2)
+                return len(casted_arr) != 0 and self._check_subtype_rec(
+                    casted_arr, tgt2
+                )
             case Product(l2, r2):
-                casted_l: deque[Type] = deque()
-                casted_r: deque[Type] = deque()
+                casted_l: deque[Type[T]] = deque()
+                casted_r: deque[Type[T]] = deque()
                 while subtypes:
                     match subtypes.pop():
                         case Product(l1, r1):
@@ -58,33 +66,33 @@ class Subtypes(object):
             case _:
                 raise TypeError(f"Unsupported type in check_subtype: {supertype}")
 
-    def check_subtype(self, subtype: Type, supertype: Type) -> bool:
+    def check_subtype(self, subtype: Type[T], supertype: Type[T]) -> bool:
         """Decides whether subtype <= supertype."""
 
         return self._check_subtype_rec(deque((subtype,)), supertype)
 
     @staticmethod
-    def _reflexive_closure(env: dict[object, set]) -> dict[object, set]:
-        all_types: set[object] = set(env.keys())
+    def _reflexive_closure(env: dict[T, set[T]]) -> dict[T, set[T]]:
+        all_types: set[T] = set(env.keys())
         for v in env.values():
             all_types.update(v)
-        result: dict[object, set] = {
+        result: dict[T, set[T]] = {
             subtype: {subtype}.union(env.get(subtype, set())) for subtype in all_types
         }
         return result
 
     @staticmethod
-    def _transitive_closure(env: dict[object, set]) -> dict[object, set]:
-        result: dict[object, set] = {
+    def _transitive_closure(env: dict[T, set[T]]) -> dict[T, set[T]]:
+        result: dict[T, set[T]] = {
             subtype: supertypes.copy() for (subtype, supertypes) in env.items()
         }
         has_changed = True
 
         while has_changed:
             has_changed = False
-            for (subtype, known_supertypes) in result.items():
+            for known_supertypes in result.values():
                 for supertype in known_supertypes.copy():
-                    to_add: set = {
+                    to_add: set[T] = {
                         new_supertype
                         for new_supertype in result[supertype]
                         if new_supertype not in known_supertypes
@@ -95,8 +103,8 @@ class Subtypes(object):
 
         return result
 
-    def minimize(self, tys: set[Type]) -> set[Type]:
-        result: set[Type] = set()
+    def minimize(self, tys: set[Type[T]]) -> set[Type[T]]:
+        result: set[Type[T]] = set()
         for ty in tys:
             if all(map(lambda ot: not self.check_subtype(ot, ty), result)):
                 result = {ty, *(ot for ot in result if not self.check_subtype(ty, ot))}

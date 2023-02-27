@@ -1,7 +1,7 @@
-from typing import Iterable
+from typing import Any, Iterable
 
 
-def deep_str(obj) -> str:
+def deep_str(obj: Any) -> str:
     sep = ",\n"
     if isinstance(obj, list):
         return f"[{sep.join(map(deep_str, obj))}]"
