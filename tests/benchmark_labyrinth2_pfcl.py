@@ -85,10 +85,10 @@ def test():
     for row in range(0, SIZE)
     for col in range(0, SIZE)
     for (c, t) in (
-        (Move(f"up_({row}, {col})"), single_move(row, col, 0, 1, 0, 0)),
-        (Move(f"down_({row}, {col})"), single_move(row, col, 0, 0, 0, 1)),
-        (Move(f"left_({row}, {col})"), single_move(row, col, 1, 0, 0, 0)),
-        (Move(f"right_({row}, {col})"), single_move(row, col, 0, 0, 1, 0))
+        (Move(f"up_({row}, {col})"), single_move(row, col, 1, 0, 0, 0)),
+        (Move(f"down_({row}, {col})"), single_move(row, col, 0, 0, 1, 0)),
+        (Move(f"left_({row}, {col})"), single_move(row, col, 0, 1, 0, 0)),
+        (Move(f"right_({row}, {col})"), single_move(row, col, 0, 0, 0, 1))
         )
     }
 

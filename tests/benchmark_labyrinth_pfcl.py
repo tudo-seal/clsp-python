@@ -1,45 +1,22 @@
 from dataclasses import dataclass, field
-from typing import Callable
+import itertools
+import timeit
 
-from cls_python import *
+from cls_python.types import Type, Constructor, Product, Omega, Arrow, Intersection
 from cls_python.boolean import BooleanTerm, Var
 from cls_python.pfcl import FiniteCombinatoryLogic
 from cls_python.enumeration_new import enumerate_terms, interpret_term
+from cls_python.subtypes import Subtypes
 
-labyrinth_free = (
-    (True, False, True, True, True, True, True, False, True, True, True, True, True, False, True, False, True, True, True, False, True, True, True, False, True, True, True, False, True, True),
-    (True, True, True, True, True, True, True, True, True, False, True, False, False, True, True, False, False, True, True, True, True, True, True, True, True, True, False, False, False, True),
-    (True, True, True, True, True, True, True, False, True, False, True, True, True, True, False, True, True, True, True, True, False, False, True, True, False, True, True, False, True, False),
-    (True, True, True, True, True, False, True, True, False, False, True, True, True, True, True, True, True, True, True, True, True, True, True, True, False, True, True, True, True, False),
-    (True, True, True, True, True, False, True, True, False, False, True, False, True, False, True, True, False, True, True, True, True, True, True, False, True, True, True, True, True, False),
-    (True, True, False, False, True, True, True, True, False, True, True, True, True, True, False, True, True, True, False, True, True, True, True, True, False, True, True, True, True, True),
-    (True, True, True, False, True, False, False, True, True, False, True, True, True, False, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True),
-    (True, True, True, False, True, False, False, True, True, False, False, False, True, True, True, True, False, True, True, True, False, True, True, True, True, False, True, True, False, True),
-    (True, True, True, False, True, True, False, True, True, False, True, False, True, True, False, False, False, True, False, True, True, True, True, True, False, False, True, False, True, True),
-    (True, False, False, True, True, True, True, True, True, True, True, True, False, True, True, True, False, True, True, True, True, True, True, True, False, False, True, False, True, True),
-    (True, False, True, False, True, True, False, True, True, True, True, True, True, True, True, False, True, True, True, False, True, False, True, False, True, True, False, False, True, False),
-    (True, True, True, False, True, True, True, True, True, False, True, True, True, True, True, False, True, True, False, False, True, False, True, True, True, True, True, True, True, True),
-    (True, False, True, True, False, False, True, False, False, True, True, True, False, True, True, True, True, True, False, True, True, True, True, True, True, True, True, True, True, True),
-    (True, True, True, False, True, True, False, True, True, True, True, True, True, True, True, True, False, True, True, True, True, True, True, True, True, True, False, True, True, True),
-    (False, True, True, False, True, True, False, True, True, True, True, True, False, True, True, False, True, True, True, False, True, True, True, False, True, True, True, True, True, True),
-    (True, False, False, True, True, True, False, False, True, True, False, False, True, True, False, True, True, False, False, True, True, True, True, True, True, True, False, True, True, True),
-    (True, True, False, False, True, True, True, True, True, True, True, False, True, True, True, True, True, True, True, True, True, True, True, True, True, False, True, True, True, True),
-    (True, True, True, True, True, True, True, True, True, True, False, False, True, True, True, False, False, False, True, False, True, True, True, True, True, True, True, True, True, True),
-    (True, True, True, True, True, False, True, True, True, False, True, False, False, True, True, True, True, True, False, True, True, True, True, True, True, True, True, False, False, True),
-    (False, False, True, True, False, True, False, True, True, False, False, True, False, True, True, True, True, True, True, True, True, True, True, True, True, False, True, True, True, True),
-    (True, True, True, False, False, False, True, False, True, True, True, True, True, False, True, True, True, True, True, True, True, True, False, True, False, True, True, True, True, False),
-    (False, True, True, True, True, True, True, True, True, True, True, False, True, True, True, True, True, True, True, True, True, True, True, True, True, False, True, False, False, True),
-    (True, True, True, True, True, False, True, True, True, True, True, True, True, True, False, True, False, True, True, False, True, True, True, True, True, True, True, True, True, True),
-    (True, True, True, False, True, True, True, True, False, True, True, False, True, True, True, True, True, False, True, True, False, True, True, True, True, False, True, False, True, True),
-    (True, True, True, True, True, True, True, False, True, True, True, True, True, True, True, True, True, False, True, True, True, True, True, True, True, False, False, True, True, True),
-    (True, True, True, False, True, True, False, True, True, True, True, False, True, True, True, True, True, True, False, False, True, True, True, True, False, True, True, True, False, True),
-    (False, False, True, True, False, True, True, True, True, False, True, True, True, False, True, True, False, False, True, True, True, True, True, True, True, True, False, False, False, True),
-    (True, True, True, True, True, True, True, False, True, False, True, False, True, False, True, True, False, False, False, True, True, True, True, True, True, True, True, True, True, True),
-    (True, True, False, True, False, True, True, True, True, True, False, True, True, True, True, True, False, True, True, False, False, True, False, True, False, True, True, False, True, True),
-    (True, True, True, True, True, False, True, True, False, False, False, True, True, False, False, True, False, False, True, True, True, False, True, True, True, True, True, True, True, True)
-)
+# pseudo-random labyrinth
+def is_free(row: int, col: int) -> bool:
+    SEED = 0
+    if row == col:
+        return True
+    else:
+        return (pow(11, (row + col + SEED) * (row + col + SEED) + col + 7, 1000003) % 5 > 0)
 
-size = 3  # len(labyrinth_free)
+SIZE = 3
 
 def int_to_type(x: int) -> Type:
     return Constructor(str(x))
@@ -53,31 +30,9 @@ def pos(row: int, col: int) -> Type:
 def seen(row: int, col: int) -> Type:
     return Constructor(f"Seen_({row}, {col})")
 
-
-free_fields = {
-    f"Pos_at_({row}, {col})": free(row, col)
-    for row in range(0, size) for col in range(0, size) if labyrinth_free[col][row]
-}
-
-def move(drow_from: int, dcol_from: int, drow_to: int, dcol_to: int) -> Type:
-    return Type.intersect([
-        Arrow(pos(row + drow_from, col + dcol_from),
-              Arrow(
-                  free(row + drow_to, col + dcol_to),
-                  Intersection(pos(row + drow_to, col + dcol_to), seen(row + drow_to, col + dcol_to)))
-              )
-        for row in range(0, size) for col in range(0, size)
-    ] + [
-        Arrow(seen(row, col),
-              Arrow(Omega(), seen(row, col))
-              )
-        for row in range(0, size) for col in range(0, size)
-    ])
-
-
 @dataclass(frozen=True)
 class Move(object):
-    direction: field(init=True)
+    direction: str = field(init=True)
 
     def __call__(self, path: str, position: str) -> str:
         return f"{path} then go {self.direction}"
@@ -86,31 +41,62 @@ class Move(object):
 class Start(object):
     def __call__(self) -> str:
         return "start"
+    
+def move(drow_from: int, dcol_from: int, drow_to: int, dcol_to: int) -> Type:
+    return Type.intersect([
+        Arrow(pos(row + drow_from, col + dcol_from),
+              Arrow(
+                  free(row + drow_to, col + dcol_to),
+                  Intersection(pos(row + drow_to, col + dcol_to), seen(row + drow_to, col + dcol_to)))
+              )
+        for row in range(0, SIZE) for col in range(0, SIZE)
+    ] + [
+        Arrow(seen(row, col),
+              Arrow(Omega(), seen(row, col))
+              )
+        for row in range(0, SIZE) for col in range(0, SIZE)
+    ])
 
-repository = {
-    Start(): Intersection(pos(0, 0), seen(0, 0)),
-    Move("up"): move(0, 1, 0, 0),
-    Move("down"): move(0, 0, 0, 1),
-    Move("left"): move(1, 0, 0, 0),
-    Move("right"): move(0, 0, 1, 0),
-    **free_fields
-}
+def test():
+    for row in range(SIZE):
+        for col in range(SIZE):
+            if is_free(row, col):
+                print("-", end = '')
+            else:
+                print("#", end = '')
+        print("")
 
-import timeit
+    free_fields = {
+        f"Pos_at_({row}, {col})": free(row, col)
+        for row in range(0, SIZE) for col in range(0, SIZE) if is_free(row, col)
+    }
 
-if __name__ == "__main__":
+    repository = {
+        Start(): Intersection(pos(0, 0), seen(0, 0)),
+        Move("up"): move(1, 0, 0, 0),
+        Move("down"): move(0, 0, 1, 0),
+        Move("left"): move(0, 1, 0, 0),
+        Move("right"): move(0, 0, 0, 1),
+        **free_fields
+    }
+
     start = timeit.default_timer()
     gamma = FiniteCombinatoryLogic(repository, Subtypes({}))
     print('Time (Constructor): ', timeit.default_timer() - start) 
     start = timeit.default_timer()
 
-    target: BooleanTerm[Type] = Var(pos(size - 1, size - 1)) & ~(Var(seen(1, 1)))
+    #target: BooleanTerm[Type] = Var(pos(SIZE - 1, SIZE - 1)) & ~(Var(seen(1, 1)))
+    #target: BooleanTerm[Type] = Var(pos(SIZE - 1, SIZE - 1))
+    target: BooleanTerm[Type] = Var(seen(1, 1))
 
     results = gamma.inhabit(target)
     print('Time (Inhabitation): ', timeit.default_timer() - start) 
-    for t in enumerate_terms(target, results):
+    for t in itertools.islice(enumerate_terms(target, results),2):
         print("Term:")
         print(t)
         print("Interpretation:")
         print(interpret_term(t))
         print("")
+
+if __name__ == "__main__":
+    test()
