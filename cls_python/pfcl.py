@@ -9,7 +9,7 @@ from typing import Callable, Generic, TypeAlias, TypeVar, cast
 from .boolean import BooleanTerm, minimal_dnf_as_list
 from .combinatorics import maximal_elements, minimal_covers, partition
 from .subtypes import Subtypes
-from .types import Arrow, Intersection, Type
+from .types import Arrow, Intersection, Type, Omega
 
 T = TypeVar("T", bound=Hashable)
 
@@ -142,7 +142,7 @@ class FiniteCombinatoryLogic(Generic[T]):
             positives = [lit[1] for lit in encoded_positives]
             negatives = [lit[1] for lit in encoded_negatives]
 
-            positive_intersection = reduce(Intersection, positives)
+            positive_intersection = Omega() if len(positives) == 0 else reduce(Intersection, positives)
 
             clauses.append((positive_intersection, frozenset(negatives)))
 
