@@ -4,7 +4,7 @@ from typing import Generic, TypeVar
 
 from .types import Arrow, Constructor, Intersection, Product, Type
 
-T = TypeVar("T", bound=Hashable)
+T = TypeVar("T", bound=Hashable, covariant=True)
 
 
 class Subtypes(Generic[T]):

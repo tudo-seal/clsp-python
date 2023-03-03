@@ -1,7 +1,7 @@
 # Propositional Finite Combinatory Logic
 
 from collections import deque
-from collections.abc import Hashable, Iterable, MutableMapping, Sequence
+from collections.abc import Hashable, Iterable, Mapping, MutableMapping, Sequence
 from functools import reduce
 from itertools import chain
 from typing import Callable, Generic, TypeAlias, TypeVar, cast
@@ -11,7 +11,7 @@ from .combinatorics import maximal_elements, minimal_covers, partition
 from .subtypes import Subtypes
 from .types import Arrow, Intersection, Type, Omega
 
-T = TypeVar("T", bound=Hashable)
+T = TypeVar("T", bound=Hashable, covariant=True)
 
 # ([sigma_1, ..., sigma_n], tau) means sigma_1 -> ... -> sigma_n -> tau
 MultiArrow: TypeAlias = tuple[list[Type[T]], Type[T]]
@@ -45,8 +45,8 @@ def mstr(m: MultiArrow[T]) -> tuple[str, str]:
 
 
 class FiniteCombinatoryLogic(Generic[T]):
-    def __init__(self, repository: dict[T, Type[T]], subtypes: Subtypes[T]):
-        self.repository: dict[T, list[list[MultiArrow[T]]]] = {
+    def __init__(self, repository: Mapping[T, Type[T]], subtypes: Subtypes[T]):
+        self.repository: Mapping[T, list[list[MultiArrow[T]]]] = {
             c: list(FiniteCombinatoryLogic._function_types(ty))
             for c, ty in repository.items()
         }
@@ -142,7 +142,9 @@ class FiniteCombinatoryLogic(Generic[T]):
             positives = [lit[1] for lit in encoded_positives]
             negatives = [lit[1] for lit in encoded_negatives]
 
-            positive_intersection = Omega() if len(positives) == 0 else reduce(Intersection, positives)
+            positive_intersection = (
+                Omega() if len(positives) == 0 else reduce(Intersection, positives)
+            )
 
             clauses.append((positive_intersection, frozenset(negatives)))
 

@@ -1,8 +1,14 @@
-from cls_python.boolean import BooleanTerm, Var
-from cls_python.enumeration import enumerate_terms
-from cls_python.pfcl import FiniteCombinatoryLogic
-from cls_python.subtypes import Subtypes
-from cls_python.types import Arrow, Constructor, Intersection, Type
+from bcls_python import (
+    Type,
+    Constructor,
+    Arrow,
+    Intersection,
+    BooleanTerm,
+    Var,
+    FiniteCombinatoryLogic,
+    enumerate_terms,
+    Subtypes,
+)
 
 
 def test() -> None:

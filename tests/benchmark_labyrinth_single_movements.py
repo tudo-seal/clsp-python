@@ -1,12 +1,21 @@
+from dataclasses import dataclass, field
 import itertools
 import timeit
-from dataclasses import dataclass, field
 
-from cls_python.boolean import BooleanTerm, Var
-from cls_python.enumeration import enumerate_terms, interpret_term
-from cls_python.pfcl import FiniteCombinatoryLogic
-from cls_python.subtypes import Subtypes
-from cls_python.types import Arrow, Constructor, Intersection, Omega, Product, Type
+from bcls_python import (
+    Type,
+    Constructor,
+    Product,
+    Omega,
+    Arrow,
+    Intersection,
+    BooleanTerm,
+    Var,
+    FiniteCombinatoryLogic,
+    enumerate_terms,
+    interpret_term,
+    Subtypes,
+)
 
 
 # pseudo-random labyrinth
@@ -20,7 +29,7 @@ def is_free(row: int, col: int) -> bool:
         )
 
 
-SIZE = 4
+SIZE = 3
 
 
 def int_to_type(x: int) -> Type:
@@ -37,6 +46,30 @@ def pos(row: int, col: int) -> Type:
 
 def seen(row: int, col: int) -> Type:
     return Constructor(f"Seen_({row}, {col})")
+
+
+def single_move(
+    row: int, col: int, drow_from: int, dcol_from: int, drow_to: int, dcol_to: int
+) -> Type:
+    return Type.intersect(
+        [
+            Arrow(
+                pos(row + drow_from, col + dcol_from),
+                Arrow(
+                    free(row + drow_to, col + dcol_to),
+                    Intersection(
+                        pos(row + drow_to, col + dcol_to),
+                        seen(row + drow_to, col + dcol_to),
+                    ),
+                ),
+            )
+        ]
+        + [
+            Arrow(seen(row, col), Arrow(Omega(), seen(row, col)))
+            for row in range(0, SIZE)
+            for col in range(0, SIZE)
+        ]
+    )
 
 
 @dataclass(frozen=True)
@@ -86,6 +119,18 @@ def test():
                 print("#", end="")
         print("")
 
+    single_movements = {
+        c: t
+        for row in range(0, SIZE)
+        for col in range(0, SIZE)
+        for (c, t) in (
+            (Move(f"up_({row}, {col})"), single_move(row, col, 1, 0, 0, 0)),
+            (Move(f"down_({row}, {col})"), single_move(row, col, 0, 0, 1, 0)),
+            (Move(f"left_({row}, {col})"), single_move(row, col, 0, 1, 0, 0)),
+            (Move(f"right_({row}, {col})"), single_move(row, col, 0, 0, 0, 1)),
+        )
+    }
+
     free_fields = {
         f"Pos_at_({row}, {col})": free(row, col)
         for row in range(0, SIZE)
@@ -95,10 +140,7 @@ def test():
 
     repository = {
         Start(): Intersection(pos(0, 0), seen(0, 0)),
-        Move("up"): move(1, 0, 0, 0),
-        Move("down"): move(0, 0, 1, 0),
-        Move("left"): move(0, 1, 0, 0),
-        Move("right"): move(0, 0, 0, 1),
+        **single_movements,
         **free_fields,
     }
 
@@ -107,9 +149,8 @@ def test():
     print("Time (Constructor): ", timeit.default_timer() - start)
     start = timeit.default_timer()
 
-    target: BooleanTerm[Type] = Var(pos(SIZE - 1, SIZE - 1)) & ~(Var(seen(1, 1)))
-    # target: BooleanTerm[Type] = Var(pos(SIZE - 1, SIZE - 1))
-    # target: BooleanTerm[Type] = Var(seen(1, 1))
+    # target: BooleanTerm[Type] = Var(pos(SIZE - 1, SIZE - 1)) & ~(Var(seen(1, 1)))
+    target: BooleanTerm[Type] = Var(pos(SIZE - 1, SIZE - 1))
 
     results = gamma.inhabit(target)
     print("Time (Inhabitation): ", timeit.default_timer() - start)

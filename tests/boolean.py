@@ -3,8 +3,15 @@ from time import perf_counter
 
 import lark
 
-from cls_python.boolean import (And, BooleanTerm, Not, Or, Var,
-                                generate_all_variable_mappings, minimal_dnf)
+from bcls_python.boolean import (
+    And,
+    BooleanTerm,
+    Not,
+    Or,
+    Var,
+    generate_all_variable_mappings,
+    minimal_dnf,
+)
 
 parser = lark.Lark(
     r"""

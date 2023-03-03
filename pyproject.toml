@@ -1,13 +1,12 @@
 [tool.poetry]
-name = "cls_python"
+name = "bcls_python"
 version = "0.0.1"
-description = ""
-authors = ["Jan Bessai", "Christoph Stahl <christoph.stahl@tu-dortmund.de>"]
+description = "Boolean enhanced fork of cls-python"
+authors = ["Jan Bessai <jan.bessai@tu-dortmund.de>", "Andrej Dudenhefner <andrej.dudenhefner@cs.tu-dortmund.de>", "Christoph Stahl <christoph.stahl@tu-dortmund.de>"]
 license = "Apache-2.0"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-jsonpickle = "^3.0.1"
 
 [build-system]
 requires = ["poetry-core"]

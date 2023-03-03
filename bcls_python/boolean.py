@@ -111,7 +111,7 @@ from typing import Generic, Optional, TypeAlias, TypeVar
 
 from .combinatorics import minimal_covers
 
-T = TypeVar("T", bound=Hashable)
+T = TypeVar("T", bound=Hashable, covariant=True)
 
 Mapping: TypeAlias = tuple[int, int]
 """Mappings are encoded as a tuple of integers. The binary representation of the first integer
