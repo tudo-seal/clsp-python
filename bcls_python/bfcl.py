@@ -12,6 +12,7 @@ from .subtypes import Subtypes
 from .types import Arrow, Intersection, Type, Omega
 
 T = TypeVar("T", bound=Hashable, covariant=True)
+C = TypeVar("C")
 
 # ([sigma_1, ..., sigma_n], tau) means sigma_1 -> ... -> sigma_n -> tau
 MultiArrow: TypeAlias = tuple[list[Type[T]], Type[T]]
@@ -19,7 +20,7 @@ MultiArrow: TypeAlias = tuple[list[Type[T]], Type[T]]
 Clause: TypeAlias = tuple[Type[T], frozenset[Type[T]]]
 
 
-TreeGrammar: TypeAlias = MutableMapping[Clause[T], deque[tuple[T, list[Clause[T]]]]]
+TreeGrammar: TypeAlias = MutableMapping[Clause[T], deque[tuple[C, list[Clause[T]]]]]
 
 
 def show_clause(clause: Clause[T]) -> str:
@@ -27,7 +28,7 @@ def show_clause(clause: Clause[T]) -> str:
     return " and not ".join(map(str, flat_clause))
 
 
-def show_grammar(grammar: TreeGrammar[T]) -> Iterable[str]:
+def show_grammar(grammar: TreeGrammar[T, C]) -> Iterable[str]:
     for clause, possibilities in grammar.items():
         lhs = str(clause) if isinstance(clause, BooleanTerm) else show_clause(clause)
         yield (
@@ -44,9 +45,9 @@ def mstr(m: MultiArrow[T]) -> tuple[str, str]:
     return (str(list(map(str, m[0]))), str(m[1]))
 
 
-class FiniteCombinatoryLogic(Generic[T]):
-    def __init__(self, repository: Mapping[T, Type[T]], subtypes: Subtypes[T]):
-        self.repository: Mapping[T, list[list[MultiArrow[T]]]] = {
+class FiniteCombinatoryLogic(Generic[T, C]):
+    def __init__(self, repository: Mapping[C, Type[T]], subtypes: Subtypes[T]):
+        self.repository: Mapping[C, list[list[MultiArrow[T]]]] = {
             c: list(FiniteCombinatoryLogic._function_types(ty))
             for c, ty in repository.items()
         }
@@ -154,7 +155,7 @@ class FiniteCombinatoryLogic(Generic[T]):
         self, *targets: BooleanTerm[Type[T]] | Type[T]
     ) -> dict[
         Clause[T] | BooleanTerm[Type[T]] | Type[T],
-        deque[tuple[T, list[Clause[T] | BooleanTerm[Type[T]]]]],
+        deque[tuple[C, list[Clause[T] | BooleanTerm[Type[T]]]]],
     ]:
         clause_targets: deque[Clause[T]] = deque()
         type_targets: deque[Type[T]] = deque()
@@ -169,14 +170,14 @@ class FiniteCombinatoryLogic(Generic[T]):
                 clause_targets.extend(boolean_targets[target])
 
         # dictionary of type |-> sequence of combinatory expressions
-        memo: TreeGrammar[T] = dict()
+        memo: TreeGrammar[T, C] = dict()
 
         while clause_targets:
             current_target = clause_targets.pop()
             if memo.get(current_target) is None:
                 # target type was not seen before
                 # paths: list[Type] = list(target.organized)
-                possibilities: deque[tuple[T, list[Clause[T]]]] = deque()
+                possibilities: deque[tuple[C, list[Clause[T]]]] = deque()
                 memo.update({current_target: possibilities})
                 # If the positive part is omega, then the result is junk
                 if current_target[0].is_omega:
@@ -218,7 +219,7 @@ class FiniteCombinatoryLogic(Generic[T]):
         return_memo = cast(
             dict[
                 Clause[T] | BooleanTerm[Type[T]] | Type[T],
-                deque[tuple[T, list[Clause[T] | BooleanTerm[Type[T]]]]],
+                deque[tuple[C, list[Clause[T] | BooleanTerm[Type[T]]]]],
             ],
             memo,
         )
@@ -237,7 +238,7 @@ class FiniteCombinatoryLogic(Generic[T]):
         return return_memo
 
     @staticmethod
-    def _prune(memo: TreeGrammar[T]) -> None:
+    def _prune(memo: TreeGrammar[T, C]) -> None:
         """Keep only productive grammar rules."""
 
         def is_ground(
