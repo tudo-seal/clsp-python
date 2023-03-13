@@ -153,42 +153,44 @@ class FiniteCombinatoryLogic(Generic[T]):
     def inhabit(
         self, *targets: BooleanTerm[Type[T]] | Type[T]
     ) -> dict[
-        Clause[T] | BooleanTerm[Type[T]],
+        Clause[T] | BooleanTerm[Type[T]] | Type[T],
         deque[tuple[T, list[Clause[T] | BooleanTerm[Type[T]]]]],
     ]:
         clause_targets: deque[Clause[T]] = deque()
-        boolean_terms: dict[BooleanTerm[Type[T]], list[Clause[T]]] = {}
+        type_targets: deque[Type[T]] = deque()
+        boolean_targets: dict[BooleanTerm[Type[T]], list[Clause[T]]] = {}
 
-        for boolean_target in targets:
-            if isinstance(boolean_target, Type):
-                clause_targets.append((boolean_target, frozenset()))
+        for target in targets:
+            if isinstance(target, Type):
+                type_targets.append(target)
+                clause_targets.append((target, frozenset()))
             else:
-                boolean_terms[boolean_target] = self.boolean_to_clauses(boolean_target)
-                clause_targets.extend(boolean_terms[boolean_target])
+                boolean_targets[target] = self.boolean_to_clauses(target)
+                clause_targets.extend(boolean_targets[target])
 
         # dictionary of type |-> sequence of combinatory expressions
         memo: TreeGrammar[T] = dict()
 
         while clause_targets:
-            target = clause_targets.pop()
-            if memo.get(target) is None:
+            current_target = clause_targets.pop()
+            if memo.get(current_target) is None:
                 # target type was not seen before
                 # paths: list[Type] = list(target.organized)
                 possibilities: deque[tuple[T, list[Clause[T]]]] = deque()
-                memo.update({target: possibilities})
+                memo.update({current_target: possibilities})
                 # If the positive part is omega, then the result is junk
-                if target[0].is_omega:
+                if current_target[0].is_omega:
                     continue
                 # If the positive part is a subtype of the negative part, then there are no inhabitants
                 if any(
                     True
-                    for ty in target[1]
-                    if self.subtypes.check_subtype(target[0], ty)
+                    for ty in current_target[1]
+                    if self.subtypes.check_subtype(current_target[0], ty)
                 ):
                     continue
 
-                all_positive_paths: list[Type[T]] = list(target[0].organized)
-                all_negative_paths = [list(ty.organized) for ty in target[1]]
+                all_positive_paths: list[Type[T]] = list(current_target[0].organized)
+                all_negative_paths = [list(ty.organized) for ty in current_target[1]]
 
                 # try each combinator and arity
                 for combinator, combinator_type in self.repository.items():
@@ -215,18 +217,22 @@ class FiniteCombinatoryLogic(Generic[T]):
 
         return_memo = cast(
             dict[
-                Clause[T] | BooleanTerm[Type[T]],
+                Clause[T] | BooleanTerm[Type[T]] | Type[T],
                 deque[tuple[T, list[Clause[T] | BooleanTerm[Type[T]]]]],
             ],
             memo,
         )
 
-        # generate rules for the boolean_terms
-        for term, clauses in boolean_terms.items():
+        # generate rules for Boolean targets
+        for term, clauses in boolean_targets.items():
             rhs_of_clauses = deque(
                 (rhs for clause in clauses for rhs in return_memo[clause])
             )
             return_memo[term] = rhs_of_clauses
+
+        # generate rules for type targets
+        for typ in type_targets:
+            return_memo[typ] = return_memo[(typ, frozenset({}))]
 
         return return_memo
 
