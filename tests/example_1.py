@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from bcls_python import (
+from bcls import (
     Type,
     Constructor,
     Arrow,
@@ -9,7 +9,7 @@ from bcls_python import (
     enumerate_terms,
     Subtypes,
 )
-from bcls_python.enumeration import interpret_term
+from bcls.enumeration import interpret_term
 
 
 def test() -> None:

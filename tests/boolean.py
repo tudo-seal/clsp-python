@@ -3,7 +3,7 @@ from time import perf_counter
 
 import lark
 
-from bcls_python.boolean import (
+from bcls.boolean import (
     And,
     BooleanTerm,
     Not,

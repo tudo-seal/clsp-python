@@ -1,4 +1,4 @@
-from bcls_python import (
+from bcls import (
     Type,
     Constructor,
     Arrow,
