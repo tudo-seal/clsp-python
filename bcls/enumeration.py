@@ -4,6 +4,7 @@
 # Here, the indexed type [1, Section 4] is the tree grammar, where indices are non-terminals.
 # Uniqueness is guaranteed by python's set (instead of list) data structure.
 
+from functools import partial
 import itertools
 from collections import deque
 from collections.abc import Callable, Hashable, Iterable, Mapping
@@ -97,8 +98,15 @@ def interpret_term(term: Tree[T]) -> Any:
         (c, n) = combinators.pop()
         if callable(c):
             arguments = (results.pop() for _ in range(n))
-            results.append(c(*arguments))
+            for argument in arguments:
+                c = partial(c, argument)
+            results.append(c())
         else:
+            if n != 0:
+                raise RuntimeError(
+                    f'Combinator "{c}" is not callable, but is applied to {n} argument(s). '
+                    "Maybe the type in your specification is wrong."
+                )
             results.append(c)
     return results.pop()
 
