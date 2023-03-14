@@ -152,10 +152,10 @@ class FiniteCombinatoryLogic(Generic[T, C]):
         return clauses
 
     def inhabit(
-        self, *targets: BooleanTerm[Type[T]] | Type[T]
+        self, *targets: BooleanTerm[Type[T]] | Type[T] | Clause[T]
     ) -> dict[
         Clause[T] | BooleanTerm[Type[T]] | Type[T],
-        deque[tuple[C, list[Clause[T] | BooleanTerm[Type[T]]]]],
+        deque[tuple[C, list[Type[T] | Clause[T] | BooleanTerm[Type[T]]]]],
     ]:
         clause_targets: deque[Clause[T]] = deque()
         type_targets: deque[Type[T]] = deque()
@@ -165,9 +165,11 @@ class FiniteCombinatoryLogic(Generic[T, C]):
             if isinstance(target, Type):
                 type_targets.append(target)
                 clause_targets.append((target, frozenset()))
-            else:
+            elif isinstance(target, BooleanTerm):
                 boolean_targets[target] = self.boolean_to_clauses(target)
                 clause_targets.extend(boolean_targets[target])
+            else:
+                clause_targets.append(target)
 
         # dictionary of type |-> sequence of combinatory expressions
         memo: TreeGrammar[T, C] = dict()
@@ -219,7 +221,7 @@ class FiniteCombinatoryLogic(Generic[T, C]):
         return_memo = cast(
             dict[
                 Clause[T] | BooleanTerm[Type[T]] | Type[T],
-                deque[tuple[C, list[Clause[T] | BooleanTerm[Type[T]]]]],
+                deque[tuple[C, list[Type[T] | Clause[T] | BooleanTerm[Type[T]]]]],
             ],
             memo,
         )

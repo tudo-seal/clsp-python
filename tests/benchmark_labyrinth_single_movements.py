@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 import itertools
 import timeit
 
-from bcls_python import (
+from bcls import (
     Type,
     Constructor,
     Product,
