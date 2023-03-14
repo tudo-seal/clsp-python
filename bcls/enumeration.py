@@ -6,6 +6,7 @@
 
 from functools import partial
 import itertools
+from inspect import signature
 from collections import deque
 from collections.abc import Callable, Hashable, Iterable, Mapping
 from typing import Any, Optional, TypeAlias, TypeVar
@@ -93,21 +94,23 @@ def interpret_term(term: Tree[T]) -> Any:
         combinators.append((t[0], len(t[1])))
         terms.extend(reversed(t[1]))
     results: deque[Any] = deque()
+
     # apply/call decomposed terms
     while combinators:
         (c, n) = combinators.pop()
-        if callable(c):
-            arguments = (results.pop() for _ in range(n))
-            for argument in arguments:
-                c = partial(c, argument)
-            results.append(c())
-        else:
-            if n != 0:
+        current_combinator: partial[Any] | T | Callable[..., Any] = c
+        arguments = deque((results.pop() for _ in range(n)))
+
+        while arguments:
+            if not callable(current_combinator):
                 raise RuntimeError(
-                    f'Combinator "{c}" is not callable, but is applied to {n} argument(s). '
-                    "Maybe the type in your specification is wrong."
+                    f"Combinator {c} is applied to {n} argument(s), but can only be applied to {n - len(arguments)}"
                 )
-            results.append(c)
+            arity_of_c = len(signature(current_combinator).parameters)
+            partial_arguments = deque(arguments.popleft() for _ in range(arity_of_c))
+            current_combinator = current_combinator(*partial_arguments)
+
+        results.append(current_combinator)
     return results.pop()
 
 
