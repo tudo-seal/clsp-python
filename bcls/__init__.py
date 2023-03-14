@@ -1,7 +1,6 @@
 from collections import deque
 from collections.abc import Hashable, Iterable, Mapping
-from typing import Any, Optional, TypeVar, cast
-from typing_extensions import reveal_type
+from typing import Any, Optional, TypeVar
 from .subtypes import Subtypes
 from .types import Type, Omega, Constructor, Product, Arrow, Intersection
 from .enumeration import enumerate_terms, interpret_term
