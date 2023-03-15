@@ -6,7 +6,7 @@
 
 from functools import partial
 import itertools
-from inspect import signature
+from inspect import signature, _ParameterKind
 from collections import deque
 from collections.abc import Callable, Hashable, Iterable, Mapping
 from typing import Any, Optional, TypeAlias, TypeVar
@@ -107,6 +107,13 @@ def interpret_term(term: Tree[T]) -> Any:
                     f"Combinator {c} is applied to {n} argument(s), but can only be applied to {n - len(arguments)}"
                 )
             arity_of_c = len(signature(current_combinator).parameters)
+
+            if any(
+                (parameter.kind == _ParameterKind.VAR_POSITIONAL)
+                for parameter in signature(current_combinator).parameters.values()
+            ):
+                arity_of_c = len(arguments)
+
             partial_arguments = deque(arguments.popleft() for _ in range(arity_of_c))
             current_combinator = current_combinator(*partial_arguments)
 
