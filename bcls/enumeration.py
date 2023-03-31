@@ -82,6 +82,60 @@ def enumerate_terms(
                 result.add(term)
                 yield term
 
+def group_by_tree_size(terms : Iterable[Tree[T]]) -> dict[int, set[Tree[T]]]:
+    """Groups terms by tree_size as a dictionary mapping size to sets of terms."""
+
+    result: dict[int, set[Tree[T]]] = dict()
+    for term in terms:
+        size = tree_size(term)
+        ts = result.get(size, set())
+        ts.add(term)
+        result[size] = ts
+    return result
+
+def enumerate_terms_of_size(
+    start: I,
+    grammar: Mapping[I, Iterable[tuple[T, list[I]]]],
+    term_size: int,
+    max_count: int,
+) -> Iterable[Tree[T]]:
+    """Given a start symbol, a tree grammar, and term size, enumerate at most max_count ground terms of specified term size derivable from the start symbol."""
+
+    # accumulator for previously seen terms
+    result: set[Tree[T]] = set()
+    terms: dict[I, set[Tree[T]]] = {n: set() for n in grammar.keys()}
+    terms_size: int = -1
+    while terms_size < sum(len(ts) for ts in terms.values()):
+        terms_size = sum(len(ts) for ts in terms.values())
+
+        new_terms: Callable[
+            [Iterable[tuple[T, list[I]]]], set[Tree[T]]
+        ] = lambda exprs: {
+            (c, tuple(args))
+            for (c, ms) in exprs
+            for args in itertools.product(*(terms[m] for m in ms))
+        }
+
+        grouped_bounded_union = lambda grouped_old_terms, grouped_new_terms : set(
+            itertools.chain.from_iterable(
+                bounded_union(
+                    grouped_old_terms.get(i, set()), 
+                    grouped_new_terms.get(i, set()), 
+                    max_count)
+                for i in range(term_size+1)))
+
+        terms = {
+            n: terms[n]
+            if len(terms[n]) >= max_count * (terms_size + 1)
+            else grouped_bounded_union(group_by_tree_size(terms[n]), group_by_tree_size(new_terms(exprs)))
+            for (n, exprs) in grammar.items()            
+        }
+
+        for term in terms[start]:
+            # yield term if not seen previously
+            if tree_size(term) == term_size and term not in result:
+                result.add(term)
+                yield term
 
 def interpret_term(term: Tree[T]) -> Any:
     """Recursively evaluate given term."""

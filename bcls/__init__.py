@@ -4,7 +4,7 @@ from typing import Any, Optional, TypeVar
 
 from .subtypes import Subtypes
 from .types import Type, Omega, Constructor, Product, Arrow, Intersection
-from .enumeration import enumerate_terms, interpret_term
+from .enumeration import enumerate_terms, interpret_term, enumerate_terms_of_size
 from .boolean import BooleanTerm, And, Var, Or, Not
 from .bfcl import Clause, FiniteCombinatoryLogic
 
@@ -17,6 +17,7 @@ __all__ = [
     "Arrow",
     "Intersection",
     "enumerate_terms",
+    "enumerate_terms_of_size",
     "interpret_term",
     "BooleanTerm",
     "And",
