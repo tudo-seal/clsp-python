@@ -82,7 +82,8 @@ def enumerate_terms(
                 result.add(term)
                 yield term
 
-def group_by_tree_size(terms : Iterable[Tree[T]]) -> dict[int, set[Tree[T]]]:
+
+def group_by_tree_size(terms: Iterable[Tree[T]]) -> dict[int, set[Tree[T]]]:
     """Groups terms by tree_size as a dictionary mapping size to sets of terms."""
 
     result: dict[int, set[Tree[T]]] = dict()
@@ -92,6 +93,25 @@ def group_by_tree_size(terms : Iterable[Tree[T]]) -> dict[int, set[Tree[T]]]:
         ts.add(term)
         result[size] = ts
     return result
+
+
+def grouped_bounded_union(
+    grouped_old_terms: dict[int, set[Tree[T]]],
+    grouped_new_terms: dict[int, set[Tree[T]]],
+    max_count: int,
+    term_size: int,
+) -> set[Tree[T]]:
+    return set(
+        itertools.chain.from_iterable(
+            bounded_union(
+                grouped_old_terms.get(i, set()),
+                grouped_new_terms.get(i, set()),
+                max_count,
+            )
+            for i in range(term_size + 1)
+        )
+    )
+
 
 def enumerate_terms_of_size(
     start: I,
@@ -116,19 +136,16 @@ def enumerate_terms_of_size(
             for args in itertools.product(*(terms[m] for m in ms))
         }
 
-        grouped_bounded_union = lambda grouped_old_terms, grouped_new_terms : set(
-            itertools.chain.from_iterable(
-                bounded_union(
-                    grouped_old_terms.get(i, set()), 
-                    grouped_new_terms.get(i, set()), 
-                    max_count)
-                for i in range(term_size+1)))
-
         terms = {
             n: terms[n]
             if len(terms[n]) >= max_count * (terms_size + 1)
-            else grouped_bounded_union(group_by_tree_size(terms[n]), group_by_tree_size(new_terms(exprs)))
-            for (n, exprs) in grammar.items()            
+            else grouped_bounded_union(
+                group_by_tree_size(terms[n]),
+                group_by_tree_size(new_terms(exprs)),
+                max_count,
+                term_size,
+            )
+            for (n, exprs) in grammar.items()
         }
 
         for term in terms[start]:
@@ -136,6 +153,7 @@ def enumerate_terms_of_size(
             if tree_size(term) == term_size and term not in result:
                 result.add(term)
                 yield term
+
 
 def interpret_term(term: Tree[T]) -> Any:
     """Recursively evaluate given term."""
