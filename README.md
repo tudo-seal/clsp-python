@@ -15,7 +15,7 @@ code can access it. In case you *want* to install it, you can do this by either 
 
 in the cloned repository, or
 
-    pip install git+https://github.com/christofsteel/bcls-python
+    pip install git+https://github.com/tudo-seal/bcls-python
     
 without the need to clone it beforehand.
 
