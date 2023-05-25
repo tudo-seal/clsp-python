@@ -6,7 +6,7 @@
 
 from functools import partial
 import itertools
-from inspect import signature, _ParameterKind
+from inspect import signature, _ParameterKind, _empty
 from collections import deque
 from collections.abc import Callable, Hashable, Iterable, Mapping
 from typing import Any, Optional, TypeAlias, TypeVar
@@ -178,16 +178,58 @@ def interpret_term(term: Tree[T]) -> Any:
                 raise RuntimeError(
                     f"Combinator {c} is applied to {n} argument(s), but can only be applied to {n - len(arguments)}"
                 )
-            arity_of_c = len(signature(current_combinator).parameters)
 
-            if any(
-                (parameter.kind == _ParameterKind.VAR_POSITIONAL)
-                for parameter in signature(current_combinator).parameters.values()
-            ):
-                arity_of_c = len(arguments)
+            parameters_of_c = signature(current_combinator).parameters.values()
+            use_partial = False
 
-            partial_arguments = deque(arguments.popleft() for _ in range(arity_of_c))
-            current_combinator = current_combinator(*partial_arguments)
+            simple_arity = len(
+                list(filter(lambda x: x.default == _empty, parameters_of_c))
+            )
+            default_arity = len(
+                list(filter(lambda x: x.default != _empty, parameters_of_c))
+            )
+
+            # if any parameter is marked as var_args, we need to use all available arguments
+            pop_all = any(
+                map(lambda x: x.kind == _ParameterKind.VAR_POSITIONAL, parameters_of_c)
+            )
+
+            # If a var_args parameter is found, we need to subtract it from the normal parameters.
+            # Note: python does only allow one parameter in the form of *arg
+            if pop_all:
+                simple_arity -= 1
+
+            # If a combinator needs more arguments than available, we need to use partial application
+            if simple_arity > len(arguments):
+                use_partial = True
+
+            fixed_parameters: deque[Any] = deque(
+                arguments.popleft() for _ in range(min(simple_arity, len(arguments)))
+            )
+
+            var_parameters: deque[Any] = deque()
+            if pop_all:
+                var_parameters.extend(arguments)
+                arguments = deque()
+
+            default_parameters: deque[Any] = deque()
+            for _ in range(default_arity):
+                try:
+                    default_parameters.append(arguments.popleft())
+                except IndexError:
+                    pass
+
+            if use_partial:
+                current_combinator = partial(
+                    current_combinator,
+                    *fixed_parameters,
+                    *var_parameters,
+                    *default_parameters,
+                )
+            else:
+                current_combinator = current_combinator(
+                    *fixed_parameters, *var_parameters, *default_parameters
+                )
 
         results.append(current_combinator)
     return results.pop()

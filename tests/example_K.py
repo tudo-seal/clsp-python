@@ -21,6 +21,10 @@ def test() -> None:
     X: str = "X"
     Y: str = "Y"
     K: Callable[[str], Callable[[str], str]] = lambda x: (lambda y: x)
+
+    def K2(x: str, y: str) -> str:
+        return x
+
     MAP: Callable[[str, Callable[[str], str]], str] = lambda x, f: f(x)
 
     repository: dict[str | Callable[[str], str], Type[str]] = dict(
@@ -28,6 +32,7 @@ def test() -> None:
             X: a,
             Y: b,
             K: Arrow(a, Arrow(b, c)),
+            K2: Arrow(a, Arrow(b, c)),
             MAP: Arrow(b, Arrow(Arrow(b, c), c)),
         }
     )
