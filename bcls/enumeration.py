@@ -170,7 +170,10 @@ def interpret_term(term: Tree[T]) -> Any:
     # apply/call decomposed terms
     while combinators:
         (c, n) = combinators.pop()
-        current_combinator: partial[Any] | T | Callable[..., Any] = c
+        if callable(c) and n == 0:
+            current_combinator: partial[Any] | T | Callable[..., Any] = c()
+        else:
+            current_combinator: partial[Any] | T | Callable[..., Any] = c
         arguments = deque((results.pop() for _ in range(n)))
 
         while arguments:
