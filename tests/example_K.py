@@ -27,6 +27,9 @@ def test() -> None:
 
     MAP: Callable[[str, Callable[[str], str]], str] = lambda x, f: f(x)
 
+    def MAP2(x, f):
+        return f(x)
+
     repository: dict[str | Callable[[str], str], Type[str]] = dict(
         {
             X: a,
@@ -34,6 +37,7 @@ def test() -> None:
             K: Arrow(a, Arrow(b, c)),
             K2: Arrow(a, Arrow(b, c)),
             MAP: Arrow(b, Arrow(Arrow(b, c), c)),
+            MAP2: Arrow(b, Arrow(Arrow(b, c), c)),
         }
     )
     environment: dict[str, set[str]] = dict()

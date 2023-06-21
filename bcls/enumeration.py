@@ -6,9 +6,9 @@
 
 from functools import partial
 import itertools
-from inspect import signature, _ParameterKind, _empty
+from inspect import Parameter, signature, _ParameterKind, _empty
 from collections import deque
-from collections.abc import Callable, Hashable, Iterable, Mapping
+from collections.abc import Callable, Hashable, Iterable, Mapping, ValuesView
 from typing import Any, Optional, TypeAlias, TypeVar
 
 I = TypeVar("I")  # non-terminals
@@ -170,10 +170,20 @@ def interpret_term(term: Tree[T]) -> Any:
     # apply/call decomposed terms
     while combinators:
         (c, n) = combinators.pop()
-        if callable(c) and n == 0:
-            current_combinator: partial[Any] | T | Callable[..., Any] = c()
-        else:
-            current_combinator: partial[Any] | T | Callable[..., Any] = c
+        parameters_of_c : Iterable[Parameter] = []
+        current_combinator: partial[Any] | T | Callable[..., Any] = c
+
+        if callable(current_combinator):
+            try:
+                parameters_of_c = list(signature(current_combinator).parameters.values())
+            except ValueError:
+                raise RuntimeError(
+                    f"Combinator {c} does not expose a signature. If it's a built-in, you can simply wrap it in another function."
+                )
+
+            if n == 0 and len(parameters_of_c) == 0:
+                current_combinator = current_combinator()
+
         arguments = deque((results.pop() for _ in range(n)))
 
         while arguments:
@@ -182,7 +192,6 @@ def interpret_term(term: Tree[T]) -> Any:
                     f"Combinator {c} is applied to {n} argument(s), but can only be applied to {n - len(arguments)}"
                 )
 
-            parameters_of_c = signature(current_combinator).parameters.values()
             use_partial = False
 
             simple_arity = len(
