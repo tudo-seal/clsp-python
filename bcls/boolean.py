@@ -351,7 +351,7 @@ def mapping_lt(mapping: Mapping, other: Mapping) -> bool:
 
 
 def to_clause(
-    mapping: Mapping, signature: list[T], invert=False
+    mapping: Mapping, signature: list[T], invert: bool = False
 ) -> list[BooleanTerm[T]]:
     """list[BooleanTerm[T]]: Generate a list of literals for a mapping."""
 
@@ -526,7 +526,7 @@ def minimal_cnf(term: BooleanTerm[T]) -> And[T]:
     result is "Or([])" it corresponds to the value of False
     """
 
-    nterm = Not(term)
+    nterm: BooleanTerm[T] = Not(term)
     signature = list(nterm.variables)
     minimal_primes = get_min_prime_implicants(nterm, signature)
 
