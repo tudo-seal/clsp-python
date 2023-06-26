@@ -170,12 +170,14 @@ def interpret_term(term: Tree[T]) -> Any:
     # apply/call decomposed terms
     while combinators:
         (c, n) = combinators.pop()
-        parameters_of_c : Iterable[Parameter] = []
+        parameters_of_c: Iterable[Parameter] = []
         current_combinator: partial[Any] | T | Callable[..., Any] = c
 
         if callable(current_combinator):
             try:
-                parameters_of_c = list(signature(current_combinator).parameters.values())
+                parameters_of_c = list(
+                    signature(current_combinator).parameters.values()
+                )
             except ValueError:
                 raise RuntimeError(
                     f"Combinator {c} does not expose a signature. If it's a built-in, you can simply wrap it in another function."

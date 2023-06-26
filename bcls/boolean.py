@@ -3,7 +3,8 @@ BooleanTerms
 ============
 
 This module provides functions and objects to create and evaluate boolean terms, as well as a
-function to generate a minimal DNF for a given boolean Term using the Quine Mccluskey algorithm.
+function to generate a minimal DNF/CNF for a given boolean Term using the Quine Mccluskey 
+algorithm.
 
 The algorithm itself uses the following steps:
     1) Generate all variable mappings, that evaluate the term to "true" (called minterms). We
@@ -24,6 +25,9 @@ The algorithm itself uses the following steps:
     4) Each mapping in the essential prime implicants, is transformed into a conjuction. All
         these conjuntions are fed into one disjuntion. This is a minimal dnf
 
+For a CNF, the term is first negated, then (on the negated term) the DNF is computed. Negating
+the output and using de-Morgan, we can obtain a minimal CNF from that DNF.
+
 A mapping can be encoded as two boolean vectors (represented by two integers). One that indicates
 the boolean value of each variable, and another one, that indicates which variables are actually
 used. This way, we can compute most of the comparison operations by using simple bitwise operations.
@@ -42,6 +46,7 @@ Usage
     term = And[str](Or(Var("A"), And(Not(Var("D")), Var("B"))), Var("C"))
     print(term) # ((A | (~D & B)) & C)
     print(minimal_dnf(term)) # ((C & B & ~D) | (C & A))
+    print(minimal_cnf(term)) # ((C) & (B | A) & (~D | A))
 
     Additionally, we can (optionally) omit the `Var` constructor to write terms in a shorter way
 
@@ -345,7 +350,9 @@ def mapping_lt(mapping: Mapping, other: Mapping) -> bool:
     )
 
 
-def to_clause(mapping: Mapping, signature: list[T]) -> list[BooleanTerm[T]]:
+def to_clause(
+    mapping: Mapping, signature: list[T], invert=False
+) -> list[BooleanTerm[T]]:
     """list[BooleanTerm[T]]: Generate a list of literals for a mapping."""
 
     positives = (
@@ -356,6 +363,12 @@ def to_clause(mapping: Mapping, signature: list[T]) -> list[BooleanTerm[T]]:
         (~mapping[0] & ~mapping[1] & 2**x) != 0
         for x in range(len(signature) - 1, -1, -1)
     )
+
+    if invert:
+        tmp = positives
+        positives = negatives
+        negatives = tmp
+
     positive_literals = (Var(x) for x in compress(signature, positives))
     negative_literals: Iterable[BooleanTerm[T]] = (
         Not(Var(x)) for x in compress(signature, negatives)
@@ -480,6 +493,14 @@ def get_prime_implicants(
         merged = set()
 
 
+def get_min_prime_implicants(
+    term: BooleanTerm[T], signature: list[T]
+) -> list[list[Mapping]]:
+    minterms = list(get_minterms(term, signature))
+    primes = get_prime_implicants(minterms, len(signature))
+    return minimal_covers(list(primes), minterms, mapping_lt)
+
+
 def minimal_dnf(term: BooleanTerm[T]) -> Or[T]:
     """BooleanTerm[T]: Compute the minimal dnf for a given boolean term
 
@@ -488,15 +509,35 @@ def minimal_dnf(term: BooleanTerm[T]) -> Or[T]:
     """
 
     signature = list(term.variables)
-    minterms = list(get_minterms(term, signature))
-    primes = get_prime_implicants(minterms, len(signature))
-    minimal_primes = minimal_covers(list(primes), minterms, mapping_lt)
+    minimal_primes = get_min_prime_implicants(term, signature)
 
     if len(minimal_primes) == 0:
         return Or()
 
     return Or[T](
         *(And[T](*to_clause(implicant, signature)) for implicant in minimal_primes[0])
+    )
+
+
+def minimal_cnf(term: BooleanTerm[T]) -> And[T]:
+    """BooleanTerm[T]: Compute the minimal dnf for a given boolean term
+
+    The result is in dnf. If the result is "Or(And([]))", it corresponds to the value True, if the
+    result is "Or([])" it corresponds to the value of False
+    """
+
+    nterm = Not(term)
+    signature = list(nterm.variables)
+    minimal_primes = get_min_prime_implicants(nterm, signature)
+
+    if len(minimal_primes) == 0:
+        return And()
+
+    return And[T](
+        *(
+            Or[T](*to_clause(implicant, signature, invert=True))
+            for implicant in minimal_primes[0]
+        )
     )
 
 
@@ -519,6 +560,42 @@ def minimal_dnf_as_list(term: BooleanTerm[T]) -> list[list[tuple[bool, T]]]:
         if not isinstance(clause, And):
             raise RuntimeError(
                 "minimal_dnf, did not return a dnf. This is most likely a bug."
+            )
+
+        clause_list = []
+        for literal in clause.inner:
+            match literal:
+                case Var(name):
+                    clause_list.append((True, name))
+                case Not(Var(name)):
+                    clause_list.append((False, name))
+                case _:
+                    raise RuntimeError(
+                        "minimal_dnf, did not return a dnf. This is most likely a bug."
+                    )
+        output_list.append(clause_list)
+    return output_list
+
+
+def minimal_cnf_as_list(term: BooleanTerm[T]) -> list[list[tuple[bool, T]]]:
+    """list[list[tuple[bool, T]]]: Computes the minimal cnf and returns the result stripped of all
+                                   Constructors.
+
+    Since the format of the cnf is well known, this makes it easier to iterate over the clauses
+    of the cnf of a term."""
+
+    cnf_term = minimal_cnf(term)
+
+    if not isinstance(cnf_term, And):
+        raise RuntimeError(
+            "minimal_cnf, did not return a cnf. This is most likely a bug."
+        )
+
+    output_list = []
+    for clause in cnf_term.inner:
+        if not isinstance(clause, Or):
+            raise RuntimeError(
+                "minimal_cnf, did not return a cnf. This is most likely a bug."
             )
 
         clause_list = []

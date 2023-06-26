@@ -11,6 +11,7 @@ from bcls.boolean import (
     Var,
     generate_all_variable_mappings,
     minimal_dnf,
+    minimal_cnf,
 )
 
 parser = lark.Lark(
@@ -98,7 +99,7 @@ def generate_random_term(depth, max_width, variables, can_be_var=False):
     for _ in range(num_of_subterms):
         subterms.append(generate_random_term(depth - 1, max_width, variables, True))
 
-    term = constructor(subterms)
+    term = constructor(*subterms)
 
     return term
 
@@ -120,15 +121,19 @@ def check_equiv(term_1: BooleanTerm[str], term_2: BooleanTerm[str]) -> bool:
 
 
 def main():
-    term = parse(benchmark_term2)
+    #term = parse(benchmark_term2)
     # term = generate_random_term(4, 4, [f"x{i}" for i in range(14)])
+    term = wikipedia_example()
     print(term)
     timer = perf_counter()
+    cnf = minimal_cnf(term)
     dnf = minimal_dnf(term)
     timer2 = perf_counter()
-    print(dnf)
+    print(f"DNF: {dnf}")
+    print(f"CNF: {cnf}")
     print(f"Runtime: {timer2 - timer}s")
-    # print(f"Testing equivilance: {check_equiv(term, dnf)}")
+    print(f"Testing equivilance (DNF): {check_equiv(term, dnf)}")
+    print(f"Testing equivilance (CNF): {check_equiv(term, cnf)}")
 
 
 if __name__ == "__main__":
