@@ -208,9 +208,15 @@ class Arrow(Type[T]):
         result: str
         match self.target:
             case Arrow(_, _):
-                result = f"{self.source._str_prec(arrow_prec + 1)} -> {self.target._str_prec(arrow_prec)}"
+                result = (
+                    f"{self.source._str_prec(arrow_prec + 1)} -> "
+                    f"{self.target._str_prec(arrow_prec)}"
+                )
             case _:
-                result = f"{self.source._str_prec(arrow_prec + 1)} -> {self.target._str_prec(arrow_prec + 1)}"
+                result = (
+                    f"{self.source._str_prec(arrow_prec + 1)} -> "
+                    f"{self.target._str_prec(arrow_prec + 1)}"
+                )
         return Type._parens(result) if prec > arrow_prec else result
 
 

@@ -1,5 +1,6 @@
 # Literature
-# [1] Van Der Rest, Cas, and Wouter Swierstra. "A completely unique account of enumeration." Proceedings of the ACM on Programming Languages 6.ICFP (2022): 105.
+# [1] Van Der Rest, Cas, and Wouter Swierstra. "A completely unique account of enumeration."
+#     Proceedings of the ACM on Programming Languages 6.ICFP (2022): 105.
 
 # Here, the indexed type [1, Section 4] is the tree grammar, where indices are non-terminals.
 # Uniqueness is guaranteed by python's set (instead of list) data structure.
@@ -8,10 +9,10 @@ from functools import partial
 import itertools
 from inspect import Parameter, signature, _ParameterKind, _empty
 from collections import deque
-from collections.abc import Callable, Hashable, Iterable, Mapping, ValuesView
+from collections.abc import Callable, Hashable, Iterable, Mapping
 from typing import Any, Optional, TypeAlias, TypeVar
 
-I = TypeVar("I")  # non-terminals
+S = TypeVar("S")  # non-terminals
 T = TypeVar("T", bound=Hashable)
 
 Tree: TypeAlias = tuple[T, tuple["Tree[T]", ...]]
@@ -29,11 +30,11 @@ def tree_size(tree: Tree[T]) -> int:
 
 
 def bounded_union(
-    old_elements: set[I], new_elements: Iterable[I], max_count: int
-) -> set[I]:
-    """Return the union of old_elements and new_elements up to max_count total elements as a new set."""
+    old_elements: set[S], new_elements: Iterable[S], max_count: int
+) -> set[S]:
+    """Return the union of old_elements and new_elements up to max_count elements as a new set."""
 
-    result: set[I] = old_elements.copy()
+    result: set[S] = old_elements.copy()
     for element in new_elements:
         if len(result) >= max_count:
             return result
@@ -43,21 +44,23 @@ def bounded_union(
 
 
 def enumerate_terms(
-    start: I,
-    grammar: Mapping[I, Iterable[tuple[T, list[I]]]],
+    start: S,
+    grammar: Mapping[S, Iterable[tuple[T, list[S]]]],
     max_count: Optional[int] = 100,
 ) -> Iterable[Tree[T]]:
-    """Given a start symbol and a tree grammar, enumerate at most max_count ground terms derivable from the start symbol ordered by (depth, term size)."""
+    """Given a start symbol and a tree grammar, enumerate at most max_count ground terms derivable
+    from the start symbol ordered by (depth, term size).
+    """
 
     # accumulator for previously seen terms
     result: set[Tree[T]] = set()
-    terms: dict[I, set[Tree[T]]] = {n: set() for n in grammar.keys()}
+    terms: dict[S, set[Tree[T]]] = {n: set() for n in grammar.keys()}
     terms_size: int = -1
     while terms_size < sum(len(ts) for ts in terms.values()):
         terms_size = sum(len(ts) for ts in terms.values())
 
         new_terms: Callable[
-            [Iterable[tuple[T, list[I]]]], set[Tree[T]]
+            [Iterable[tuple[T, list[S]]]], set[Tree[T]]
         ] = lambda exprs: {
             (c, tuple(args))
             for (c, ms) in exprs
@@ -114,22 +117,23 @@ def grouped_bounded_union(
 
 
 def enumerate_terms_of_size(
-    start: I,
-    grammar: Mapping[I, Iterable[tuple[T, list[I]]]],
+    start: S,
+    grammar: Mapping[S, Iterable[tuple[T, list[S]]]],
     term_size: int,
     max_count: int,
 ) -> Iterable[Tree[T]]:
-    """Given a start symbol, a tree grammar, and term size, enumerate at most max_count ground terms of specified term size derivable from the start symbol."""
+    """Given a start symbol, a tree grammar, and term size, enumerate at most max_count ground terms
+    of specified term size derivable from the start symbol."""
 
     # accumulator for previously seen terms
     result: set[Tree[T]] = set()
-    terms: dict[I, set[Tree[T]]] = {n: set() for n in grammar.keys()}
+    terms: dict[S, set[Tree[T]]] = {n: set() for n in grammar.keys()}
     terms_size: int = -1
     while terms_size < sum(len(ts) for ts in terms.values()):
         terms_size = sum(len(ts) for ts in terms.values())
 
         new_terms: Callable[
-            [Iterable[tuple[T, list[I]]]], set[Tree[T]]
+            [Iterable[tuple[T, list[S]]]], set[Tree[T]]
         ] = lambda exprs: {
             (c, tuple(args))
             for (c, ms) in exprs
@@ -180,7 +184,8 @@ def interpret_term(term: Tree[T]) -> Any:
                 )
             except ValueError:
                 raise RuntimeError(
-                    f"Combinator {c} does not expose a signature. If it's a built-in, you can simply wrap it in another function."
+                    f"Combinator {c} does not expose a signature. "
+                    "If it's a built-in, you can simply wrap it in another function."
                 )
 
             if n == 0 and len(parameters_of_c) == 0:
@@ -191,7 +196,8 @@ def interpret_term(term: Tree[T]) -> Any:
         while arguments:
             if not callable(current_combinator):
                 raise RuntimeError(
-                    f"Combinator {c} is applied to {n} argument(s), but can only be applied to {n - len(arguments)}"
+                    f"Combinator {c} is applied to {n} argument(s), "
+                    f"but can only be applied to {n - len(arguments)}"
                 )
 
             use_partial = False
@@ -213,7 +219,8 @@ def interpret_term(term: Tree[T]) -> Any:
             if pop_all:
                 simple_arity -= 1
 
-            # If a combinator needs more arguments than available, we need to use partial application
+            # If a combinator needs more arguments than available, we need to use partial
+            # application
             if simple_arity > len(arguments):
                 use_partial = True
 
@@ -254,10 +261,25 @@ def test() -> None:
         "X": [("a", []), ("b", ["X", "Y"])],
         "Y": [("c", []), ("d", ["Y", "X"])],
     }
-    # d = { "X" : [("x", ["X1"])], "X1" : [("x", ["X2"])], "X2" : [("x", ["X3"])], "X3" : [("x", ["X4"])], "X4" : [("x", ["X5"])], "X5" : [("x", ["Z"])],
-    #      "X6" : [("x", ["X7"])], "X7" : [("x", ["X8"])], "X8" : [("x", ["X9"])], "X9" : [("x", ["Z"])],
-    #      "Z" : [("a", []), ("b", ["Z", "Y"])], "Y" : [("c", []), ("d", ["Y", "Z"])] }
-    # d = { "X" : [("a", []), ("b", ["Y", "Y", "Y"])], "Y" : [("c", []), ("d", ["Z"])], "Z" : [("e", [])] }
+    # d = {
+    #    "X": [("x", ["X1"])],
+    #    "X1": [("x", ["X2"])],
+    #    "X2": [("x", ["X3"])],
+    #    "X3": [("x", ["X4"])],
+    #    "X4": [("x", ["X5"])],
+    #    "X5": [("x", ["Z"])],
+    #    "X6": [("x", ["X7"])],
+    #    "X7": [("x", ["X8"])],
+    #    "X8": [("x", ["X9"])],
+    #    "X9": [("x", ["Z"])],
+    #    "Z": [("a", []), ("b", ["Z", "Y"])],
+    #    "Y": [("c", []), ("d", ["Y", "Z"])],
+    # }
+    # d = {
+    #    "X": [("a", []), ("b", ["Y", "Y", "Y"])],
+    #    "Y": [("c", []), ("d", ["Z"])],
+    #    "Z": [("e", [])],
+    # }
 
     import timeit
 

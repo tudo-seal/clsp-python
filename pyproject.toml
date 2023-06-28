@@ -16,3 +16,7 @@ build-backend = "poetry.core.masonry.api"
 exclude = [ ".venv" ]
 venvPath = "."
 venv = ".venv"
+
+[tool.ruff]
+line-length = 100
+ignore = ["E731"]

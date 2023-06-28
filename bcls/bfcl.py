@@ -184,7 +184,8 @@ class FiniteCombinatoryLogic(Generic[T, C]):
                 # If the positive part is omega, then the result is junk
                 if current_target[0].is_omega:
                     continue
-                # If the positive part is a subtype of the negative part, then there are no inhabitants
+                # If the positive part is a subtype of the negative part, then there are no
+                # inhabitants
                 if any(
                     True
                     for ty in current_target[1]
