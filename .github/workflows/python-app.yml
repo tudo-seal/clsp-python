@@ -29,8 +29,9 @@ jobs:
         pip install mypy
     - name: Check with mypy
       run: |
-        mypy --strict bcls
+        mypy --strict . --exclude tests
     - name: Ruff Check
       uses: jpetrucciani/ruff-check@main
       with:
         path: 'bcls'
+        flags: '--exclude tests'
