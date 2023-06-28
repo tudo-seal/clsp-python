@@ -30,3 +30,7 @@ jobs:
     - name: Check with mypy
       run: |
         mypy --strict bcls
+    - name: Ruff Check
+      uses: jpetrucciani/ruff-check@main
+      with:
+        path: 'bcls'
