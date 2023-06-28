@@ -1,11 +1,6 @@
-# (Boolean enhanced) Combinatory Logic Synthesis in Python
+# (Vanilla) Combinatory Logic Synthesis in Python
 
-This repository is a fork of [cls-python](https://github.com/cls-python/cls-python), that extends
-the query language of CLS to Boolean queries.
-
-**Note:** This does not affect the specification language for combinators in your repository.
-The types of combinators are still limited to intersection types.
-
+This repository is a fork of [cls-python](https://github.com/cls-python/cls-python). Advancements made to the core system from the boolean fork (see main branch) are backported here.
 ## Installation
 
 Since this project does not need any additional dependencies, you can simply clone this repository to a location, where your 
@@ -15,30 +10,15 @@ code can access it. In case you *want* to install it, you can do this by either 
 
 in the cloned repository, or
 
-    pip install git+https://github.com/tudo-seal/bcls-python
+    pip install git+https://github.com/tudo-seal/bcls-python@vanilla
     
 without the need to clone it beforehand.
-
-## Running the examples
-
-Examples are stored in the `tests/` directory. Currently the following examples are provided:
-
-- `example_1.py`, this is a simple example with three combinators, `X`, `Y` and `F`
-- `example_CC.py`, this is another simple example with only one combinator `C`
-
-If you have cloned the repository, you can run the examples from the projects root with
-
-    python -m tests.example_1
-    
-and
-
-    python -m tests.example_CC
 
 ## Usage
 
 A *repository* is a `dict`, that maps Combinators to `Type`s.
 A *combinator* can be any `Hashable` object. Special treatment occurs, if it is `Callable`.
-A *query* is a `BooleanTerm` over `Types` 
+A *query* is a `Type`
 
 Once you specified a repository `gamma` and a query `q`, you can start the inhabitation procedure by
 
