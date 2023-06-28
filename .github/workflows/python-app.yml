@@ -33,5 +33,4 @@ jobs:
     - name: Ruff Check
       uses: jpetrucciani/ruff-check@main
       with:
-        path: 'bcls'
         flags: '--exclude tests'
