@@ -1,6 +1,6 @@
 import unittest
 
-from bcls import *
+from cls import *
 
 a = Constructor("a")
 b = Constructor("b")

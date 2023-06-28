@@ -1,15 +1,14 @@
 from collections.abc import Callable
-from bcls import (
+from cls import (
     Type,
     Constructor,
     Arrow,
     Intersection,
-    Var,
     FiniteCombinatoryLogic,
     enumerate_terms,
     Subtypes,
 )
-from bcls.enumeration import interpret_term
+from cls.enumeration import interpret_term
 
 
 def test() -> None:
@@ -32,7 +31,7 @@ def test() -> None:
     environment: dict[str, set[str]] = dict()
     subtypes = Subtypes(environment)
 
-    target = Var(a) & ~(Var(b) & Var(c))
+    target = Intersection(c, b)
     # target = Var(b)
 
     fcl = FiniteCombinatoryLogic(repository, subtypes)

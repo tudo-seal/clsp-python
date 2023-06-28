@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from bcls import Type, Constructor, Arrow, Intersection, Var, inhabit_and_interpret
+from cls import Type, Constructor, Arrow, Intersection, inhabit_and_interpret
 
 
 def test() -> None:
@@ -20,7 +20,7 @@ def test() -> None:
         }
     )
 
-    for real_result in inhabit_and_interpret(repository, Var(b)):
+    for real_result in inhabit_and_interpret(repository, b):
         print(real_result)
 
 

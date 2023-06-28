@@ -1,5 +1,4 @@
-from collections.abc import Callable
-from bcls import Type, Constructor, Arrow, Intersection, Var, inhabit_and_interpret
+from cls import Type, Constructor, Arrow, inhabit_and_interpret
 
 
 def F(*x):
@@ -17,7 +16,7 @@ def test() -> None:
 
     repository = dict({X: a, Y: b, F: Arrow(a, (Arrow(b, (Arrow(b, c)))))})
 
-    for real_result in inhabit_and_interpret(repository, Var(c)):
+    for real_result in inhabit_and_interpret(repository, c):
         print(real_result)
 
 

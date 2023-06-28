@@ -1,5 +1,5 @@
-from bcls import inhabit_and_interpret
-from bcls.types import Arrow, Constructor
+from cls import inhabit_and_interpret
+from cls.types import Arrow, Constructor
 
 
 def nil():

@@ -1,4 +1,4 @@
-from bcls.combinatorics import minimal_covers, maximal_elements
+from cls.combinatorics import minimal_covers, maximal_elements
 from itertools import combinations
 from collections import deque
 from random import randrange

@@ -1,16 +1,11 @@
 from collections.abc import Callable
-from bcls import (
+from cls import (
     Type,
     Constructor,
     Arrow,
     Intersection,
-    Var,
-    FiniteCombinatoryLogic,
-    enumerate_terms,
-    Subtypes,
     inhabit_and_interpret,
 )
-from bcls.enumeration import interpret_term
 
 
 def test() -> None:

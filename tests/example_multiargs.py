@@ -10,7 +10,7 @@ To implement a combinator, fitting that type, you either have to use the *args c
 MultiArgsComponent) or default values (See DefaultArgComponent).
 
 """
-from bcls import (
+from cls import (
     Constructor,
     Arrow,
     Intersection,
