@@ -9,8 +9,10 @@ from functools import partial
 import itertools
 from inspect import Parameter, signature, _ParameterKind, _empty
 from collections import deque
-from collections.abc import Callable, Hashable, Iterable, Mapping
-from typing import Any, Optional, TypeAlias, TypeVar
+from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
+from typing import Any, Optional, TypeAlias, TypeVar, cast
+
+from cls.grammar import GroundTerm, ParameterizedTreeGrammar, RHSRule
 
 S = TypeVar("S")  # non-terminals
 T = TypeVar("T", bound=Hashable)
@@ -45,7 +47,7 @@ def bounded_union(
 
 def enumerate_terms(
     start: S,
-    grammar: Mapping[S, Iterable[tuple[T, list[S]]]],
+    grammar: ParameterizedTreeGrammar[S, T],
     max_count: Optional[int] = 100,
 ) -> Iterable[Tree[T]]:
     """Given a start symbol and a tree grammar, enumerate at most max_count ground terms derivable
@@ -54,22 +56,22 @@ def enumerate_terms(
 
     # accumulator for previously seen terms
     result: set[Tree[T]] = set()
-    terms: dict[S, set[Tree[T]]] = {n: set() for n in grammar.keys()}
+    terms: dict[S, set[Tree[T]]] = {n: set() for n in grammar.nonterminals()}
     terms_size: int = -1
     while terms_size < sum(len(ts) for ts in terms.values()):
         terms_size = sum(len(ts) for ts in terms.values())
 
-        new_terms: Callable[
-            [Iterable[tuple[T, list[S]]]], set[Tree[T]]
-        ] = lambda exprs: {
-            (c, tuple(args))
-            for (c, ms) in exprs
-            for args in itertools.product(*(terms[m] for m in ms))
+        new_terms: Callable[[Iterable[RHSRule[S, T]]], set[Tree[T]]] = lambda exprs: {
+            (term.ground_term.combinator, tuple(args))
+            for term in exprs
+            for args in itertools.product(
+                *(terms[m] for m in cast(Sequence[S], term.ground_term.args))
+            )
         }
 
         if max_count is None:
             # new terms are built from previous terms according to grammar
-            terms = {n: new_terms(exprs) for (n, exprs) in grammar.items()}
+            terms = {n: new_terms(exprs) for (n, exprs) in grammar.as_tuples()}
         else:
             terms = {
                 n: terms[n]
@@ -77,7 +79,7 @@ def enumerate_terms(
                 else bounded_union(
                     terms[n], sorted(new_terms(exprs), key=tree_size), max_count
                 )
-                for (n, exprs) in grammar.items()
+                for (n, exprs) in grammar.as_tuples()
             }
         for term in sorted(terms[start], key=tree_size):
             # yield term if not seen previously
@@ -257,10 +259,15 @@ def interpret_term(term: Tree[T]) -> Any:
 
 
 def test() -> None:
-    d: Mapping[str, list[tuple[str, list[str]]]] = {
-        "X": [("a", []), ("b", ["X", "Y"])],
-        "Y": [("c", []), ("d", ["Y", "X"])],
-    }
+    # d: Mapping[str, list[tuple[str, list[str]]]] = {
+    #     "X": [("a", []), ("b", ["X", "Y"])],
+    #     "Y": [("c", []), ("d", ["Y", "X"])],
+    # }
+    d: ParameterizedTreeGrammar[str, str] = ParameterizedTreeGrammar()
+    d.add_rule("X", RHSRule([], [], GroundTerm("a", [])))
+    d.add_rule("X", RHSRule([], [], GroundTerm("b", ["X", "Y"])))
+    d.add_rule("Y", RHSRule([], [], GroundTerm("c", [])))
+    d.add_rule("Y", RHSRule([], [], GroundTerm("d", ["Y", "X"])))
     # d = {
     #    "X": [("x", ["X1"])],
     #    "X1": [("x", ["X2"])],
@@ -310,10 +317,15 @@ def test2() -> None:
         def __call__(self, a: str, b: str) -> str:
             return f"({a}) ->D-> ({b})"
 
-    d: dict[str, list[tuple[A | B | C | D | str, list[str]]]] = {
-        "X": [(A(), []), (B(), ["X", "Y"]), ("Z", [])],
-        "Y": [(C(), []), (D(), ["Y", "X"])],
-    }
+    # d: dict[str, list[tuple[A | B | C | D | str, list[str]]]] = {
+    #     "X": [(A(), []), (B(), ["X", "Y"]), ("Z", [])],
+    #     "Y": [(C(), []), (D(), ["Y", "X"])],
+    # }
+    d: ParameterizedTreeGrammar[str, A | B | C | D | str] = ParameterizedTreeGrammar()
+    d.add_rule("X", RHSRule([], [], GroundTerm(A(), [])))
+    d.add_rule("X", RHSRule([], [], GroundTerm(B(), ["X", "Y"])))
+    d.add_rule("X", RHSRule([], [], GroundTerm("Z", [])))
+    d.add_rule("Y", RHSRule([], [], GroundTerm(D(), ["Y", "X"])))
 
     import timeit
 

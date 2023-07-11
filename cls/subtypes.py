@@ -2,7 +2,7 @@ from collections import deque
 from collections.abc import Hashable
 from typing import Generic, TypeVar
 
-from .types import Arrow, Constructor, Intersection, Product, Type
+from .types import Arrow, Constructor, Intersection, Literal, Product, TVar, Type
 
 T = TypeVar("T", bound=Hashable, covariant=True)
 
@@ -17,6 +17,17 @@ class Subtypes(Generic[T]):
         if supertype.is_omega:
             return True
         match supertype:
+            case Literal(name2, ty2):
+                while subtypes:
+                    match subtypes.pop():
+                        case Literal(name1, ty1):
+                            if name2 == name1 and ty1 == ty2:
+                                return True
+                        case TVar(name1):
+                            return True
+                        case Intersection(l, r):
+                            subtypes.extend((l, r))
+                return False
             case Constructor(name2, arg2):
                 casted_constr: deque[Type[T]] = deque()
                 while subtypes:

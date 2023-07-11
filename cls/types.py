@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import itertools
 from abc import ABC, abstractmethod
-from collections.abc import Hashable, Sequence
+from collections.abc import Callable, Hashable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Generic, TypeVar
 
@@ -258,3 +258,84 @@ class Intersection(Type[T]):
             f"{intersection_str_prec(self.left)} & {intersection_str_prec(self.right)}"
         )
         return Type._parens(result) if prec > intersection_prec else result
+
+
+@dataclass(frozen=True)
+class Literal(Type[T]):
+    name: str
+    type: Any
+    is_omega: bool = field(init=False, compare=False)
+    size: int = field(init=False, compare=False)
+    organized: set[Type[T]] = field(init=False, compare=False)
+
+    def __post_init__(self) -> None:
+        super().__init__(
+            is_omega=self._is_omega(),
+            size=self._size(),
+            organized=self._organized(),
+        )
+
+    def _is_omega(self) -> bool:
+        return False
+
+    def _size(self) -> int:
+        return 1
+
+    def _organized(self) -> set[Type[T]]:
+        return {self}
+
+    def _str_prec(self, prec: int) -> str:
+        return f"{str(self.name)}@({str(self.type)})"
+
+
+@dataclass(frozen=True)
+class TVar(Type[T]):
+    name: str
+    is_omega: bool = field(init=False, compare=False)
+    size: int = field(init=False, compare=False)
+    organized: set[Type[T]] = field(init=False, compare=False)
+
+    def __post_init__(self) -> None:
+        super().__init__(
+            is_omega=self._is_omega(),
+            size=self._size(),
+            organized=self._organized(),
+        )
+
+    def _is_omega(self) -> bool:
+        return False
+
+    def _size(self) -> int:
+        return 1
+
+    def _organized(self) -> set[Type[T]]:
+        return {self}
+
+    def _str_prec(self, prec: int) -> str:
+        return f"<{str(self.name)}>"
+
+
+# @dataclass(frozen=True)
+@dataclass
+class ParamSpec(Generic[T]):
+    name: str
+    type: Type[T] | Any
+    predicate: Callable[[dict[str, Any]], bool]
+    predicate_substs: dict[Any, Any] = field(default_factory=dict)
+
+    def apply(self, inner: Param[T]) -> Param[T]:
+        return Param(self.name, self.type, self.predicate, inner, self.predicate_substs)
+
+
+# @dataclass(frozen=True)
+@dataclass
+class Param(Generic[T]):
+    name: str
+    type: Type[T] | Any
+    predicate: Callable[[dict[str, Any]], bool]
+    inner: Param[T] | Type[T]
+
+    predicate_substs: dict[Any, Any] = field(default_factory=dict)
+
+    def get_spec(self) -> ParamSpec[T]:
+        return ParamSpec(self.name, self.type, self.predicate, self.predicate_substs)

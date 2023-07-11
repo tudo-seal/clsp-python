@@ -2,6 +2,8 @@ from collections import deque
 from collections.abc import Hashable, Iterable, Mapping, MutableMapping
 from typing import Any, Optional, TypeVar
 
+from cls.grammar import ParameterizedTreeGrammar
+
 from .subtypes import Subtypes
 from .types import Type, Omega, Constructor, Product, Arrow, Intersection
 from .enumeration import enumerate_terms, interpret_term, enumerate_terms_of_size
@@ -39,10 +41,7 @@ def inhabit_and_interpret(
     if not isinstance(query, list):
         query = [query]
 
-    grammar: MutableMapping[
-        Type[T],
-        deque[tuple[C, list[Type[T]]]],
-    ] = fcl.inhabit(*query)
+    grammar: ParameterizedTreeGrammar[Type[T], C] = fcl.inhabit(*query)
 
     for q in query:
         enumerated_terms = enumerate_terms(
