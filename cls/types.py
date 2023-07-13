@@ -37,6 +37,10 @@ class Type(ABC, Generic[T]):
     def _str_prec(self, prec: int) -> str:
         pass
 
+    @abstractmethod
+    def subst(self, substitution: dict[str, Literal[T]]) -> Type[T]:
+        pass
+
     @staticmethod
     def _parens(s: str) -> str:
         return f"({s})"
@@ -91,6 +95,9 @@ class Omega(Type[T]):
     def _str_prec(self, prec: int) -> str:
         return "omega"
 
+    def subst(self, substitution: dict[str, Literal[T]]) -> Type[T]:
+        return self
+
 
 @dataclass(frozen=True)
 class Constructor(Type[T]):
@@ -124,6 +131,9 @@ class Constructor(Type[T]):
             return str(self.name)
         else:
             return f"{str(self.name)}({str(self.arg)})"
+
+    def subst(self, substitution: dict[str, Literal[T]]) -> Type[T]:
+        return Constructor(self.name, self.arg.subst(substitution))
 
 
 @dataclass(frozen=True)
@@ -173,6 +183,9 @@ class Product(Type[T]):
         )
         return Type[T]._parens(result) if prec > product_prec else result
 
+    def subst(self, substitution: dict[str, Literal[T]]) -> Type[T]:
+        return Product(self.left.subst(substitution), self.right.subst(substitution))
+
 
 @dataclass(frozen=True)
 class Arrow(Type[T]):
@@ -219,6 +232,9 @@ class Arrow(Type[T]):
                 )
         return Type._parens(result) if prec > arrow_prec else result
 
+    def subst(self, substitution: dict[str, Literal[T]]) -> Type[T]:
+        return Arrow(self.source.subst(substitution), self.target.subst(substitution))
+
 
 @dataclass(frozen=True)
 class Intersection(Type[T]):
@@ -259,6 +275,11 @@ class Intersection(Type[T]):
         )
         return Type._parens(result) if prec > intersection_prec else result
 
+    def subst(self, substitution: dict[str, Literal[T]]) -> Type[T]:
+        return Intersection(
+            self.left.subst(substitution), self.right.subst(substitution)
+        )
+
 
 @dataclass(frozen=True)
 class Literal(Type[T]):
@@ -287,6 +308,9 @@ class Literal(Type[T]):
     def _str_prec(self, prec: int) -> str:
         return f"{str(self.name)}@({str(self.type)})"
 
+    def subst(self, substitution: dict[str, Literal[T]]) -> Type[T]:
+        return self
+
 
 @dataclass(frozen=True)
 class TVar(Type[T]):
@@ -314,17 +338,31 @@ class TVar(Type[T]):
     def _str_prec(self, prec: int) -> str:
         return f"<{str(self.name)}>"
 
+    def subst(self, substitution: dict[str, Literal[T]]) -> Type[T]:
+        if self.name in substitution:
+            return substitution[self.name]
+        else:
+            return self
+
+
+@dataclass
+class ParamSpec(Generic[T]):
+    pass
+
 
 # @dataclass(frozen=True)
 @dataclass
-class ParamSpec(Generic[T]):
+class LitParamSpec(ParamSpec[T]):
     name: str
-    type: Type[T] | Any
+    type: Any
     predicate: Callable[[dict[str, Any]], bool]
-    predicate_substs: dict[Any, Any] = field(default_factory=dict)
 
-    def apply(self, inner: Param[T]) -> Param[T]:
-        return Param(self.name, self.type, self.predicate, inner, self.predicate_substs)
+
+@dataclass
+class TermParamSpec(ParamSpec[T]):
+    name: str
+    type: Type[T]
+    predicate: Callable[[dict[str, Any]], bool]
 
 
 # @dataclass(frozen=True)
@@ -335,7 +373,8 @@ class Param(Generic[T]):
     predicate: Callable[[dict[str, Any]], bool]
     inner: Param[T] | Type[T]
 
-    predicate_substs: dict[Any, Any] = field(default_factory=dict)
+    def get_lit_spec(self) -> LitParamSpec[T]:
+        return LitParamSpec(self.name, self.type, self.predicate)
 
-    def get_spec(self) -> ParamSpec[T]:
-        return ParamSpec(self.name, self.type, self.predicate, self.predicate_substs)
+    def get_term_spec(self) -> TermParamSpec[T]:
+        return TermParamSpec(self.name, self.type, self.predicate)

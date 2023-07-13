@@ -10,9 +10,15 @@ import itertools
 from inspect import Parameter, signature, _ParameterKind, _empty
 from collections import deque
 from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
-from typing import Any, Optional, TypeAlias, TypeVar, cast
+from typing import Any, Optional, TypeAlias, TypeVar, cast, reveal_type
 
-from cls.grammar import GroundTerm, ParameterizedTreeGrammar, RHSRule
+from cls.grammar import (
+    GVar,
+    ParameterizedTreeGrammar,
+    Predicate,
+    RHSRule,
+    bind_single,
+)
 
 S = TypeVar("S")  # non-terminals
 T = TypeVar("T", bound=Hashable)
@@ -45,6 +51,24 @@ def bounded_union(
     return result
 
 
+def new_terms(
+    rhs: Iterable[RHSRule[S, T]], existing_terms: dict[S, set[Tree[T]]]
+) -> set[Tree[T]]:
+    output_set: set[Tree[T]] = set()
+    for rule in rhs:
+        list_of_params = list(rule.binder.keys())
+
+        for params in itertools.product(
+            *(existing_terms[rule.binder[name]] for name in list_of_params)
+        ):
+            params_dict = {list_of_params[i]: param for i, param in enumerate(params)}
+            if all([predicate.eval(params_dict) for predicate in rule.predicates]):
+                output_set.add(
+                    (rule.terminal, tuple([params_dict[arg.name] for arg in rule.args]))
+                )
+    return output_set
+
+
 def enumerate_terms(
     start: S,
     grammar: ParameterizedTreeGrammar[S, T],
@@ -61,23 +85,15 @@ def enumerate_terms(
     while terms_size < sum(len(ts) for ts in terms.values()):
         terms_size = sum(len(ts) for ts in terms.values())
 
-        new_terms: Callable[[Iterable[RHSRule[S, T]]], set[Tree[T]]] = lambda exprs: {
-            (term.ground_term.combinator, tuple(args))
-            for term in exprs
-            for args in itertools.product(
-                *(terms[m] for m in cast(Sequence[S], term.ground_term.args))
-            )
-        }
-
         if max_count is None:
             # new terms are built from previous terms according to grammar
-            terms = {n: new_terms(exprs) for (n, exprs) in grammar.as_tuples()}
+            terms = {n: new_terms(exprs, terms) for (n, exprs) in grammar.as_tuples()}
         else:
             terms = {
                 n: terms[n]
                 if len(terms[n]) >= max_count
                 else bounded_union(
-                    terms[n], sorted(new_terms(exprs), key=tree_size), max_count
+                    terms[n], sorted(new_terms(exprs, terms), key=tree_size), max_count
                 )
                 for (n, exprs) in grammar.as_tuples()
             }
@@ -176,7 +192,7 @@ def interpret_term(term: Tree[T]) -> Any:
     # apply/call decomposed terms
     while combinators:
         (c, n) = combinators.pop()
-        parameters_of_c: Iterable[Parameter] = []
+        parameters_of_c: Sequence[Parameter] = []
         current_combinator: partial[Any] | T | Callable[..., Any] = c
 
         if callable(current_combinator):
@@ -264,10 +280,26 @@ def test() -> None:
     #     "Y": [("c", []), ("d", ["Y", "X"])],
     # }
     d: ParameterizedTreeGrammar[str, str] = ParameterizedTreeGrammar()
-    d.add_rule("X", RHSRule([], [], GroundTerm("a", [])))
-    d.add_rule("X", RHSRule([], [], GroundTerm("b", ["X", "Y"])))
-    d.add_rule("Y", RHSRule([], [], GroundTerm("c", [])))
-    d.add_rule("Y", RHSRule([], [], GroundTerm("d", ["Y", "X"])))
+    d.update(
+        {
+            "X": deque(
+                [
+                    RHSRule({}, [], "a", []),
+                    RHSRule({"x": "X", "y": "Y"}, [], "b", [GVar("x"), GVar("y")]),
+                ]
+            )
+        }
+    )
+    d.update(
+        {
+            "Y": deque(
+                [
+                    RHSRule({}, [], "c", []),
+                    RHSRule({"x": "X", "y": "Y"}, [], "d", [GVar("y"), GVar("x")]),
+                ]
+            )
+        }
+    )
     # d = {
     #    "X": [("x", ["X1"])],
     #    "X1": [("x", ["X2"])],
@@ -322,10 +354,26 @@ def test2() -> None:
     #     "Y": [(C(), []), (D(), ["Y", "X"])],
     # }
     d: ParameterizedTreeGrammar[str, A | B | C | D | str] = ParameterizedTreeGrammar()
-    d.add_rule("X", RHSRule([], [], GroundTerm(A(), [])))
-    d.add_rule("X", RHSRule([], [], GroundTerm(B(), ["X", "Y"])))
-    d.add_rule("X", RHSRule([], [], GroundTerm("Z", [])))
-    d.add_rule("Y", RHSRule([], [], GroundTerm(D(), ["Y", "X"])))
+    d.update(
+        {
+            "X": deque(
+                [
+                    RHSRule({}, [], A(), []),
+                    RHSRule({"x": "X", "y": "Y"}, [], B(), [GVar("x"), GVar("y")]),
+                ]
+            )
+        }
+    )
+    d.update(
+        {
+            "Y": deque(
+                [
+                    RHSRule({}, [], "Z", []),
+                    RHSRule({"x": "Y", "y": "Y"}, [], D(), [GVar("y"), GVar("x")]),
+                ]
+            )
+        }
+    )
 
     import timeit
 
@@ -339,5 +387,13 @@ def test2() -> None:
     print("Time: ", timeit.default_timer() - start)
 
 
+def test3() -> None:
+    grammar: ParameterizedTreeGrammar[str, str] = ParameterizedTreeGrammar()
+    grammar.add_rule("X", RHSRule({"y": "Y"}, [], "y", []))
+    grammar.add_rule("Y", RHSRule({}, [Predicate(lambda _: True)], "y1", []))
+    grammar.add_rule("Y", RHSRule({}, [Predicate(lambda _: False)], "y2", []))
+    print(grammar.show())
+
+
 if __name__ == "__main__":
-    test2()
+    test3()
