@@ -43,12 +43,19 @@ class MultiArrow(Generic[T]):
     args: list[Type[T]]
     target: Type[T]
 
-    def subst(self, substitution: dict[str, Literal[T]]) -> MultiArrow[T]:
+    def subst(self, substitution: dict[str, Literal]) -> MultiArrow[T]:
         return MultiArrow(
             [arg.subst(substitution) for arg in self.args],
             self.target.subst(substitution),
         )
 
+
+InstantiationMeta: TypeAlias = tuple[
+    list[TermParamSpec[T]],
+    list[Predicate],
+    list[Literal | GVar],
+    dict[str, Literal],
+]
 
 TreeGrammar: TypeAlias = MutableMapping[Type[T], deque[tuple[C, list[Type[T]]]]]
 
@@ -80,7 +87,7 @@ class FiniteCombinatoryLogic(Generic[T, C]):
         self.literals: dict[Any, list[Any]] = {} if literals is None else literals
         self.repository: Mapping[
             C,
-            tuple[list[ParamSpec[T]], list[list[MultiArrow[T]]]],
+            tuple[Sequence[InstantiationMeta[T]], list[list[MultiArrow[T]]]],
         ] = {
             c: FiniteCombinatoryLogic._function_types(ty, self.literals)
             for c, ty in repository.items()
@@ -90,7 +97,7 @@ class FiniteCombinatoryLogic(Generic[T, C]):
     @staticmethod
     def _function_types(
         p_or_ty: Param[T] | Type[T], literals: dict[Any, list[Any]]
-    ) -> tuple[list[ParamSpec[T]], list[list[MultiArrow[T]]]]:
+    ) -> tuple[Sequence[InstantiationMeta[T]], list[list[MultiArrow[T]]],]:
         """Presents a type as a list of 0-ary, 1-ary, ..., n-ary function types."""
 
         def unary_function_types(ty: Type[T]) -> Iterable[tuple[Type[T], Type[T]]]:
@@ -115,7 +122,7 @@ class FiniteCombinatoryLogic(Generic[T, C]):
             return (params, ty)
 
         params, ty = split_params(p_or_ty)
-        instantiations = FiniteCombinatoryLogic._instantiate(literals, params)
+        instantiations = list(FiniteCombinatoryLogic._instantiate(literals, params))
         current: list[MultiArrow[T]] = [MultiArrow([], ty)]
 
         multiarrows = []
@@ -126,7 +133,7 @@ class FiniteCombinatoryLogic(Generic[T, C]):
                 for c in current
                 for (new_arg, new_tgt) in unary_function_types(c.target)
             ]
-        return (params, multiarrows)
+        return (instantiations, multiarrows)
 
     def _subqueries(
         self, nary_types: list[MultiArrow[T]], paths: list[Type[T]]
@@ -156,9 +163,9 @@ class FiniteCombinatoryLogic(Generic[T, C]):
     @staticmethod
     def _instantiate(
         literals: dict[Any, list[Any]],
-        params: list[ParamSpec[T]],
-    ) -> Iterator[tuple[list[Literal[T] | GVar], dict[str, Literal[T]]]]:
-        substitutions: Iterable[dict[str, Any]] = []
+        params: list[LitParamSpec[T] | TermParamSpec[T]],
+    ) -> Iterator[InstantiationMeta[T]]:
+        substitutions: Sequence[dict[str, Any]] = [{}]
         args: list[str | GVar] = []
         term_params: list[TermParamSpec[T]] = []
 
@@ -168,18 +175,23 @@ class FiniteCombinatoryLogic(Generic[T, C]):
                     return []
                 else:
                     args.append(param.name)
-                    substitutions = filter(
-                        lambda substs: term_param.predicate(substs),
-                        (
-                            s | {param.name: Literal(literal, param.type)}
-                            for s in substitutions
-                            for literal in literals[param.type]
-                        ),
+                    substitutions = list(
+                        filter(
+                            lambda substs: param.predicate(substs),
+                            (
+                                s | {param.name: Literal(literal, param.type)}
+                                for s in substitutions
+                                for literal in literals[param.type]
+                            ),
+                        )
                     )
             elif isinstance(param, TermParamSpec):
                 args.append(GVar(param.name))
                 # binders[param.name] = param.type
                 term_params.append(param)
+
+        if len(substitutions) == 0:
+            substitutions = [{}]
 
         for substitution in substitutions:
             predicates = []
@@ -191,21 +203,30 @@ class FiniteCombinatoryLogic(Generic[T, C]):
                 substitution[arg] if not isinstance(arg, GVar) else arg for arg in args
             ]
             yield (
+                term_params,
+                predicates,
                 instantiated_combinator_args,
                 substitution,
             )
 
-    def inhabit(self, *targets: Type[T]) -> ParameterizedTreeGrammar[Type[T], C]:
+    def inhabit(
+        self, *targets: Type[T]
+    ) -> ParameterizedTreeGrammar[Type[T], C | Literal]:
         type_targets = deque(targets)
 
         # dictionary of type |-> sequence of combinatory expressions
-        memo: ParameterizedTreeGrammar[Type[T], C] = ParameterizedTreeGrammar()
+        memo: ParameterizedTreeGrammar[
+            Type[T], C | Literal
+        ] = ParameterizedTreeGrammar()
+        for lit_ty, literals in self.literals.items():
+            for lit in literals:
+                memo.add_rule(Literal(lit, lit_ty), RHSRule({}, [], lit, []))
 
         while type_targets:
             current_target = type_targets.pop()
             if memo.get(current_target) is None:
                 # target type was not seen before
-                possibilities: deque[RHSRule[Type[T], C]] = deque()
+                possibilities: deque[RHSRule[Type[T], C | Literal]] = deque()
                 memo.update({current_target: possibilities})
                 # If the target is omega, then the result is junk
                 if current_target.is_omega:
@@ -214,34 +235,39 @@ class FiniteCombinatoryLogic(Generic[T, C]):
                 paths: list[Type[T]] = list(current_target.organized)
 
                 # try each combinator and arity
-                for combinator, (params, combinator_type) in self.repository.items():
-                    for nary_types in combinator_type:
-                        arguments: list[list[Type[T]]] = list(
-                            self._subqueries(nary_types, paths)
-                        )
-                        if len(arguments) == 0:
-                            continue
-
-                        for subquery in arguments:
-                            reveal_type(subquery)
-                            unique_var_names: list[str] = [
-                                str(uuid4()) for _ in subquery
+                for combinator, (meta, combinator_type) in self.repository.items():
+                    for params, predicates, args, substitutions in meta:
+                        for p_nary_types in combinator_type:
+                            nary_types = [
+                                ty.subst(substitutions) for ty in p_nary_types
                             ]
-                            possibilities.append(
-                                RHSRule(
-                                    {
-                                        unique_var_names[i]: subquery[i]
-                                        for i in range(len(subquery))
-                                    },
-                                    [],
-                                    combinator,
-                                    [
-                                        GVar(unique_var_names[i])
-                                        for i in range(len(subquery))
-                                    ],
-                                )
+                            arguments: list[list[Type[T]]] = list(
+                                self._subqueries(nary_types, paths)
                             )
-                            type_targets.extendleft(subquery)
+                            if len(arguments) == 0:
+                                continue
+
+                            for subquery in arguments:
+                                unique_var_names: list[str] = [
+                                    str(uuid4()) for _ in subquery
+                                ]
+                                possibilities.append(
+                                    RHSRule(
+                                        {
+                                            unique_var_names[i]: subquery[i]
+                                            for i in range(len(subquery))
+                                        }
+                                        | {param.name: param.type for param in params},
+                                        predicates,
+                                        combinator,
+                                        args
+                                        + [
+                                            GVar(unique_var_names[i])
+                                            for i in range(len(subquery))
+                                        ],
+                                    )
+                                )
+                                type_targets.extendleft(subquery)
 
         # prune not inhabited types
         FiniteCombinatoryLogic._prune(memo)
@@ -253,9 +279,15 @@ class FiniteCombinatoryLogic(Generic[T, C]):
         """Keep only productive grammar rules."""
 
         def is_ground(
-            binder: dict[str, Type[T]], args: Sequence[GVar], ground_types: set[Type[T]]
+            binder: dict[str, Type[T]],
+            args: Sequence[Literal | GVar],
+            ground_types: set[Type[T]],
         ) -> bool:
-            return all(True for arg in args if binder[arg.name] in ground_types)
+            return all(
+                True
+                for arg in args
+                if isinstance(arg, Literal) or binder[arg.name] in ground_types
+            )
 
         ground_types: set[Type[T]] = set()
         new_ground_types, candidates = partition(

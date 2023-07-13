@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "bcls"
+name = "cls"
 version = "0.0.1"
 description = "Boolean enhanced fork of cls-python"
 authors = ["Jan Bessai <jan.bessai@tu-dortmund.de>", "Andrej Dudenhefner <andrej.dudenhefner@cs.tu-dortmund.de>", "Christoph Stahl <christoph.stahl@tu-dortmund.de>"]

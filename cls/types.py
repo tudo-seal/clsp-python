@@ -38,7 +38,7 @@ class Type(ABC, Generic[T]):
         pass
 
     @abstractmethod
-    def subst(self, substitution: dict[str, Literal[T]]) -> Type[T]:
+    def subst(self, substitution: dict[str, Literal]) -> Type[T]:
         pass
 
     @staticmethod
@@ -95,7 +95,7 @@ class Omega(Type[T]):
     def _str_prec(self, prec: int) -> str:
         return "omega"
 
-    def subst(self, substitution: dict[str, Literal[T]]) -> Type[T]:
+    def subst(self, substitution: dict[str, Literal]) -> Type[T]:
         return self
 
 
@@ -132,7 +132,7 @@ class Constructor(Type[T]):
         else:
             return f"{str(self.name)}({str(self.arg)})"
 
-    def subst(self, substitution: dict[str, Literal[T]]) -> Type[T]:
+    def subst(self, substitution: dict[str, Literal]) -> Type[T]:
         return Constructor(self.name, self.arg.subst(substitution))
 
 
@@ -183,7 +183,7 @@ class Product(Type[T]):
         )
         return Type[T]._parens(result) if prec > product_prec else result
 
-    def subst(self, substitution: dict[str, Literal[T]]) -> Type[T]:
+    def subst(self, substitution: dict[str, Literal]) -> Type[T]:
         return Product(self.left.subst(substitution), self.right.subst(substitution))
 
 
@@ -232,7 +232,7 @@ class Arrow(Type[T]):
                 )
         return Type._parens(result) if prec > arrow_prec else result
 
-    def subst(self, substitution: dict[str, Literal[T]]) -> Type[T]:
+    def subst(self, substitution: dict[str, Literal]) -> Type[T]:
         return Arrow(self.source.subst(substitution), self.target.subst(substitution))
 
 
@@ -275,19 +275,19 @@ class Intersection(Type[T]):
         )
         return Type._parens(result) if prec > intersection_prec else result
 
-    def subst(self, substitution: dict[str, Literal[T]]) -> Type[T]:
+    def subst(self, substitution: dict[str, Literal]) -> Type[T]:
         return Intersection(
             self.left.subst(substitution), self.right.subst(substitution)
         )
 
 
 @dataclass(frozen=True)
-class Literal(Type[T]):
-    name: str
+class Literal(Type[Any]):
+    name: Any
     type: Any
     is_omega: bool = field(init=False, compare=False)
     size: int = field(init=False, compare=False)
-    organized: set[Type[T]] = field(init=False, compare=False)
+    organized: set[Type[Any]] = field(init=False, compare=False)
 
     def __post_init__(self) -> None:
         super().__init__(
@@ -302,13 +302,13 @@ class Literal(Type[T]):
     def _size(self) -> int:
         return 1
 
-    def _organized(self) -> set[Type[T]]:
+    def _organized(self) -> set[Type[Any]]:
         return {self}
 
     def _str_prec(self, prec: int) -> str:
         return f"{str(self.name)}@({str(self.type)})"
 
-    def subst(self, substitution: dict[str, Literal[T]]) -> Type[T]:
+    def subst(self, substitution: dict[str, Literal]) -> Type[Any]:
         return self
 
 
@@ -338,7 +338,7 @@ class TVar(Type[T]):
     def _str_prec(self, prec: int) -> str:
         return f"<{str(self.name)}>"
 
-    def subst(self, substitution: dict[str, Literal[T]]) -> Type[T]:
+    def subst(self, substitution: dict[str, Literal]) -> Type[T]:
         if self.name in substitution:
             return substitution[self.name]
         else:

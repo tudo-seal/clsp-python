@@ -17,8 +17,8 @@ from cls.grammar import (
     ParameterizedTreeGrammar,
     Predicate,
     RHSRule,
-    bind_single,
 )
+from cls.types import Literal
 
 S = TypeVar("S")  # non-terminals
 T = TypeVar("T", bound=Hashable)
@@ -64,7 +64,19 @@ def new_terms(
             params_dict = {list_of_params[i]: param for i, param in enumerate(params)}
             if all([predicate.eval(params_dict) for predicate in rule.predicates]):
                 output_set.add(
-                    (rule.terminal, tuple([params_dict[arg.name] for arg in rule.args]))
+                    (
+                        rule.terminal,
+                        tuple(
+                            [
+                                (
+                                    arg.name
+                                    if isinstance(arg, Literal)
+                                    else params_dict[arg.name]
+                                )
+                                for arg in rule.args
+                            ]
+                        ),
+                    )
                 )
     return output_set
 

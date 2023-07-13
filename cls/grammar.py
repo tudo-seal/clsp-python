@@ -4,6 +4,8 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from typing import Generic, TypeVar, Any, Optional
 
+from cls.types import Literal
+
 NT = TypeVar("NT")
 T = TypeVar("T")
 
@@ -46,7 +48,7 @@ class RHSRule(Generic[NT, T]):
     binder: dict[str, NT]
     predicates: list[Predicate]
     terminal: T
-    args: list[GVar]
+    args: list[Literal | GVar]
 
     def __str__(self) -> str:
         forallstrings = "".join(
