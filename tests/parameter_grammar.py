@@ -1,5 +1,6 @@
 from cls.enumeration import enumerate_terms
 from cls.grammar import GVar, ParameterizedTreeGrammar, Predicate, RHSRule
+from cls.types import Literal
 
 
 def main():
@@ -13,7 +14,9 @@ def main():
             [GVar("y"), GVar("y")],
         ),
     )
-    grammar.add_rule("Y", RHSRule({}, [Predicate(lambda _: True, "⊤")], "y1", []))
+    grammar.add_rule(
+        "Y", RHSRule({}, [Predicate(lambda _: True, "⊤")], "y1", [Literal(3, int)])
+    )
     grammar.add_rule("Y", RHSRule({}, [Predicate(lambda _: False, "⊥")], "y2", []))
     print(grammar.show())
 

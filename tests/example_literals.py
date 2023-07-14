@@ -18,7 +18,7 @@ def test() -> None:
     d: Type[str] = Literal(3, int)
 
     X: str = "X"
-    Y = lambda x: f"Y {x}"
+    Y = lambda x, y: f"Y {x} {y}"
     F: Callable[[str], str] = lambda x: f"F({x})"
 
     repository: dict[str | Callable[[str], str], Param[str]] = dict(
