@@ -69,7 +69,7 @@ def new_terms(
                         tuple(
                             [
                                 (
-                                    arg.name
+                                    (arg.value, ())
                                     if isinstance(arg, Literal)
                                     else params_dict[arg.name]
                                 )
