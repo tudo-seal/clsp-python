@@ -57,7 +57,10 @@ class RHSRule(Generic[NT, T]):
 
 
 class ParameterizedTreeGrammar(Generic[NT, T]):
-    _rules: dict[NT, deque[RHSRule[NT, T]]] = {}
+    _rules: dict[NT, deque[RHSRule[NT, T]]]
+
+    def __init__(self):
+        self._rules = {}
 
     def get(self, nonterminal: NT) -> Optional[deque[RHSRule[NT, T]]]:
         return self._rules.get(nonterminal)
