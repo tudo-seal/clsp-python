@@ -283,7 +283,7 @@ class Intersection(Type[T]):
 
 @dataclass(frozen=True)
 class Literal(Type[Any]):
-    name: Any
+    value: Any
     type: Any
     is_omega: bool = field(init=False, compare=False)
     size: int = field(init=False, compare=False)
@@ -306,7 +306,7 @@ class Literal(Type[Any]):
         return {self}
 
     def _str_prec(self, prec: int) -> str:
-        return f"{str(self.name)}@({str(self.type)})"
+        return f"{str(self.value)}@({str(self.type)})"
 
     def subst(self, substitution: dict[str, Literal]) -> Type[Any]:
         return self
@@ -355,7 +355,7 @@ class ParamSpec(Generic[T]):
 class LitParamSpec(ParamSpec[T]):
     name: str
     type: Any
-    predicate: Callable[[dict[str, Any]], bool]
+    predicate: Callable[[dict[str, Any]], bool] | SetTo
 
 
 @dataclass
@@ -365,16 +365,23 @@ class TermParamSpec(ParamSpec[T]):
     predicate: Callable[[dict[str, Any]], bool]
 
 
+@dataclass
+class SetTo:
+    compute: Callable[[dict[str, Any]], Any]
+
+
 # @dataclass(frozen=True)
 @dataclass
 class Param(Generic[T]):
     name: str
     type: Type[T] | Any
-    predicate: Callable[[dict[str, Any]], bool]
+    predicate: Callable[[dict[str, Any]], bool] | SetTo
     inner: Param[T] | Type[T]
 
     def get_lit_spec(self) -> LitParamSpec[T]:
         return LitParamSpec(self.name, self.type, self.predicate)
 
     def get_term_spec(self) -> TermParamSpec[T]:
+        if isinstance(self.predicate, SetTo):
+            raise RuntimeError("Term parameters cannot have SetTo")
         return TermParamSpec(self.name, self.type, self.predicate)

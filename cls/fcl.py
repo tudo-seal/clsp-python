@@ -26,6 +26,7 @@ from .types import (
     Param,
     LitParamSpec,
     ParamSpec,
+    SetTo,
     TermParamSpec,
     Type,
 )
@@ -77,6 +78,10 @@ def mstr(m: MultiArrow[T]) -> tuple[str, str]:
     return str(list(map(str, m.args))), str(m.target)
 
 
+class LiteralNotFoundException(Exception):
+    pass
+
+
 class FiniteCombinatoryLogic(Generic[T, C]):
     def __init__(
         self,
@@ -84,6 +89,7 @@ class FiniteCombinatoryLogic(Generic[T, C]):
         subtypes: Subtypes[T] = Subtypes({}),
         literals: Optional[dict[Any, list[Any]]] = None,
     ):
+        self.variable_counter: int = 0
         self.literals: dict[Any, list[Any]] = {} if literals is None else literals
         self.repository: Mapping[
             C,
@@ -111,13 +117,13 @@ class FiniteCombinatoryLogic(Generic[T, C]):
 
         def split_params(
             ty: Param[T] | Type[T],
-        ) -> tuple[list[ParamSpec[T]], Type[T]]:
-            params: list[ParamSpec[T]] = []
+        ) -> tuple[list[TermParamSpec[T] | LitParamSpec[T]], Type[T]]:
+            params: list[TermParamSpec[T] | LitParamSpec[T]] = []
             while isinstance(ty, Param):
                 if isinstance(ty.type, Type):
-                    params.append(TermParamSpec(ty.name, ty.type, ty.predicate))
+                    params.append(ty.get_term_spec())
                 else:
-                    params.append(LitParamSpec(ty.name, ty.type, ty.predicate))
+                    params.append(ty.get_lit_spec())
                 ty = ty.inner
             return (params, ty)
 
@@ -165,7 +171,8 @@ class FiniteCombinatoryLogic(Generic[T, C]):
         literals: dict[Any, list[Any]],
         params: list[LitParamSpec[T] | TermParamSpec[T]],
     ) -> Iterator[InstantiationMeta[T]]:
-        substitutions: Sequence[dict[str, Any]] = [{}]
+        substitutions: Sequence[dict[str, Literal]] = [{}]
+        set_tos: list[tuple[str, Any, SetTo]] = []
         args: list[str | GVar] = []
         term_params: list[TermParamSpec[T]] = []
 
@@ -175,9 +182,14 @@ class FiniteCombinatoryLogic(Generic[T, C]):
                     return []
                 else:
                     args.append(param.name)
+                    if isinstance(param.predicate, SetTo):
+                        set_tos.append((param.name, param.type, param.predicate))
+                        continue
+
                     substitutions = list(
                         filter(
-                            lambda substs: param.predicate(substs),
+                            lambda substs: callable(param.predicate)
+                            and param.predicate(substs),
                             (
                                 s | {param.name: Literal(literal, param.type)}
                                 for s in substitutions
@@ -187,19 +199,24 @@ class FiniteCombinatoryLogic(Generic[T, C]):
                     )
             elif isinstance(param, TermParamSpec):
                 args.append(GVar(param.name))
-                # binders[param.name] = param.type
                 term_params.append(param)
-
-        if len(substitutions) == 0:
-            substitutions = [{}]
 
         for substitution in substitutions:
             predicates = []
+            try:
+                for name, ty, set_to in set_tos:
+                    value = set_to.compute(substitution)
+                    if value not in literals[ty]:
+                        raise LiteralNotFoundException()
+                    substitution[name] = Literal(value, ty)
+            except LiteralNotFoundException:
+                continue
+
             for term_param in term_params:
                 predicates.append(
                     Predicate(term_param.predicate, predicate_substs=substitution)
                 )
-            instantiated_combinator_args = [
+            instantiated_combinator_args: list[Literal | GVar] = [
                 substitution[arg] if not isinstance(arg, GVar) else arg for arg in args
             ]
             yield (
@@ -237,6 +254,8 @@ class FiniteCombinatoryLogic(Generic[T, C]):
                 # try each combinator and arity
                 for combinator, (meta, combinator_type) in self.repository.items():
                     for params, predicates, args, substitutions in meta:
+                        for param in params:
+                            type_targets.append(param.type)
                         for p_nary_types in combinator_type:
                             nary_types = [
                                 ty.subst(substitutions) for ty in p_nary_types
@@ -249,8 +268,13 @@ class FiniteCombinatoryLogic(Generic[T, C]):
 
                             for subquery in arguments:
                                 unique_var_names: list[str] = [
-                                    str(uuid4()) for _ in subquery
+                                    f"x{i}"
+                                    for i in range(
+                                        self.variable_counter,
+                                        self.variable_counter + len(subquery),
+                                    )
                                 ]
+                                self.variable_counter += len(subquery)
                                 possibilities.append(
                                     RHSRule(
                                         {
