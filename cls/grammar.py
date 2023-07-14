@@ -22,17 +22,14 @@ T = TypeVar("T")
 @dataclass
 class Predicate:
     predicate: Callable[[dict[str, Any]], bool]
-    name: Optional[str] = field(default=None)
+    name: str = field(default="P")
     predicate_substs: dict[str, Any] = field(default_factory=dict)
 
     def eval(self, assign: dict[str, Any]) -> bool:
-        return self.predicate(assign)
+        return self.predicate(self.predicate_substs | assign)
 
     def __str__(self) -> str:
-        if self.name is None:
-            return "P ⇛ "
-        else:
-            return f"{self.name} ⇛ "
+        return f"{self.name} ⇛ "
 
 
 @dataclass(frozen=True)
