@@ -62,19 +62,19 @@ def new_terms(
             *(existing_terms[rule.binder[name]] for name in list_of_params)
         ):
             params_dict = {list_of_params[i]: param for i, param in enumerate(params)}
-            if all([predicate.eval(params_dict) for predicate in rule.predicates]):
+            if all((predicate.eval(params_dict) for predicate in rule.predicates)):
                 output_set.add(
                     (
                         rule.terminal,
                         tuple(
-                            [
+                            (
                                 (
                                     (arg.value, ())
                                     if isinstance(arg, Literal)
                                     else params_dict[arg.name]
                                 )
                                 for arg in rule.args
-                            ]
+                            )
                         ),
                     )
                 )
