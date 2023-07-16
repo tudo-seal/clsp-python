@@ -93,7 +93,7 @@ class FiniteCombinatoryLogic(Generic[T, C]):
         self.literals: dict[Any, list[Any]] = {} if literals is None else literals
         self.repository: Mapping[
             C,
-            tuple[Sequence[InstantiationMeta[T]], list[list[MultiArrow[T]]]],
+            tuple[list[InstantiationMeta[T]], list[list[MultiArrow[T]]]],
         ] = {
             c: FiniteCombinatoryLogic._function_types(ty, self.literals)
             for c, ty in repository.items()
@@ -103,7 +103,7 @@ class FiniteCombinatoryLogic(Generic[T, C]):
     @staticmethod
     def _function_types(
         p_or_ty: Param[T] | Type[T], literals: dict[Any, list[Any]]
-    ) -> tuple[Sequence[InstantiationMeta[T]], list[list[MultiArrow[T]]],]:
+    ) -> tuple[list[InstantiationMeta[T]], list[list[MultiArrow[T]]],]:
         """Presents a type as a list of 0-ary, 1-ary, ..., n-ary function types."""
 
         def unary_function_types(ty: Type[T]) -> Iterable[tuple[Type[T], Type[T]]]:
@@ -142,12 +142,15 @@ class FiniteCombinatoryLogic(Generic[T, C]):
         return (instantiations, multiarrows)
 
     def _subqueries(
-        self, nary_types: list[MultiArrow[T]], paths: list[Type[T]]
+        self,
+        nary_types: list[MultiArrow[T]],
+        paths: list[Type[T]],
+        substitutions: dict[str, Literal],
     ) -> Sequence[list[Type[T]]]:
         # does the target of a multi-arrow contain a given type?
         target_contains: Callable[
             [MultiArrow[T], Type[T]], bool
-        ] = lambda m, t: self.subtypes.check_subtype(m.target, t)
+        ] = lambda m, t: self.subtypes.check_subtype(m.target, t, substitutions)
         # cover target using targets of multi-arrows in nary_types
         covers = minimal_covers(nary_types, paths, target_contains)
         if len(covers) == 0:
@@ -162,7 +165,11 @@ class FiniteCombinatoryLogic(Generic[T, C]):
         )
         # consider only maximal argument vectors
         compare_args = lambda args1, args2: all(
-            map(self.subtypes.check_subtype, args1, args2)
+            map(
+                lambda a, b: self.subtypes.check_subtype(a, b, substitutions),
+                args1,
+                args2,
+            )
         )
         return maximal_elements(intersected_args, compare_args)
 
@@ -173,7 +180,7 @@ class FiniteCombinatoryLogic(Generic[T, C]):
     ) -> Iterator[InstantiationMeta[T]]:
         substitutions: Sequence[dict[str, Literal]] = [{}]
         set_tos: list[tuple[str, Any, SetTo]] = []
-        args: list[str | GVar] = []
+        args: deque[str | GVar] = deque()
         term_params: list[TermParamSpec[T]] = []
 
         for param in params:
@@ -202,7 +209,6 @@ class FiniteCombinatoryLogic(Generic[T, C]):
                 term_params.append(param)
 
         for substitution in substitutions:
-            predicates = []
             try:
                 for name, ty, set_to in set_tos:
                     value = set_to.compute(substitution)
@@ -212,6 +218,11 @@ class FiniteCombinatoryLogic(Generic[T, C]):
             except LiteralNotFoundException:
                 continue
 
+            # predicates = (
+            #     Predicate(term_param.predicate, predicate_substs=substitution)
+            #     for term_param in term_params
+            # )
+            predicates = []
             for term_param in term_params:
                 predicates.append(
                     Predicate(term_param.predicate, predicate_substs=substitution)
@@ -256,38 +267,41 @@ class FiniteCombinatoryLogic(Generic[T, C]):
                     for params, predicates, args, substitutions in meta:
                         for param in params:
                             type_targets.append(param.type)
-                        for p_nary_types in combinator_type:
-                            nary_types = [
-                                ty.subst(substitutions) for ty in p_nary_types
-                            ]
+                        for nary_types in combinator_type:
                             arguments: list[list[Type[T]]] = list(
-                                self._subqueries(nary_types, paths)
+                                self._subqueries(nary_types, paths, substitutions)
                             )
                             if len(arguments) == 0:
                                 continue
 
-                            for subquery in arguments:
+                            for subquery in (
+                                [ty.subst(substitutions) for ty in query]
+                                for query in arguments
+                            ):
+                                len_sub = len(subquery)
                                 unique_var_names: list[str] = [
                                     f"x{i}"
                                     for i in range(
                                         self.variable_counter,
-                                        self.variable_counter + len(subquery),
+                                        self.variable_counter + len_sub,
                                     )
                                 ]
-                                self.variable_counter += len(subquery)
+                                self.variable_counter += len_sub
                                 possibilities.append(
                                     RHSRule(
                                         {
-                                            unique_var_names[i]: subquery[i]
-                                            for i in range(len(subquery))
+                                            unique_var_name: subquery[i]
+                                            for i, unique_var_name in enumerate(
+                                                unique_var_names
+                                            )
                                         }
                                         | {param.name: param.type for param in params},
                                         predicates,
                                         combinator,
                                         args
                                         + [
-                                            GVar(unique_var_names[i])
-                                            for i in range(len(subquery))
+                                            GVar(unique_var_name)
+                                            for unique_var_name in unique_var_names
                                         ],
                                     )
                                 )
