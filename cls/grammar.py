@@ -62,11 +62,9 @@ class RHSRule(Generic[NT, T]):
         return f"{forallstrings}{predicatestrings}{str(self.terminal)}{argstring}"
 
 
+@dataclass()
 class ParameterizedTreeGrammar(Generic[NT, T]):
-    _rules: dict[NT, deque[RHSRule[NT, T]]]
-
-    def __init__(self):
-        self._rules = {}
+    _rules: dict[NT, deque[RHSRule[NT, T]]] = field(default_factory=dict)
 
     def get(self, nonterminal: NT) -> Optional[deque[RHSRule[NT, T]]]:
         return self._rules.get(nonterminal)
