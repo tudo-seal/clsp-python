@@ -6,7 +6,7 @@ from collections.abc import Callable, Hashable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Generic, TypeVar
 
-T = TypeVar("T", bound=Hashable, covariant=True)
+T = TypeVar("T", bound=Hashable)
 
 
 @dataclass(frozen=True)
@@ -68,6 +68,18 @@ class Type(ABC, Generic[T]):
         self.__dict__["is_omega"] = self._is_omega()
         self.__dict__["size"] = self._size()
         self.__dict__["organized"] = self._organized()
+
+    def __pow__(self, other: Type[T]) -> Type[T]:
+        return Arrow(self, other)
+
+    def __mul__(self, other: Type[T]) -> Type[T]:
+        return Product(self, other)
+
+    def __and__(self, other: Type[T]) -> Type[T]:
+        return Intersection(self, other)
+
+    def __rmatmul__(self, name: T) -> Type[T]:
+        return Constructor(name, self)
 
 
 @dataclass(frozen=True)
@@ -385,3 +397,6 @@ class Param(Generic[T]):
         if isinstance(self.predicate, SetTo):
             raise RuntimeError("Term parameters cannot have SetTo")
         return TermParamSpec(self.name, self.type, self.predicate)
+
+    def __str__(self) -> str:
+        return f"<{self.name}, {self.type}, {self.predicate}>.{self.inner}"
