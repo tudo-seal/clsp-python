@@ -19,10 +19,10 @@ from cls.types import (
 
 
 def motorcount(robot: Any):
-    print("Robot")
-    print(robot.name)
-    print(robot.value)
-    print("RobotEnd")
+    #print("Robot")
+    #print(robot.name)
+    #print(robot.value)
+    #print("RobotEnd")
     return robot.value
 
 
@@ -36,13 +36,16 @@ def robotarm():
             self.value = value
 
         def get_additional_value(self):
-            return 1 if self.name == "Motor" else 0
+            return 1 if self.name.startswith("Motor") else 0
 
         def __call__(self, *other: Any) -> Any:
             return Part(
-                self.name + other[-1].name,
-                other[-1].value + other[-1].get_additional_value(),
+                self.name + " (" + other[-1].name + ")",
+                other[-1].value + self.get_additional_value(),
             )
+        
+        def __repr__(self) -> str:
+            return self.name + "{motorcount=" + str(self.value) + "}"
 
     repo = {
         Part("Motor"): Arrow(Constructor("Structural"), Constructor("Motor")),
@@ -68,7 +71,7 @@ def robotarm():
     fcl: FiniteCombinatoryLogic[str, Any] = FiniteCombinatoryLogic(
         repo, literals=literals
     )
-    query = Intersection(Constructor("Base"), c(Literal(0, int)))
+    query = Intersection(Constructor("Base"), c(Literal(3, int)))
     grammar = fcl.inhabit(query)
     # print(grammar.show())
 

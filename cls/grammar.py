@@ -30,7 +30,8 @@ class Predicate:
     def eval(self, assign: dict[str, Any]) -> bool:
         if not self._evaluated:
             self._value = self.predicate(self.predicate_substs | assign)
-            self._evaluated = True
+            # TODO: the predicate needs to be reevaluated for different assignments
+            # self._evaluated = True
 
         return self._value
 
