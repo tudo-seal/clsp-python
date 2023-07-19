@@ -63,21 +63,25 @@ def new_terms(
         ):
             params_dict = {list_of_params[i]: param for i, param in enumerate(params)}
             if all((predicate.eval(params_dict) for predicate in rule.predicates)):
-                output_set.add(
-                    (
-                        rule.terminal,
-                        tuple(
-                            (
+
+                for args in itertools.product(
+                    *(existing_terms[arg] for arg in rule.args)
+                ):
+                    output_set.add(
+                        (
+                            rule.terminal,
+                            tuple(itertools.chain(
                                 (
-                                    (arg.value, ())
-                                    if isinstance(arg, Literal)
-                                    else params_dict[arg.name]
-                                )
-                                for arg in rule.args
-                            )
-                        ),
+                                    (
+                                        (parameter.value, ())
+                                        if isinstance(parameter, Literal)
+                                        else params_dict[parameter.name]
+                                    )
+                                    for parameter in rule.parameters
+                                ), args)
+                            ),
+                        )
                     )
-                )
     return output_set
 
 

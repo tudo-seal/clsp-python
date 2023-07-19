@@ -89,7 +89,6 @@ class FiniteCombinatoryLogic(Generic[T, C]):
         subtypes: Subtypes[T] = Subtypes({}),
         literals: Optional[dict[Any, list[Any]]] = None,
     ):
-        self.variable_counter: int = 0
         self.literals: dict[Any, list[Any]] = {} if literals is None else literals
         self.repository: Mapping[
             C,
@@ -239,22 +238,19 @@ class FiniteCombinatoryLogic(Generic[T, C]):
 
     def inhabit(
         self, *targets: Type[T]
-    ) -> ParameterizedTreeGrammar[Type[T], C | Literal]:
+    ) -> ParameterizedTreeGrammar[Type[T], C]:
         type_targets = deque(targets)
 
         # dictionary of type |-> sequence of combinatory expressions
         memo: ParameterizedTreeGrammar[
-            Type[T], C | Literal
+            Type[T], C
         ] = ParameterizedTreeGrammar()
-        for lit_ty, literals in self.literals.items():
-            for lit in literals:
-                memo.add_rule(Literal(lit, lit_ty), RHSRule({}, [], lit, []))
 
         while type_targets:
             current_target = type_targets.pop()
             if memo.get(current_target) is None:
                 # target type was not seen before
-                possibilities: deque[RHSRule[Type[T], C | Literal]] = deque()
+                possibilities: deque[RHSRule[Type[T], C]] = deque()
                 memo.update({current_target: possibilities})
                 # If the target is omega, then the result is junk
                 if current_target.is_omega:
@@ -278,31 +274,13 @@ class FiniteCombinatoryLogic(Generic[T, C]):
                                 [ty.subst(substitutions) for ty in query]
                                 for query in arguments
                             ):
-                                len_sub = len(subquery)
-                                unique_var_names: list[str] = [
-                                    f"x{i}"
-                                    for i in range(
-                                        self.variable_counter,
-                                        self.variable_counter + len_sub,
-                                    )
-                                ]
-                                self.variable_counter += len_sub
                                 possibilities.append(
                                     RHSRule(
-                                        {
-                                            unique_var_name: subquery[i]
-                                            for i, unique_var_name in enumerate(
-                                                unique_var_names
-                                            )
-                                        }
-                                        | {param.name: param.type for param in params},
+                                        {param.name: param.type for param in params},
                                         predicates,
                                         combinator,
-                                        args
-                                        + [
-                                            GVar(unique_var_name)
-                                            for unique_var_name in unique_var_names
-                                        ],
+                                        args,
+                                        subquery,
                                     )
                                 )
                                 type_targets.extendleft(subquery)
@@ -318,13 +296,18 @@ class FiniteCombinatoryLogic(Generic[T, C]):
 
         def is_ground(
             binder: dict[str, Type[T]],
-            args: Sequence[Literal | GVar],
+            parameters: Sequence[Literal | GVar],
+            args: Sequence[Type[T]],
             ground_types: set[Type[T]],
         ) -> bool:
             return all(
                 True
+                for parameter in parameters
+                if isinstance(parameter, Literal) or binder[parameter.name] in ground_types
+            ) and all(
+                True
                 for arg in args
-                if isinstance(arg, Literal) or binder[arg.name] in ground_types
+                if arg in ground_types
             )
 
         ground_types: set[Type[T]] = set()
@@ -332,7 +315,7 @@ class FiniteCombinatoryLogic(Generic[T, C]):
             lambda ty: any(
                 True
                 for rule in memo[ty]
-                if is_ground(rule.binder, rule.args, ground_types)
+                if is_ground(rule.binder, rule.parameters, rule.args, ground_types)
             ),
             memo.nonterminals(),
         )
@@ -343,7 +326,7 @@ class FiniteCombinatoryLogic(Generic[T, C]):
                 lambda ty: any(
                     True
                     for rule in memo[ty]
-                    if is_ground(rule.binder, rule.args, ground_types)
+                    if is_ground(rule.binder, rule.parameters, rule.args, ground_types)
                 ),
                 candidates,
             )
@@ -352,5 +335,5 @@ class FiniteCombinatoryLogic(Generic[T, C]):
             memo[target] = deque(
                 possibility
                 for possibility in possibilities
-                if is_ground(possibility.binder, possibility.args, ground_types)
+                if is_ground(possibility.binder, possibility.parameters, possibility.args, ground_types)
             )

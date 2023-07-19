@@ -51,16 +51,19 @@ class GVar:
 class RHSRule(Generic[NT, T]):
     binder: dict[str, NT]
     predicates: list[Predicate]
+
     terminal: T
-    args: list[Literal | GVar]
+    parameters: list[Literal | GVar]
+    args: list[NT]
 
     def __str__(self) -> str:
         forallstrings = "".join(
             [f"∀({name}:{ty})." for name, ty in self.binder.items()]
         )
         predicatestrings = "".join([str(predicate) for predicate in self.predicates])
+        paramstring = "".join([f"({str(param)})" for param in self.parameters])
         argstring = "".join([f"({str(arg)})" for arg in self.args])
-        return f"{forallstrings}{predicatestrings}{str(self.terminal)}{argstring}"
+        return f"{forallstrings}{predicatestrings}{str(self.terminal)}{paramstring}{argstring}"
 
 
 @dataclass()
