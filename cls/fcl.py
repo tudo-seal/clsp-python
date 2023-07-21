@@ -257,12 +257,10 @@ class FiniteCombinatoryLogic(Generic[T, C]):
                     continue
 
                 paths: list[Type[T]] = list(current_target.organized)
-
+                
                 # try each combinator and arity
                 for combinator, (meta, combinator_type) in self.repository.items():
                     for params, predicates, args, substitutions in meta:
-                        for param in params:
-                            type_targets.append(param.type)
                         for nary_types in combinator_type:
                             arguments: list[list[Type[T]]] = list(
                                 self._subqueries(nary_types, paths, substitutions)
@@ -270,13 +268,18 @@ class FiniteCombinatoryLogic(Generic[T, C]):
                             if len(arguments) == 0:
                                 continue
 
+                            specific_params = {
+                                param.name: param.type.subst(substitutions) for param in params}
+
+                            type_targets.extend(specific_params.values())
+
                             for subquery in (
                                 [ty.subst(substitutions) for ty in query]
                                 for query in arguments
                             ):
                                 possibilities.append(
                                     RHSRule(
-                                        {param.name: param.type for param in params},
+                                        specific_params,
                                         predicates,
                                         combinator,
                                         args,
