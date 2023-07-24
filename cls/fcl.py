@@ -236,15 +236,11 @@ class FiniteCombinatoryLogic(Generic[T, C]):
                 substitution,
             )
 
-    def inhabit(
-        self, *targets: Type[T]
-    ) -> ParameterizedTreeGrammar[Type[T], C]:
+    def inhabit(self, *targets: Type[T]) -> ParameterizedTreeGrammar[Type[T], C]:
         type_targets = deque(targets)
 
         # dictionary of type |-> sequence of combinatory expressions
-        memo: ParameterizedTreeGrammar[
-            Type[T], C
-        ] = ParameterizedTreeGrammar()
+        memo: ParameterizedTreeGrammar[Type[T], C] = ParameterizedTreeGrammar()
 
         while type_targets:
             current_target = type_targets.pop()
@@ -257,7 +253,7 @@ class FiniteCombinatoryLogic(Generic[T, C]):
                     continue
 
                 paths: list[Type[T]] = list(current_target.organized)
-                
+
                 # try each combinator and arity
                 for combinator, (meta, combinator_type) in self.repository.items():
                     for params, predicates, args, substitutions in meta:
@@ -269,7 +265,9 @@ class FiniteCombinatoryLogic(Generic[T, C]):
                                 continue
 
                             specific_params = {
-                                param.name: param.type.subst(substitutions) for param in params}
+                                param.name: param.type.subst(substitutions)
+                                for param in params
+                            }
 
                             type_targets.extend(specific_params.values())
 
@@ -306,12 +304,9 @@ class FiniteCombinatoryLogic(Generic[T, C]):
             return all(
                 True
                 for parameter in parameters
-                if isinstance(parameter, Literal) or binder[parameter.name] in ground_types
-            ) and all(
-                True
-                for arg in args
-                if arg in ground_types
-            )
+                if isinstance(parameter, Literal)
+                or binder[parameter.name] in ground_types
+            ) and all(True for arg in args if arg in ground_types)
 
         ground_types: set[Type[T]] = set()
         new_ground_types, candidates = partition(
@@ -338,5 +333,10 @@ class FiniteCombinatoryLogic(Generic[T, C]):
             memo[target] = deque(
                 possibility
                 for possibility in possibilities
-                if is_ground(possibility.binder, possibility.parameters, possibility.args, ground_types)
+                if is_ground(
+                    possibility.binder,
+                    possibility.parameters,
+                    possibility.args,
+                    ground_types,
+                )
             )
