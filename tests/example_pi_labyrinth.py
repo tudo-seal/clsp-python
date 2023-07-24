@@ -1,21 +1,34 @@
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any
+from cls.dsl import Requires, Use
 from cls.enumeration import enumerate_terms, interpret_term
 from cls.fcl import FiniteCombinatoryLogic
 
-from cls.types import Arrow, Constructor, Literal, Param, Product, TVar, Type
+from cls.types import Literal, Param, TVar, Type
 
 
-def pred_plus_one(a: str, b: str) -> Callable[[dict[str, Literal]], bool]:
-    def _inner(vars: dict[str, Literal]) -> bool:
+def pred_plus_one(a: str, b: str) -> Callable[[Mapping[str, Literal]], bool]:
+    def _inner(vars: Mapping[str, Literal]) -> bool:
         return bool(vars[a].value == vars[b].value + 1)
 
     return _inner
 
 
 def labyrinth() -> None:
-    def make_is_free(l_str: list[str]) -> Callable[[dict[str, Literal]], bool]:
-        return lambda vars: bool(l_str[vars["b"].value][vars["a"].value] == " ")
+    def make_is_free(l_str: list[str]) -> Callable[[Mapping[str, Literal]], bool]:
+        return lambda vars: is_free(
+            vars["b"].value, vars["a"].value
+        )  # bool(l_str[vars["b"].value][vars["a"].value] == " ")
+
+    def is_free(row: int, col: int) -> bool:
+        SEED = 0
+        if row == col:
+            return True
+        else:
+            return (
+                pow(11, (row + col + SEED) * (row + col + SEED) + col + 7, 1000003) % 5
+                > 0
+            )
 
     labyrinth_str = [
         " ┃        ",
@@ -36,98 +49,57 @@ def labyrinth() -> None:
     L = lambda a, b, c, p, f: f"{p} => LEFT({a}, {c})"
     R = lambda a, b, c, p, f: f"{p} => RIGHT({b}, {c})"
 
-    free: Callable[[str, str], Type[str]] = lambda a, b: Constructor(
-        "free", Product(TVar(a), TVar(b))
-    )
-    pos: Callable[[str, str], Type[str]] = lambda a, b: Constructor(
-        "pos", Product(TVar(a), TVar(b))
-    )
+    free: Callable[[str, str], Type[str]] = lambda a, b: "free" @ (TVar(a) * TVar(b))
+    pos: Callable[[str, str], Type[str]] = lambda a, b: "pos" @ (TVar(a) * TVar(b))
 
     repo: dict[
         Callable[[Any, Any, Any, Any, Any], str] | Callable[[Any, Any], str] | str,
         Param[str] | Type[str],
     ] = {
-        FREE: Param(
-            "a",
-            int,
-            lambda _: True,
-            Param("b", int, make_is_free(labyrinth_str), free("a", "b")),
-        ),
-        U: Param(
-            "a",
-            int,
-            lambda _: True,
-            Param(
-                "b",
-                int,
-                pred_plus_one("b", "a"),
-                Param(
-                    "c",
-                    int,
-                    lambda _: True,
-                    Arrow(pos("c", "b"), Arrow(free("c", "a"), pos("c", "a"))),
-                ),
-            ),
-        ),
-        D: Param(
-            "a",
-            int,
-            lambda _: True,
-            Param(
-                "b",
-                int,
-                pred_plus_one("b", "a"),
-                Param(
-                    "c",
-                    int,
-                    lambda _: True,
-                    Arrow(pos("c", "a"), Arrow(free("c", "b"), pos("c", "b"))),
-                ),
-            ),
-        ),
-        L: Param(
-            "a",
-            int,
-            lambda _: True,
-            Param(
-                "b",
-                int,
-                pred_plus_one("b", "a"),
-                Param(
-                    "c",
-                    int,
-                    lambda _: True,
-                    Arrow(pos("b", "c"), Arrow(free("a", "c"), pos("a", "c"))),
-                ),
-            ),
-        ),
-        R: Param(
-            "a",
-            int,
-            lambda _: True,
-            Param(
-                "b",
-                int,
-                pred_plus_one("b", "a"),
-                Param(
-                    "c",
-                    int,
-                    lambda _: True,
-                    Arrow(pos("a", "c"), Arrow(free("b", "c"), pos("b", "c"))),
-                ),
-            ),
-        ),
-        "START": Constructor("pos", Product(Literal(0, int), Literal(0, int))),
+        FREE: Use("a", int)
+        .Use("b", int)
+        .With(make_is_free(labyrinth_str))
+        .In(free("a", "b")),
+        U: Use("a", int)
+        .Use("b", int)
+        .With(pred_plus_one("b", "a"))
+        .Use("c", int)
+        .In(Requires(pos("c", "b"), free("c", "a")).Provides(pos("c", "a"))),
+        D: Use("a", int)
+        .Use("b", int)
+        .With(pred_plus_one("b", "a"))
+        .Use("c", int)
+        .In(pos("c", "a") ** free("c", "b") ** pos("c", "b")),
+        L: Use("a", int)
+        .Use("b", int)
+        .With(pred_plus_one("b", "a"))
+        .Use("c", int)
+        .In(pos("b", "c") ** free("a", "c") ** pos("a", "c")),
+        R: Use("a", int)
+        .Use("b", int)
+        .With(pred_plus_one("b", "a"))
+        .Use("c", int)
+        .In(pos("a", "c") ** free("b", "c") ** pos("b", "c")),
+        "START": "pos" @ (Literal(0, int) * Literal(0, int)),
     }
 
-    literals = {int: list(range(10))}
+    SIZE = 10
 
-    print("▒▒▒▒▒▒▒▒▒▒▒▒")
-    for line in labyrinth_str:
-        print(f"▒{line}▒")
-    print("▒▒▒▒▒▒▒▒▒▒▒▒")
+    literals = {int: list(range(SIZE))}
 
-    fin = Constructor("pos", Product(Literal(9, int), Literal(9, int)))
+    # print("▒▒▒▒▒▒▒▒▒▒▒▒")
+    # for line in labyrinth_str:
+    #     print(f"▒{line}▒")
+    # print("▒▒▒▒▒▒▒▒▒▒▒▒")
+    for row in range(SIZE):
+        for col in range(SIZE):
+            if is_free(row, col):
+                print("-", end="")
+            else:
+                print("#", end="")
+        print("")
+
+    fin = "pos" @ (Literal(SIZE - 1, int) * Literal(SIZE - 1, int))
 
     fcl: FiniteCombinatoryLogic[
         str, Callable[[Any, Any, Any, Any, Any], str] | Callable[[Any, Any], str] | str
