@@ -18,9 +18,6 @@ class Type(ABC, Generic[T]):
     def __str__(self) -> str:
         return self._str_prec(0)
 
-    def __mul__(self, other: Type[T]) -> Type[T]:
-        return Product(self, other)
-
     @abstractmethod
     def _organized(self) -> set[Type[T]]:
         pass
