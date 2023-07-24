@@ -12,7 +12,7 @@ from collections.abc import (
 )
 from dataclasses import dataclass
 from functools import reduce
-from typing import Any, Callable, Generic, TypeAlias, TypeVar, Optional, reveal_type
+from typing import Any, Callable, Generic, TypeAlias, TypeVar, Optional
 from uuid import uuid4
 
 from cls.grammar import GVar, ParameterizedTreeGrammar, Predicate, RHSRule

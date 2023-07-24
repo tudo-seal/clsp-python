@@ -10,7 +10,7 @@ import itertools
 from inspect import Parameter, signature, _ParameterKind, _empty
 from collections import deque
 from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
-from typing import Any, Optional, TypeAlias, TypeVar, cast, reveal_type
+from typing import Any, Optional, TypeAlias, TypeVar
 
 from cls.grammar import (
     GVar,
