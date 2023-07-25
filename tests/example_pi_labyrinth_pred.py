@@ -98,7 +98,7 @@ def labyrinth() -> None:
     # print("▒▒▒▒▒▒▒▒▒▒▒▒")
     for row in range(SIZE):
         for col in range(SIZE):
-            if is_free(row, col):
+            if _is_free(row, col):
                 print("-", end="")
             else:
                 print("#", end="")
