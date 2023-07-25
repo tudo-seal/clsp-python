@@ -175,7 +175,7 @@ class FiniteCombinatoryLogic(Generic[T, C]):
         literals: dict[Any, list[Any]],
         params: list[LitParamSpec[T] | TermParamSpec[T]],
     ) -> Iterator[InstantiationMeta[T]]:
-        substitutions: Sequence[dict[str, Literal]] = [{}]
+        substitutions: Sequence[dict[str, Literal]] = deque([{}])
         set_tos: list[tuple[str, Any, SetTo]] = []
         args: deque[str | GVar] = deque()
         term_params: list[TermParamSpec[T]] = []
@@ -187,34 +187,42 @@ class FiniteCombinatoryLogic(Generic[T, C]):
                 else:
                     args.append(param.name)
                     if isinstance(param.predicate, SetTo):
-                        set_tos.append((param.name, param.type, param.predicate))
-                        continue
+                        flag_for_deletion = []
+                        for i, substitution in enumerate(substitutions):
+                            value = param.predicate.compute(substitution)
+                            if value not in literals[param.type]:
+                                flag_for_deletion.append(i)
+                            substitution[param.name] = Literal(value, param.type)
 
-                    substitutions = list(
-                        filter(
-                            lambda substs: callable(param.predicate)
-                            and param.predicate(substs),
-                            (
-                                s | {param.name: Literal(literal, param.type)}
-                                for s in substitutions
-                                for literal in literals[param.type]
-                            ),
+                        for invalid_substitution in flag_for_deletion:
+                            del substitutions[invalid_substitution]
+                    else:
+                        substitutions = deque(
+                            filter(
+                                lambda substs: callable(param.predicate)
+                                and param.predicate(substs),
+                                (
+                                    s | {param.name: Literal(literal, param.type)}
+                                    for s in substitutions
+                                    for literal in literals[param.type]
+                                ),
+                            )
                         )
-                    )
             elif isinstance(param, TermParamSpec):
                 args.append(GVar(param.name))
                 term_params.append(param)
 
         for substitution in substitutions:
-            try:
-                for name, ty, set_to in set_tos:
-                    value = set_to.compute(substitution)
-                    if value not in literals[ty]:
-                        raise LiteralNotFoundException()
-                    substitution[name] = Literal(value, ty)
-            except LiteralNotFoundException:
-                continue
-
+            # try:
+            #     for name, ty, set_to in set_tos:
+            #         value = set_to.compute(substitution)
+            #         if value not in literals[ty]:
+            #             raise LiteralNotFoundException()
+            #         substitution[name] = Literal(value, ty)
+            #         print(substitution)
+            # except LiteralNotFoundException:
+            #     continue
+            #
             # predicates = (
             #     Predicate(term_param.predicate, predicate_substs=substitution)
             #     for term_param in term_params
