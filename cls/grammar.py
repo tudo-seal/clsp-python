@@ -99,7 +99,3 @@ class ParameterizedTreeGrammar(Generic[NT, T]):
             f"{str(nt)} ~> {' | '.join([str(subrule) for subrule in rule])}"
             for nt, rule in self._rules.items()
         )
-
-
-def bind_single(x: NT) -> RHSRule[NT, Any]:
-    return RHSRule({"x": x}, [], "x", [])

@@ -302,8 +302,8 @@ def test() -> None:
         {
             "X": deque(
                 [
-                    RHSRule({}, [], "a", []),
-                    RHSRule({"x": "X", "y": "Y"}, [], "b", [GVar("x"), GVar("y")]),
+                    RHSRule({}, [], "a", [], []),
+                    RHSRule({"x": "X", "y": "Y"}, [], "b", [GVar("x"), GVar("y")], []),
                 ]
             )
         }
@@ -312,8 +312,8 @@ def test() -> None:
         {
             "Y": deque(
                 [
-                    RHSRule({}, [], "c", []),
-                    RHSRule({"x": "X", "y": "Y"}, [], "d", [GVar("y"), GVar("x")]),
+                    RHSRule({}, [], "c", [], []),
+                    RHSRule({"x": "X", "y": "Y"}, [], "d", [GVar("y"), GVar("x")], []),
                 ]
             )
         }
@@ -376,8 +376,8 @@ def test2() -> None:
         {
             "X": deque(
                 [
-                    RHSRule({}, [], A(), []),
-                    RHSRule({"x": "X", "y": "Y"}, [], B(), [GVar("x"), GVar("y")]),
+                    RHSRule({}, [], A(), [], []),
+                    RHSRule({"x": "X", "y": "Y"}, [], B(), [GVar("x"), GVar("y")], []),
                 ]
             )
         }
@@ -386,8 +386,8 @@ def test2() -> None:
         {
             "Y": deque(
                 [
-                    RHSRule({}, [], "Z", []),
-                    RHSRule({"x": "Y", "y": "Y"}, [], D(), [GVar("y"), GVar("x")]),
+                    RHSRule({}, [], "Z", [], []),
+                    RHSRule({"x": "Y", "y": "Y"}, [], D(), [GVar("y"), GVar("x")], []),
                 ]
             )
         }
@@ -407,9 +407,9 @@ def test2() -> None:
 
 def test3() -> None:
     grammar: ParameterizedTreeGrammar[str, str] = ParameterizedTreeGrammar()
-    grammar.add_rule("X", RHSRule({"y": "Y"}, [], "y", []))
-    grammar.add_rule("Y", RHSRule({}, [Predicate(lambda _: True)], "y1", []))
-    grammar.add_rule("Y", RHSRule({}, [Predicate(lambda _: False)], "y2", []))
+    grammar.add_rule("X", RHSRule({"y": "Y"}, [], "y", [], []))
+    grammar.add_rule("Y", RHSRule({}, [Predicate(lambda _: True)], "y1", [], []))
+    grammar.add_rule("Y", RHSRule({}, [Predicate(lambda _: False)], "y2", [], []))
     print(grammar.show())
 
 

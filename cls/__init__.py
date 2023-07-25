@@ -41,7 +41,7 @@ def inhabit_and_interpret(
     if not isinstance(query, list):
         query = [query]
 
-    grammar: ParameterizedTreeGrammar[Type[T], C | Literal] = fcl.inhabit(*query)
+    grammar: ParameterizedTreeGrammar[Type[T], C] = fcl.inhabit(*query)
 
     for q in query:
         enumerated_terms = enumerate_terms(

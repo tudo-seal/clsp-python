@@ -175,7 +175,7 @@ class FiniteCombinatoryLogic(Generic[T, C]):
         literals: dict[Any, list[Any]],
         params: list[LitParamSpec[T] | TermParamSpec[T]],
     ) -> Iterator[InstantiationMeta[T]]:
-        substitutions: Sequence[dict[str, Literal]] = deque([{}])
+        substitutions: deque[dict[str, Literal]] = deque([{}])
         set_tos: list[tuple[str, Any, SetTo]] = []
         args: deque[str | GVar] = deque()
         term_params: list[TermParamSpec[T]] = []
@@ -213,20 +213,6 @@ class FiniteCombinatoryLogic(Generic[T, C]):
                 term_params.append(param)
 
         for substitution in substitutions:
-            # try:
-            #     for name, ty, set_to in set_tos:
-            #         value = set_to.compute(substitution)
-            #         if value not in literals[ty]:
-            #             raise LiteralNotFoundException()
-            #         substitution[name] = Literal(value, ty)
-            #         print(substitution)
-            # except LiteralNotFoundException:
-            #     continue
-            #
-            # predicates = (
-            #     Predicate(term_param.predicate, predicate_substs=substitution)
-            #     for term_param in term_params
-            # )
             predicates = []
             for term_param in term_params:
                 predicates.append(
