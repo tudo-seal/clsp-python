@@ -29,18 +29,6 @@ def labyrinth() -> None:
                 > 0
             )
 
-    labyrinth_str = [
-        " ┃        ",
-        " ┃        ",
-        " ┃ ┏━━━━ ┓",
-        "   ┃     ┃",
-        " ┏━┫ ┏━┓ ┗",
-        " ┃ ┃ ┃ ┃  ",
-        " ┃ ┃ ┗━┻━ ",
-        " ┃ ┃      ",
-        " ┗━┛ ┏━━┓ ",
-        "     ┃  ┃ ",
-    ]
 
     U: Callable[[int, int, int, str], str] = lambda a, _, c, p: f"{p} => UP({c}, {a})"
     D: Callable[[int, int, int, str], str] = lambda _, b, c, p: f"{p} => DOWN({c}, {b})"
@@ -57,28 +45,28 @@ def labyrinth() -> None:
         Callable[[int, int, int, str], str] | str,
         Param[str] | Type[str],
     ] = {
-        U: Use("a", int)
+        U: Use[str]("a", int)
         .Use("b", int)
         .As(plus_one("a"))
         .Use("c", int)
         .With(is_free("c", "a"))
         .Use("pos", pos("c", "b"))
         .In(pos("c", "a")),
-        D: Use("a", int)
+        D: Use[str]("a", int)
         .Use("b", int)
         .As(plus_one("a"))
         .Use("c", int)
         .With(is_free("c", "b"))
         .Use("pos", pos("c", "a"))
         .In(pos("c", "b")),
-        L: Use("a", int)
+        L: Use[str]("a", int)
         .Use("b", int)
         .As(plus_one("a"))
         .Use("c", int)
         .With(is_free("a", "c"))
         .Use("pos", pos("a", "b"))
         .In(pos("a", "c")),
-        R: Use("a", int)
+        R: Use[str]("a", int)
         .Use("b", int)
         .As(plus_one("a"))
         .Use("c", int)
