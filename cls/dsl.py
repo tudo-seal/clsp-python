@@ -33,7 +33,7 @@ class Use(Generic[T]):
         return inner
 
     def In(self, ty: Type[T]) -> Param[T]:
-        pi = Param(self.name, self.type, self._predicate, ty)
+        pi: Param[T] = Param(self.name, self.type, self._predicate, ty)
         for param in reversed(self._accumulator):
             pi = Param(param.name, param.type, param._predicate, pi)
         return pi

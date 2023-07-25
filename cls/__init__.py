@@ -1,11 +1,10 @@
-from collections import deque
-from collections.abc import Hashable, Iterable, Mapping, MutableMapping
+from collections.abc import Hashable, Iterable, Mapping
 from typing import Any, Optional, TypeVar
 
 from cls.grammar import ParameterizedTreeGrammar
 
 from .subtypes import Subtypes
-from .types import Literal, Type, Omega, Constructor, Product, Arrow, Intersection
+from .types import Type, Omega, Constructor, Product, Arrow, Intersection
 from .enumeration import enumerate_terms, interpret_term, enumerate_terms_of_size
 from .fcl import FiniteCombinatoryLogic
 

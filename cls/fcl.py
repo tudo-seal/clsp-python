@@ -5,7 +5,6 @@ from collections import deque
 from collections.abc import (
     Hashable,
     Iterable,
-    Iterator,
     Mapping,
     MutableMapping,
     Sequence,
@@ -32,7 +31,8 @@ from .types import (
 T = TypeVar("T", bound=Hashable, covariant=True)
 C = TypeVar("C")
 
-# ([theta_1, ..., theta_m], [sigma_1, ..., sigma_n], tau) means theta_1 => ... => theta_m => sigma_1 -> ... -> sigma_n -> tau
+# ([theta_1, ..., theta_m], [sigma_1, ..., sigma_n], tau) means
+#   theta_1 => ... => theta_m => sigma_1 -> ... -> sigma_n -> tau
 
 
 @dataclass(frozen=True)
@@ -174,9 +174,8 @@ class FiniteCombinatoryLogic(Generic[T, C]):
     def _instantiate(
         literals: dict[Any, list[Any]],
         params: list[LitParamSpec[T] | TermParamSpec[T]],
-    ) -> Iterator[InstantiationMeta[T]]:
+    ) -> Iterable[InstantiationMeta[T]]:
         substitutions: deque[dict[str, Literal]] = deque([{}])
-        set_tos: list[tuple[str, Any, SetTo]] = []
         args: deque[str | GVar] = deque()
         term_params: list[TermParamSpec[T]] = []
 
