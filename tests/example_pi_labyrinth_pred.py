@@ -1,4 +1,5 @@
 from collections.abc import Callable, Mapping
+import timeit
 from cls.dsl import Use
 from cls.enumeration import enumerate_terms, interpret_term
 from cls.fcl import FiniteCombinatoryLogic
@@ -13,7 +14,7 @@ def plus_one(a: str) -> Callable[[Mapping[str, Literal]], int]:
     return _inner
 
 
-def labyrinth() -> None:
+def labyrinth(SIZE: int = 10, output: bool = True) -> float:
     def is_free(a: str, b: str) -> Callable[[Mapping[str, Literal]], bool]:
         return lambda vars: _is_free(
             vars[b].value, vars[a].value
@@ -28,7 +29,6 @@ def labyrinth() -> None:
                 pow(11, (row + col + SEED) * (row + col + SEED) + col + 7, 1000003) % 5
                 > 0
             )
-
 
     U: Callable[[int, int, int, str], str] = lambda a, _, c, p: f"{p} => UP({c}, {a})"
     D: Callable[[int, int, int, str], str] = lambda _, b, c, p: f"{p} => DOWN({c}, {b})"
@@ -76,21 +76,16 @@ def labyrinth() -> None:
         "START": "pos" @ (Literal(0, int) * Literal(0, int)),
     }
 
-    SIZE = 10
-
     literals = {int: list(range(SIZE))}
 
-    # print("▒▒▒▒▒▒▒▒▒▒▒▒")
-    # for line in labyrinth_str:
-    #     print(f"▒{line}▒")
-    # print("▒▒▒▒▒▒▒▒▒▒▒▒")
-    for row in range(SIZE):
-        for col in range(SIZE):
-            if _is_free(row, col):
-                print("-", end="")
-            else:
-                print("#", end="")
-        print("")
+    if output:
+        for row in range(SIZE):
+            for col in range(SIZE):
+                if _is_free(row, col):
+                    print("-", end="")
+                else:
+                    print("#", end="")
+            print("")
 
     fin = "pos" @ (Literal(SIZE - 1, int) * Literal(SIZE - 1, int))
 
@@ -98,10 +93,15 @@ def labyrinth() -> None:
         str, Callable[[int, int, int, str], str] | str
     ] = FiniteCombinatoryLogic(repo, literals=literals)
 
+    start = timeit.default_timer()
     grammar = fcl.inhabit(fin)
 
     for term in enumerate_terms(fin, grammar, 3):
-        print(interpret_term(term))
+        t = interpret_term(term)
+        if output:
+            print(t)
+
+    return timeit.default_timer() - start
 
 
 if __name__ == "__main__":

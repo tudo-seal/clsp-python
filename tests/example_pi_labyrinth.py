@@ -1,4 +1,5 @@
 from collections.abc import Callable, Mapping
+import timeit
 from typing import Any
 from cls.dsl import Requires, Use
 from cls.enumeration import enumerate_terms, interpret_term
@@ -14,7 +15,7 @@ def pred_plus_one(a: str, b: str) -> Callable[[Mapping[str, Literal]], bool]:
     return _inner
 
 
-def labyrinth() -> None:
+def labyrinth(SIZE: int = 10, output: bool = True) -> float:
     def make_is_free(l_str: list[str]) -> Callable[[Mapping[str, Literal]], bool]:
         return lambda vars: is_free(
             vars["b"].value, vars["a"].value
@@ -49,33 +50,35 @@ def labyrinth() -> None:
     L = lambda a, b, c, p, f: f"{p} => LEFT({a}, {c})"
     R = lambda a, b, c, p, f: f"{p} => RIGHT({b}, {c})"
 
-    free: Callable[[str, str], Type[str]] = lambda a, b: "free" @ (TVar(a) * TVar(b))
-    pos: Callable[[str, str], Type[str]] = lambda a, b: "pos" @ (TVar(a) * TVar(b))
+    free: Callable[[str, str], Type[str]] = lambda a, b: "free" @ (
+        TVar[str](a) * TVar(b)
+    )
+    pos: Callable[[str, str], Type[str]] = lambda a, b: "pos" @ (TVar[str](a) * TVar(b))
 
     repo: dict[
         Callable[[Any, Any, Any, Any, Any], str] | Callable[[Any, Any], str] | str,
         Param[str] | Type[str],
     ] = {
-        FREE: Use("a", int)
+        FREE: Use[str]("a", int)
         .Use("b", int)
         .With(make_is_free(labyrinth_str))
         .In(free("a", "b")),
-        U: Use("a", int)
+        U: Use[str]("a", int)
         .Use("b", int)
         .With(pred_plus_one("b", "a"))
         .Use("c", int)
         .In(Requires(pos("c", "b"), free("c", "a")).Provides(pos("c", "a"))),
-        D: Use("a", int)
+        D: Use[str]("a", int)
         .Use("b", int)
         .With(pred_plus_one("b", "a"))
         .Use("c", int)
         .In(pos("c", "a") ** free("c", "b") ** pos("c", "b")),
-        L: Use("a", int)
+        L: Use[str]("a", int)
         .Use("b", int)
         .With(pred_plus_one("b", "a"))
         .Use("c", int)
         .In(pos("b", "c") ** free("a", "c") ** pos("a", "c")),
-        R: Use("a", int)
+        R: Use[str]("a", int)
         .Use("b", int)
         .With(pred_plus_one("b", "a"))
         .Use("c", int)
@@ -83,21 +86,20 @@ def labyrinth() -> None:
         "START": "pos" @ (Literal(0, int) * Literal(0, int)),
     }
 
-    SIZE = 10
-
     literals = {int: list(range(SIZE))}
 
     # print("▒▒▒▒▒▒▒▒▒▒▒▒")
     # for line in labyrinth_str:
     #     print(f"▒{line}▒")
     # print("▒▒▒▒▒▒▒▒▒▒▒▒")
-    for row in range(SIZE):
-        for col in range(SIZE):
-            if is_free(row, col):
-                print("-", end="")
-            else:
-                print("#", end="")
-        print("")
+    if output:
+        for row in range(SIZE):
+            for col in range(SIZE):
+                if is_free(row, col):
+                    print("-", end="")
+                else:
+                    print("#", end="")
+            print("")
 
     fin = "pos" @ (Literal(SIZE - 1, int) * Literal(SIZE - 1, int))
 
@@ -105,10 +107,15 @@ def labyrinth() -> None:
         str, Callable[[Any, Any, Any, Any, Any], str] | Callable[[Any, Any], str] | str
     ] = FiniteCombinatoryLogic(repo, literals=literals)
 
+    start = timeit.default_timer()
     grammar = fcl.inhabit(fin)
 
     for term in enumerate_terms(fin, grammar, 3):
-        print(interpret_term(term))
+        t = interpret_term(term)
+        if output:
+            print(t)
+
+    return timeit.default_timer() - start
 
 
 if __name__ == "__main__":

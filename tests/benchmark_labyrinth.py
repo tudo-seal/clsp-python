@@ -1,6 +1,8 @@
+from collections.abc import Mapping
 import itertools
 import timeit
 from dataclasses import dataclass, field
+from typing import Any
 
 from cls import (
     Type,
@@ -27,27 +29,24 @@ def is_free(row: int, col: int) -> bool:
         )
 
 
-SIZE = 4
-
-
-def int_to_type(x: int) -> Type:
+def int_to_type(x: int) -> Type[str]:
     return Constructor(str(x))
 
 
-def free(row: int, col: int) -> Type:
+def free(row: int, col: int) -> Type[str]:
     return Constructor("Free", Product(int_to_type(row), int_to_type(col)))
 
 
-def pos(row: int, col: int) -> Type:
+def pos(row: int, col: int) -> Type[str]:
     return Constructor("Pos", Product(int_to_type(row), int_to_type(col)))
 
 
-def seen(row: int, col: int) -> Type:
+def seen(row: int, col: int) -> Type[str]:
     return Constructor(f"Seen_({row}, {col})")
 
 
 @dataclass(frozen=True)
-class Move(object):
+class Move:
     direction: str = field(init=True)
 
     def __call__(self, path: str, position: str) -> str:
@@ -55,12 +54,14 @@ class Move(object):
 
 
 @dataclass(frozen=True)
-class Start(object):
+class Start:
     def __call__(self) -> str:
         return "start"
 
 
-def move(drow_from: int, dcol_from: int, drow_to: int, dcol_to: int) -> Type:
+def move(
+    SIZE: int, drow_from: int, dcol_from: int, drow_to: int, dcol_to: int
+) -> Type[str]:
     return Type.intersect(
         [
             Arrow(
@@ -84,34 +85,35 @@ def move(drow_from: int, dcol_from: int, drow_to: int, dcol_to: int) -> Type:
     )
 
 
-def test():
-    for row in range(SIZE):
-        for col in range(SIZE):
-            if is_free(row, col):
-                print("-", end="")
-            else:
-                print("#", end="")
-        print("")
+def labyrinth(SIZE: int = 10, output: bool = True) -> float:
+    if output:
+        for row in range(SIZE):
+            for col in range(SIZE):
+                if is_free(row, col):
+                    print("-", end="")
+                else:
+                    print("#", end="")
+            print("")
 
-    free_fields = {
+    free_fields: Mapping[str, Type[str]] = {
         f"Pos_at_({row}, {col})": free(row, col)
         for row in range(0, SIZE)
         for col in range(0, SIZE)
         if is_free(row, col)
     }
 
-    repository = {
+    repository: Mapping[Any, Type[str]] = {
         Start(): Intersection(pos(0, 0), seen(0, 0)),
-        Move("up"): move(1, 0, 0, 0),
-        Move("down"): move(0, 0, 1, 0),
-        Move("left"): move(0, 1, 0, 0),
-        Move("right"): move(0, 0, 0, 1),
-        **free_fields,
-    }
+        Move("up"): move(SIZE, 1, 0, 0, 0),
+        Move("down"): move(SIZE, 0, 0, 1, 0),
+        Move("left"): move(SIZE, 0, 1, 0, 0),
+        Move("right"): move(SIZE, 0, 0, 0, 1),
+    } | free_fields
 
     start = timeit.default_timer()
     gamma = FiniteCombinatoryLogic(repository, Subtypes({}))
-    print("Time (Constructor): ", timeit.default_timer() - start)
+    if output:
+        print("Time (Constructor): ", timeit.default_timer() - start)
     start = timeit.default_timer()
 
     # target: BooleanTerm[Type] = Var(pos(SIZE - 1, SIZE - 1)) & ~(Var(seen(1, 1)))
@@ -119,14 +121,19 @@ def test():
     # target: BooleanTerm[Type] = Var(seen(1, 1))
 
     results = gamma.inhabit(target)
-    print("Time (Inhabitation): ", timeit.default_timer() - start)
-    for t in itertools.islice(enumerate_terms(target, results), 2):
-        print("Term:")
-        print(t)
-        print("Interpretation:")
-        print(interpret_term(t))
-        print("")
+    if output:
+        print("Time (Inhabitation): ", timeit.default_timer() - start)
+    for t in itertools.islice(enumerate_terms(target, results), 3):
+        if output:
+            print("Term:")
+            print(t)
+            print("Interpretation:")
+        term = interpret_term(t)
+        if output:
+            print(term)
+            print("")
+    return timeit.default_timer() - start
 
 
 if __name__ == "__main__":
-    test()
+    labyrinth()
