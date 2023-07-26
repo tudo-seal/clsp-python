@@ -18,7 +18,7 @@ class Use(Generic[T]):
         self._predicate: Callable[[Mapping[str, Literal]], bool] | SetTo = TRUE
         self._accumulator: list[Use[T]] = []
 
-    def With(self, predicate: Callable[[Mapping[str, Literal]], bool]) -> Use[T]:
+    def With(self, predicate: Callable[[Mapping[str, Literal | Any]], bool]) -> Use[T]:
         self._predicate = predicate
         return self
 
