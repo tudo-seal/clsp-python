@@ -1,42 +1,43 @@
+from collections.abc import Mapping
 from cls.dsl import Use
-from cls.enumeration import enumerate_terms, enumerate_terms_of_size, interpret_term
+from cls.enumeration import enumerate_terms, interpret_term
 from cls.fcl import FiniteCombinatoryLogic
-from cls.types import Omega, Param, SetTo, TVar, Literal
+from cls.types import Param, SetTo, TVar, Literal
 
 
-def X2(x, y, z, n):
+def X2(x: int, y: int, z: int, n: str) -> str:
     return f"X2: x:{x} y:{y} z:{z} ({n})"
 
 
-def X(x, y, z, n):
+def X(x: int, y: int, z: int, n: str) -> str:
     return f"X: x:{x} y:{y} z:{z} ({n})"
 
 
-def Y(x, y, z):
+def Y(x: int, y: int, z: int) -> str:
     return f"Y: x:{x} y:{y} z:{z}"
 
 
-def p(vars):
+def p(vars: Mapping[str, Literal]) -> bool:
     res = vars["x"].value + vars["y"].value == 5
     print(vars)
     print(res)
-    return res
+    return bool(res)
 
 
-def po(vars):
-    return vars["y"].value + 1 or vars["x"].value + 1
+def po(vars: Mapping[str, Literal]) -> int:
+    return int(vars["y"].value + 1 * vars["x"].value + 1)
 
 
 def main() -> None:
     repo = {
-        X2: Use("x", int)
+        X2: Use[str]("x", int)
         .Use("y", int)
         .With(p)
         .Use("z", int)
         .As(po)
         .In(
-            ("c" @ ((TVar("y") * TVar("x") * TVar("z"))))
-            ** ("c" @ (TVar("x") * TVar("y") * TVar("z")))
+            ("c" @ ((TVar[str]("y") * TVar("x") * TVar("z"))))
+            ** ("c" @ (TVar[str]("x") * TVar("y") * TVar("z")))
         ),
         X: Param(
             "x",
@@ -50,8 +51,8 @@ def main() -> None:
                     "z",
                     int,
                     SetTo(po),
-                    ("c" @ ((TVar("y") * TVar("x") * TVar("z"))))
-                    ** ("c" @ (TVar("x") * TVar("y") * TVar("z"))),
+                    ("c" @ ((TVar[str]("y") * TVar("x") * TVar("z"))))
+                    ** ("c" @ (TVar[str]("x") * TVar("y") * TVar("z"))),
                 ),
             ),
         ),
@@ -64,7 +65,10 @@ def main() -> None:
                 int,
                 p,
                 Param(
-                    "z", int, lambda _: True, "c" @ (TVar("x") * TVar("y") * TVar("z"))
+                    "z",
+                    int,
+                    lambda _: True,
+                    "c" @ (TVar[str]("x") * TVar("y") * TVar("z")),
                 ),
             ),
         ),
