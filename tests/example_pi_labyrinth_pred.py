@@ -64,7 +64,7 @@ def labyrinth(SIZE: int = 10, output: bool = True) -> float:
         .As(plus_one("a"))
         .Use("c", int)
         .With(is_free("a", "c"))
-        .Use("pos", pos("a", "b"))
+        .Use("pos", pos("b", "c"))
         .In(pos("a", "c")),
         R: Use[str]("a", int)
         .Use("b", int)
