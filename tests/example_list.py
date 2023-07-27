@@ -1,18 +1,21 @@
+from typing import Any, TypeVar
 from cls import inhabit_and_interpret
-from cls.types import Arrow, Constructor
+from cls.types import Arrow, Constructor, Type
+
+T = TypeVar("T")
 
 
-def nil():
+def nil() -> list[Any]:
     return list()
 
 
-def cons(x, xs):
+def cons(x: T, xs: list[T]) -> list[T]:
     the_list = [x]
     the_list.extend(xs)
     return the_list
 
 
-def ComponentUsingLists(list_arg: list):
+def ComponentUsingLists(list_arg: list[Any]) -> str:
     return f"{list_arg}"
 
 
@@ -21,11 +24,11 @@ B = Constructor("B")
 C = Constructor("C")
 
 
-def List(a):
+def List(a: Type) -> Constructor:
     return Constructor("List", a)
 
 
-def a_to_b(a):
+def a_to_b(a: list[Any]) -> int:
     return len(a)
 
 
@@ -41,7 +44,7 @@ exampleRepo = {
 }
 
 
-def main():
+def main() -> None:
     r = inhabit_and_interpret(exampleRepo, C)
     for z in r:
         print(z)

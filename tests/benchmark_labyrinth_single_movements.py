@@ -108,7 +108,7 @@ def move(drow_from: int, dcol_from: int, drow_to: int, dcol_to: int) -> Type:
     )
 
 
-def test():
+def test() -> None:
     for row in range(SIZE):
         for col in range(SIZE):
             if is_free(row, col):
@@ -136,11 +136,13 @@ def test():
         if is_free(row, col)
     }
 
-    repository = {
-        Start(): Intersection(pos(0, 0), seen(0, 0)),
-        **single_movements,
-        **free_fields,
-    }
+    repository = (
+        {
+            Start(): Intersection(pos(0, 0), seen(0, 0)),
+        }
+        | single_movements
+        | free_fields
+    )
 
     start = timeit.default_timer()
     gamma = FiniteCombinatoryLogic(repository, Subtypes({}))

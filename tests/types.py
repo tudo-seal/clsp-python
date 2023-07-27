@@ -1,6 +1,6 @@
 import unittest
 
-from cls import *
+from cls import Product, Constructor, Intersection, Arrow, Omega, Type
 
 a = Constructor("a")
 b = Constructor("b")
@@ -24,17 +24,18 @@ complicated = Type.intersect(
 
 
 class TestTypes(unittest.TestCase):
-    def test_pretty_print(self):
+    def test_pretty_print(self) -> None:
         self.assertEqual(
             str(complicated),
-            "a & b & c & (a & c -> b) & (a -> c & b) & (a & b * c) & (a * b & c) & (a * (b * c)) & (a * b * c) & ((a -> b) -> c -> a) & List(a) & omega",
+            "a & b & c & (a & c -> b) & (a -> c & b) & (a & b * c) & (a * b & c) & (a * (b * c)) & "
+            "(a * b * c) & ((a -> b) -> c -> a) & List(a) & omega",
         )
 
-    def test_mul(self):
+    def test_mul(self) -> None:
         self.assertEqual(a * b, Product(a, b))
         self.assertEqual(a * b * c, Product(Product(a, b), c))
 
-    def test_state(self):
+    def test_state(self) -> None:
         s1 = Intersection(a, Arrow(b, c))
         s2 = Intersection(c, Arrow(a, b))
         x = s1.__getstate__()

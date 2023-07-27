@@ -1,9 +1,8 @@
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from cls import (
     Type,
     Constructor,
     Arrow,
-    Intersection,
     FiniteCombinatoryLogic,
     enumerate_terms,
     Subtypes,
@@ -12,10 +11,10 @@ from cls.enumeration import interpret_term
 
 
 def test() -> None:
-    a: Type[str] = Constructor("a")
-    b: Type[str] = Constructor("b")
-    c: Type[str] = Constructor("c")
-    d: Type[str] = Constructor("d")
+    a: Type = Constructor("a")
+    b: Type = Constructor("b")
+    c: Type = Constructor("c")
+    # d: Type = Constructor("d")
 
     X: str = "X"
     Y: str = "Y"
@@ -26,10 +25,16 @@ def test() -> None:
 
     MAP: Callable[[str, Callable[[str], str]], str] = lambda x, f: f(x)
 
-    def MAP2(x, f):
+    def MAP2(x: str, f: Callable[[str], str]) -> str:
         return f(x)
 
-    repository: dict[str | Callable[[str], str], Type[str]] = dict(
+    repository: Mapping[
+        str
+        | Callable[[str, str], str]
+        | Callable[[str], Callable[[str], str]]
+        | Callable[[str, Callable[[str], str]], str],
+        Type,
+    ] = dict(
         {
             X: a,
             Y: b,

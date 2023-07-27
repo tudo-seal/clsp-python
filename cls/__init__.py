@@ -1,5 +1,5 @@
 from collections import deque
-from collections.abc import Hashable, Iterable, Mapping, MutableMapping
+from collections.abc import Iterable, Mapping, MutableMapping
 from typing import Any, Optional, TypeVar
 
 from .subtypes import Subtypes
@@ -22,15 +22,14 @@ __all__ = [
     "inhabit_and_interpret",
 ]
 
-T = TypeVar("T", bound=Hashable, covariant=True)
 C = TypeVar("C")
 
 
 def inhabit_and_interpret(
-    repository: Mapping[C, Type[T]],
-    query: list[Type[T]] | Type[T],
+    repository: Mapping[C, Type],
+    query: list[Type] | Type,
     max_count: Optional[int] = 100,
-    subtypes: Optional[Subtypes[T]] = None,
+    subtypes: Optional[Subtypes] = None,
 ) -> Iterable[Any]:
     fcl = FiniteCombinatoryLogic(
         repository, Subtypes(dict()) if subtypes is None else subtypes
@@ -40,8 +39,8 @@ def inhabit_and_interpret(
         query = [query]
 
     grammar: MutableMapping[
-        Type[T],
-        deque[tuple[C, list[Type[T]]]],
+        Type,
+        deque[tuple[C, list[Type]]],
     ] = fcl.inhabit(*query)
 
     for q in query:

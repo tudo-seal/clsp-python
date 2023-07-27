@@ -12,16 +12,16 @@ from cls.enumeration import interpret_term
 
 
 def test() -> None:
-    a: Type[str] = Constructor("a")
-    b: Type[str] = Constructor("b")
-    c: Type[str] = Constructor("c")
-    d: Type[str] = Constructor("d")
+    a: Type = Constructor("a")
+    b: Type = Constructor("b")
+    c: Type = Constructor("c")
+    d: Type = Constructor("d")
 
     X: str = "X"
     Y: str = "Y"
     F: Callable[[str], str] = lambda x: f"F({x})"
 
-    repository: dict[str | Callable[[str], str], Type[str]] = dict(
+    repository: dict[str | Callable[[str], str], Type] = dict(
         {
             X: Intersection(Intersection(a, b), d),
             Y: d,

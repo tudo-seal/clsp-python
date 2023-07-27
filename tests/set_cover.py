@@ -1,3 +1,5 @@
+from collections.abc import Callable, Sequence
+from typing import Any
 from cls.combinatorics import minimal_covers, maximal_elements
 from itertools import combinations
 from collections import deque
@@ -11,8 +13,12 @@ print(minimal_covers(sets, elements, contains))
 
 
 # naive minimal set cover implementation
-def naive_minimal_covers(sets, to_cover, contains):
-    covers = deque()
+def naive_minimal_covers(
+    sets: list[list[int]],
+    to_cover: list[int],
+    contains: Callable[[list[int], int], bool],
+) -> list[list[list[int]]]:
+    covers: Any = deque()
     for i in range(len(sets) + 1):
         for cover in combinations(range(len(sets)), i):
             if all(any(contains(sets[s], e) for s in cover) for e in to_cover):
@@ -22,11 +28,11 @@ def naive_minimal_covers(sets, to_cover, contains):
     return [[sets[i] for i in c] for c in covers]
 
 
-def equivalent_lists(l1, l2):
+def equivalent_lists(l1: list[Any], l2: list[Any]) -> bool:
     return len(l1) == len(l2) and all(e in l2 for e in l1) and all(e in l1 for e in l2)
 
 
-def equivalent_covers(covers1, covers2):
+def equivalent_covers(covers1: Sequence[Any], covers2: Sequence[Any]) -> bool:
     return (
         len(covers1) == len(covers2)
         and all(any(equivalent_lists(c1, c2) for c2 in covers2) for c1 in covers1)
@@ -43,7 +49,9 @@ print(
 )
 
 
-# [7, 8, 9, 5, 3, 4, 1, 4] by [[], [5], [], [5, 5, 0, 0, 1, 4, 5, 4, 1], [5], [7, 7, 9, 3, 7, 0, 7, 7, 0, 3, 8, 4], [4, 6, 8, 7, 1, 9, 2, 8, 6], [7, 8, 9, 4, 1, 9, 3, 5], [8, 5]]
+# [7, 8, 9, 5, 3, 4, 1, 4] by
+# [[], [5], [], [5, 5, 0, 0, 1, 4, 5, 4, 1], [5], [7, 7, 9, 3, 7, 0, 7, 7, 0, 3, 8, 4],
+#   [4, 6, 8, 7, 1, 9, 2, 8, 6], [7, 8, 9, 4, 1, 9, 3, 5], [8, 5]]
 elements = [7, 8, 9, 5, 3, 4, 1, 4]
 sets = [
     [],

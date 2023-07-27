@@ -1,15 +1,16 @@
+from collections.abc import Sequence
 from cls import Type, Constructor, Arrow, inhabit_and_interpret
 
 
-def F(*x):
+def F(*x: str) -> Sequence[str]:
     return x
 
 
 def test() -> None:
-    a: Type[str] = Constructor("a")
-    b: Type[str] = Constructor("b")
-    c: Type[str] = Constructor("c")
-    d: Type[str] = Constructor("d")
+    a: Type = Constructor("a")
+    b: Type = Constructor("b")
+    c: Type = Constructor("c")
+    # d: Type = Constructor("d")
 
     X: str = "X"
     Y: str = "Y"

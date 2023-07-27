@@ -84,7 +84,7 @@ def move(drow_from: int, dcol_from: int, drow_to: int, dcol_to: int) -> Type:
     )
 
 
-def test():
+def test() -> None:
     for row in range(SIZE):
         for col in range(SIZE):
             if is_free(row, col):
@@ -106,8 +106,7 @@ def test():
         Move("down"): move(0, 0, 1, 0),
         Move("left"): move(0, 1, 0, 0),
         Move("right"): move(0, 0, 0, 1),
-        **free_fields,
-    }
+    } | free_fields
 
     start = timeit.default_timer()
     gamma = FiniteCombinatoryLogic(repository, Subtypes({}))

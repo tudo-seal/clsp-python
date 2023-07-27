@@ -10,6 +10,7 @@ To implement a combinator, fitting that type, you either have to use the *args c
 MultiArgsComponent) or default values (See DefaultArgComponent).
 
 """
+from typing import Optional
 from cls import (
     Constructor,
     Arrow,
@@ -18,20 +19,20 @@ from cls import (
 )
 
 
-def MultiArgsComponent(*arguments):
+def MultiArgsComponent(*arguments: str) -> str:
     return (
         f"MultiArgsComponent: I have {len(arguments)} argument(s), they are {arguments}"
     )
 
 
-def DefaultArgComponent(arg1, arg2=None):
+def DefaultArgComponent(arg1: str, arg2: Optional[str] = None) -> str:
     if arg2 is None:
         return f"DefaultArgComponent: I only got one argument, it is {arg1}"
     else:
         return f"DefaultArgComponent: I got two arguments, {arg1} and {arg2}"
 
 
-def main():
+def main() -> None:
     repo = {
         MultiArgsComponent: Intersection(
             Arrow(Constructor("A"), Constructor("C")),
