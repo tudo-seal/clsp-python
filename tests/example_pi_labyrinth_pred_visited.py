@@ -140,7 +140,7 @@ def labyrinth(SIZE: int = 10, output: bool = True) -> float:
         t = interpret_term(term)
         if output:
             length = len(t[0])
-            print(f"{i}: {length=}, {t}")
+            print(f"{i}: {length=}, {t[1]}")
 
     return timeit.default_timer() - start
 
