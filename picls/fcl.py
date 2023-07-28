@@ -10,6 +10,7 @@ from collections.abc import (
 )
 from dataclasses import dataclass
 from functools import reduce
+from itertools import compress
 from typing import Any, Callable, Generic, TypeAlias, TypeVar, Optional
 
 from .grammar import GVar, ParameterizedTreeGrammar, Predicate, RHSRule
@@ -184,15 +185,13 @@ class FiniteCombinatoryLogic(Generic[C]):
                 else:
                     args.append(param.name)
                     if isinstance(param.predicate, SetTo):
-                        flag_for_deletion = []
-                        for i, substitution in enumerate(substitutions):
+                        filter_list = []
+                        for substitution in substitutions:
                             value = param.predicate.compute(substitution)
-                            if value not in literals[param.type]:
-                                flag_for_deletion.append(i)
+                            filter_list.append(value in literals[param.type])
                             substitution[param.name] = Literal(value, param.type)
 
-                        for invalid_substitution in flag_for_deletion:
-                            del substitutions[invalid_substitution]
+                        substitutions = deque(compress(substitutions, filter_list))
                     else:
                         substitutions = deque(
                             filter(
