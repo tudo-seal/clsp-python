@@ -9,8 +9,16 @@ from functools import partial
 import itertools
 from inspect import Parameter, signature, _ParameterKind, _empty
 from collections import deque
-from collections.abc import Callable, Hashable, Iterable, Mapping
+from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
 from typing import Any, Optional, TypeAlias, TypeVar
+
+from cls.grammar import (
+    GVar,
+    ParameterizedTreeGrammar,
+    Predicate,
+    RHSRule,
+)
+from cls.types import Literal
 
 S = TypeVar("S")  # non-terminals
 T = TypeVar("T", bound=Hashable)
@@ -43,9 +51,45 @@ def bounded_union(
     return result
 
 
+def new_terms(
+    rhs: Iterable[RHSRule[S, T]], existing_terms: dict[S, set[Tree[T]]]
+) -> set[Tree[T]]:
+    output_set: set[Tree[T]] = set()
+    for rule in rhs:
+        list_of_params = list(rule.binder.keys())
+
+        for params in itertools.product(
+            *(existing_terms[rule.binder[name]] for name in list_of_params)
+        ):
+            params_dict = {list_of_params[i]: param for i, param in enumerate(params)}
+            if all((predicate.eval(params_dict) for predicate in rule.predicates)):
+                for args in itertools.product(
+                    *(existing_terms[arg] for arg in rule.args)
+                ):
+                    output_set.add(
+                        (
+                            rule.terminal,
+                            tuple(
+                                itertools.chain(
+                                    (
+                                        (
+                                            (parameter.value, ())
+                                            if isinstance(parameter, Literal)
+                                            else params_dict[parameter.name]
+                                        )
+                                        for parameter in rule.parameters
+                                    ),
+                                    args,
+                                )
+                            ),
+                        )
+                    )
+    return output_set
+
+
 def enumerate_terms(
     start: S,
-    grammar: Mapping[S, Iterable[tuple[T, list[S]]]],
+    grammar: ParameterizedTreeGrammar[S, T],
     max_count: Optional[int] = 100,
 ) -> Iterable[Tree[T]]:
     """Given a start symbol and a tree grammar, enumerate at most max_count ground terms derivable
@@ -54,30 +98,22 @@ def enumerate_terms(
 
     # accumulator for previously seen terms
     result: set[Tree[T]] = set()
-    terms: dict[S, set[Tree[T]]] = {n: set() for n in grammar.keys()}
+    terms: dict[S, set[Tree[T]]] = {n: set() for n in grammar.nonterminals()}
     terms_size: int = -1
     while terms_size < sum(len(ts) for ts in terms.values()):
         terms_size = sum(len(ts) for ts in terms.values())
 
-        new_terms: Callable[
-            [Iterable[tuple[T, list[S]]]], set[Tree[T]]
-        ] = lambda exprs: {
-            (c, tuple(args))
-            for (c, ms) in exprs
-            for args in itertools.product(*(terms[m] for m in ms))
-        }
-
         if max_count is None:
             # new terms are built from previous terms according to grammar
-            terms = {n: new_terms(exprs) for (n, exprs) in grammar.items()}
+            terms = {n: new_terms(exprs, terms) for (n, exprs) in grammar.as_tuples()}
         else:
             terms = {
                 n: terms[n]
                 if len(terms[n]) >= max_count
                 else bounded_union(
-                    terms[n], sorted(new_terms(exprs), key=tree_size), max_count
+                    terms[n], sorted(new_terms(exprs, terms), key=tree_size), max_count
                 )
-                for (n, exprs) in grammar.items()
+                for (n, exprs) in grammar.as_tuples()
             }
         for term in sorted(terms[start], key=tree_size):
             # yield term if not seen previously
@@ -174,7 +210,7 @@ def interpret_term(term: Tree[T]) -> Any:
     # apply/call decomposed terms
     while combinators:
         (c, n) = combinators.pop()
-        parameters_of_c: Iterable[Parameter] = []
+        parameters_of_c: Sequence[Parameter] = []
         current_combinator: partial[Any] | T | Callable[..., Any] = c
 
         if callable(current_combinator):
@@ -257,10 +293,31 @@ def interpret_term(term: Tree[T]) -> Any:
 
 
 def test() -> None:
-    d: Mapping[str, list[tuple[str, list[str]]]] = {
-        "X": [("a", []), ("b", ["X", "Y"])],
-        "Y": [("c", []), ("d", ["Y", "X"])],
-    }
+    # d: Mapping[str, list[tuple[str, list[str]]]] = {
+    #     "X": [("a", []), ("b", ["X", "Y"])],
+    #     "Y": [("c", []), ("d", ["Y", "X"])],
+    # }
+    d: ParameterizedTreeGrammar[str, str] = ParameterizedTreeGrammar()
+    d.update(
+        {
+            "X": deque(
+                [
+                    RHSRule({}, [], "a", [], []),
+                    RHSRule({"x": "X", "y": "Y"}, [], "b", [GVar("x"), GVar("y")], []),
+                ]
+            )
+        }
+    )
+    d.update(
+        {
+            "Y": deque(
+                [
+                    RHSRule({}, [], "c", [], []),
+                    RHSRule({"x": "X", "y": "Y"}, [], "d", [GVar("y"), GVar("x")], []),
+                ]
+            )
+        }
+    )
     # d = {
     #    "X": [("x", ["X1"])],
     #    "X1": [("x", ["X2"])],
@@ -310,10 +367,31 @@ def test2() -> None:
         def __call__(self, a: str, b: str) -> str:
             return f"({a}) ->D-> ({b})"
 
-    d: dict[str, list[tuple[A | B | C | D | str, list[str]]]] = {
-        "X": [(A(), []), (B(), ["X", "Y"]), ("Z", [])],
-        "Y": [(C(), []), (D(), ["Y", "X"])],
-    }
+    # d: dict[str, list[tuple[A | B | C | D | str, list[str]]]] = {
+    #     "X": [(A(), []), (B(), ["X", "Y"]), ("Z", [])],
+    #     "Y": [(C(), []), (D(), ["Y", "X"])],
+    # }
+    d: ParameterizedTreeGrammar[str, A | B | C | D | str] = ParameterizedTreeGrammar()
+    d.update(
+        {
+            "X": deque(
+                [
+                    RHSRule({}, [], A(), [], []),
+                    RHSRule({"x": "X", "y": "Y"}, [], B(), [GVar("x"), GVar("y")], []),
+                ]
+            )
+        }
+    )
+    d.update(
+        {
+            "Y": deque(
+                [
+                    RHSRule({}, [], "Z", [], []),
+                    RHSRule({"x": "Y", "y": "Y"}, [], D(), [GVar("y"), GVar("x")], []),
+                ]
+            )
+        }
+    )
 
     import timeit
 
@@ -327,5 +405,13 @@ def test2() -> None:
     print("Time: ", timeit.default_timer() - start)
 
 
+def test3() -> None:
+    grammar: ParameterizedTreeGrammar[str, str] = ParameterizedTreeGrammar()
+    grammar.add_rule("X", RHSRule({"y": "Y"}, [], "y", [], []))
+    grammar.add_rule("Y", RHSRule({}, [Predicate(lambda _: True)], "y1", [], []))
+    grammar.add_rule("Y", RHSRule({}, [Predicate(lambda _: False)], "y2", [], []))
+    print(grammar.show())
+
+
 if __name__ == "__main__":
-    test2()
+    test3()

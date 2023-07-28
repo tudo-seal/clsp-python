@@ -1,6 +1,6 @@
 from collections import deque
 
-from .types import Arrow, Constructor, Intersection, Product, Type
+from .types import Arrow, Constructor, Intersection, Literal, Product, TVar, Type
 
 
 class Subtypes:
@@ -9,10 +9,27 @@ class Subtypes:
             self._reflexive_closure(environment)
         )
 
-    def _check_subtype_rec(self, subtypes: deque[Type], supertype: Type) -> bool:
+    def _check_subtype_rec(
+        self,
+        subtypes: deque[Type],
+        supertype: Type,
+        substitutions: dict[str, Literal],
+    ) -> bool:
         if supertype.is_omega:
             return True
         match supertype:
+            case Literal(name2, ty2):
+                while subtypes:
+                    match subtypes.pop():
+                        case Literal(name1, ty1):
+                            if name2 == name1 and ty1 == ty2:
+                                return True
+                        case TVar(name1):
+                            if substitutions[name1] == supertype:
+                                return True
+                        case Intersection(l, r):
+                            subtypes.extend((l, r))
+                return False
             case Constructor(name2, arg2):
                 casted_constr: deque[Type] = deque()
                 while subtypes:
@@ -25,19 +42,21 @@ class Subtypes:
                         case Intersection(l, r):
                             subtypes.extend((l, r))
                 return len(casted_constr) != 0 and self._check_subtype_rec(
-                    casted_constr, arg2
+                    casted_constr, arg2, substitutions
                 )
             case Arrow(src2, tgt2):
                 casted_arr: deque[Type] = deque()
                 while subtypes:
                     match subtypes.pop():
                         case Arrow(src1, tgt1):
-                            if self._check_subtype_rec(deque((src2,)), src1):
+                            if self._check_subtype_rec(
+                                deque((src2,)), src1, substitutions
+                            ):
                                 casted_arr.append(tgt1)
                         case Intersection(l, r):
                             subtypes.extend((l, r))
                 return len(casted_arr) != 0 and self._check_subtype_rec(
-                    casted_arr, tgt2
+                    casted_arr, tgt2, substitutions
                 )
             case Product(l2, r2):
                 casted_l: deque[Type] = deque()
@@ -52,20 +71,32 @@ class Subtypes:
                 return (
                     len(casted_l) != 0
                     and len(casted_r) != 0
-                    and self._check_subtype_rec(casted_l, l2)
-                    and self._check_subtype_rec(casted_r, r2)
+                    and self._check_subtype_rec(casted_l, l2, substitutions)
+                    and self._check_subtype_rec(casted_r, r2, substitutions)
                 )
             case Intersection(l, r):
-                return self._check_subtype_rec(subtypes, l) and self._check_subtype_rec(
-                    subtypes, r
-                )
+                return self._check_subtype_rec(
+                    subtypes, l, substitutions
+                ) and self._check_subtype_rec(subtypes, r, substitutions)
+            case TVar(name):
+                while subtypes:
+                    match subtypes.pop():
+                        case Literal(value, ty):
+                            x = substitutions[name]
+                            if x.value == value and x.type == ty:
+                                return True
+                        case Intersection(l, r):
+                            subtypes.extend((l, r))
+                return False
             case _:
                 raise TypeError(f"Unsupported type in check_subtype: {supertype}")
 
-    def check_subtype(self, subtype: Type, supertype: Type) -> bool:
+    def check_subtype(
+        self, subtype: Type, supertype: Type, substitutions: dict[str, Literal]
+    ) -> bool:
         """Decides whether subtype <= supertype."""
 
-        return self._check_subtype_rec(deque((subtype,)), supertype)
+        return self._check_subtype_rec(deque((subtype,)), supertype, substitutions)
 
     @staticmethod
     def _reflexive_closure(env: dict[str, set[str]]) -> dict[str, set[str]]:
@@ -99,9 +130,9 @@ class Subtypes:
 
         return result
 
-    def minimize(self, tys: set[Type]) -> set[Type]:
-        result: set[Type] = set()
-        for ty in tys:
-            if all(map(lambda ot: not self.check_subtype(ot, ty), result)):
-                result = {ty, *(ot for ot in result if not self.check_subtype(ty, ot))}
-        return result
+    # def minimize(self, tys: set[Type]) -> set[Type]:
+    #     result: set[Type] = set()
+    #     for ty in tys:
+    #         if all(map(lambda ot: not self.check_subtype(ot, ty), result)):
+    #             result = {ty, *(ot for ot in result if not self.check_subtype(ty, ot))}
+    #     return result

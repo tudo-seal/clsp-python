@@ -1,20 +1,58 @@
 # Propositional Finite Combinatory Logic
 
+from __future__ import annotations
 from collections import deque
-from collections.abc import Hashable, Iterable, Mapping, MutableMapping, Sequence
+from collections.abc import (
+    Iterable,
+    Mapping,
+    MutableMapping,
+    Sequence,
+)
+from dataclasses import dataclass
 from functools import reduce
-from typing import Callable, Generic, TypeAlias, TypeVar
+from typing import Any, Callable, Generic, TypeAlias, TypeVar, Optional
+
+from cls.grammar import GVar, ParameterizedTreeGrammar, Predicate, RHSRule
 
 from .combinatorics import maximal_elements, minimal_covers, partition
 from .subtypes import Subtypes
-from .types import Arrow, Intersection, Type
+from .types import (
+    Arrow,
+    Intersection,
+    Literal,
+    Param,
+    LitParamSpec,
+    SetTo,
+    TermParamSpec,
+    Type,
+)
 
-T = TypeVar("T", bound=Hashable, covariant=True)
 C = TypeVar("C")
 
-# ([sigma_1, ..., sigma_n], tau) means sigma_1 -> ... -> sigma_n -> tau
-MultiArrow: TypeAlias = tuple[list[Type], Type]
+# ([theta_1, ..., theta_m], [sigma_1, ..., sigma_n], tau) means
+#   theta_1 => ... => theta_m => sigma_1 -> ... -> sigma_n -> tau
 
+
+@dataclass(frozen=True)
+class MultiArrow:
+    # lit_params: list[LitParamSpec]
+    # term_params: list[TermParamSpec]
+    args: list[Type]
+    target: Type
+
+    def subst(self, substitution: dict[str, Literal]) -> MultiArrow:
+        return MultiArrow(
+            [arg.subst(substitution) for arg in self.args],
+            self.target.subst(substitution),
+        )
+
+
+InstantiationMeta: TypeAlias = tuple[
+    list[TermParamSpec],
+    list[Predicate],
+    list[Literal | GVar],
+    dict[str, Literal],
+]
 
 TreeGrammar: TypeAlias = MutableMapping[Type, deque[tuple[C, list[Type]]]]
 
@@ -33,19 +71,34 @@ def show_grammar(grammar: TreeGrammar[C]) -> Iterable[str]:
 
 
 def mstr(m: MultiArrow) -> tuple[str, str]:
-    return (str(list(map(str, m[0]))), str(m[1]))
+    return str(list(map(str, m.args))), str(m.target)
+
+
+class LiteralNotFoundException(Exception):
+    pass
 
 
 class FiniteCombinatoryLogic(Generic[C]):
-    def __init__(self, repository: Mapping[C, Type], subtypes: Subtypes):
-        self.repository: Mapping[C, list[list[MultiArrow]]] = {
-            c: list(FiniteCombinatoryLogic._function_types(ty))
+    def __init__(
+        self,
+        repository: Mapping[C, Param | Type],
+        subtypes: Subtypes = Subtypes({}),
+        literals: Optional[dict[Any, list[Any]]] = None,
+    ):
+        self.literals: dict[Any, list[Any]] = {} if literals is None else literals
+        self.repository: Mapping[
+            C,
+            tuple[list[InstantiationMeta], list[list[MultiArrow]]],
+        ] = {
+            c: FiniteCombinatoryLogic._function_types(ty, self.literals)
             for c, ty in repository.items()
         }
         self.subtypes = subtypes
 
     @staticmethod
-    def _function_types(ty: Type) -> Iterable[list[MultiArrow]]:
+    def _function_types(
+        p_or_ty: Param | Type, literals: dict[Any, list[Any]]
+    ) -> tuple[list[InstantiationMeta], list[list[MultiArrow]],]:
         """Presents a type as a list of 0-ary, 1-ary, ..., n-ary function types."""
 
         def unary_function_types(ty: Type) -> Iterable[tuple[Type, Type]]:
@@ -57,22 +110,42 @@ class FiniteCombinatoryLogic(Generic[C]):
                     case Intersection(sigma, tau):
                         tys.extend((sigma, tau))
 
-        current: list[MultiArrow] = [([], ty)]
+        def split_params(
+            ty: Param | Type,
+        ) -> tuple[list[TermParamSpec | LitParamSpec], Type]:
+            params: list[TermParamSpec | LitParamSpec] = []
+            while isinstance(ty, Param):
+                if isinstance(ty.type, Type):
+                    params.append(ty.get_term_spec())
+                else:
+                    params.append(ty.get_lit_spec())
+                ty = ty.inner
+            return (params, ty)
+
+        params, ty = split_params(p_or_ty)
+        instantiations = list(FiniteCombinatoryLogic._instantiate(literals, params))
+        current: list[MultiArrow] = [MultiArrow([], ty)]
+
+        multiarrows = []
         while len(current) != 0:
-            yield current
+            multiarrows.append(current)
             current = [
-                (args + [new_arg], new_tgt)
-                for (args, tgt) in current
-                for (new_arg, new_tgt) in unary_function_types(tgt)
+                MultiArrow(c.args + [new_arg], new_tgt)
+                for c in current
+                for (new_arg, new_tgt) in unary_function_types(c.target)
             ]
+        return (instantiations, multiarrows)
 
     def _subqueries(
-        self, nary_types: list[MultiArrow], paths: list[Type]
+        self,
+        nary_types: list[MultiArrow],
+        paths: list[Type],
+        substitutions: dict[str, Literal],
     ) -> Sequence[list[Type]]:
         # does the target of a multi-arrow contain a given type?
         target_contains: Callable[
             [MultiArrow, Type], bool
-        ] = lambda m, t: self.subtypes.check_subtype(m[1], t)
+        ] = lambda m, t: self.subtypes.check_subtype(m.target, t, substitutions)
         # cover target using targets of multi-arrows in nary_types
         covers = minimal_covers(nary_types, paths, target_contains)
         if len(covers) == 0:
@@ -83,68 +156,86 @@ class FiniteCombinatoryLogic(Generic[C]):
         ] = lambda args1, args2: [Intersection(a, b) for a, b in zip(args1, args2)]
 
         intersected_args = (
-            list(reduce(intersect_args, (m[0] for m in ms))) for ms in covers
+            list(reduce(intersect_args, (m.args for m in ms))) for ms in covers
         )
         # consider only maximal argument vectors
         compare_args = lambda args1, args2: all(
-            map(self.subtypes.check_subtype, args1, args2)
+            map(
+                lambda a, b: self.subtypes.check_subtype(a, b, substitutions),
+                args1,
+                args2,
+            )
         )
         return maximal_elements(intersected_args, compare_args)
 
-    #    def _combine_arguments(
-    #        self,
-    #        positive_arguments: list[list[Type]],
-    #        negative_arguments: list[list[Type]],
-    #    ) -> list[list[Clause]]:
-    #        result: deque[list[deque[Type]]] = deque()
-    #        for pos in positive_arguments:
-    #            result.append(list(map(lambda ty: deque((ty,)), pos)))
-    #        for neg in negative_arguments:
-    #            new_result: deque[list[deque[Type]]] = deque()
-    #            for i in range(len(neg)):
-    #                for args in result:
-    #                    new_args = args.copy()
-    #                    new_args[i] = new_args[i].copy()
-    #                    new_args[i].append(neg[i])
-    #                    new_result.append(new_args)
-    #            result = new_result
-    #        return list(
-    #            list(map(FiniteCombinatoryLogic.list_of_types_to_clause, args))
-    #            for args in result
-    #        )
-    #
-    #    def boolean_to_clauses(self, target: BooleanTerm[Type]) -> list[Clause]:
-    #        dnf = minimal_dnf_as_list(target)
-    #
-    #        clauses: list[Clause] = []
-    #
-    #        for encoded_clause in dnf:
-    #            encoded_negatives, encoded_positives = partition(
-    #                lambda lit: lit[0], encoded_clause
-    #            )
-    #            positives = [lit[1] for lit in encoded_positives]
-    #            negatives = [lit[1] for lit in encoded_negatives]
-    #
-    #            positive_intersection = (
-    #                Omega() if len(positives) == 0 else reduce(Intersection, positives)
-    #            )
-    #
-    #            clauses.append((positive_intersection, frozenset(negatives)))
-    #
-    #        return clauses
+    @staticmethod
+    def _instantiate(
+        literals: dict[Any, list[Any]],
+        params: list[LitParamSpec | TermParamSpec],
+    ) -> Iterable[InstantiationMeta]:
+        substitutions: deque[dict[str, Literal]] = deque([{}])
+        args: deque[str | GVar] = deque()
+        term_params: list[TermParamSpec] = []
 
-    def inhabit(self, *targets: Type) -> TreeGrammar[C]:
+        for param in params:
+            if isinstance(param, LitParamSpec):
+                if param.type not in literals:
+                    return []
+                else:
+                    args.append(param.name)
+                    if isinstance(param.predicate, SetTo):
+                        flag_for_deletion = []
+                        for i, substitution in enumerate(substitutions):
+                            value = param.predicate.compute(substitution)
+                            if value not in literals[param.type]:
+                                flag_for_deletion.append(i)
+                            substitution[param.name] = Literal(value, param.type)
+
+                        for invalid_substitution in flag_for_deletion:
+                            del substitutions[invalid_substitution]
+                    else:
+                        substitutions = deque(
+                            filter(
+                                lambda substs: callable(param.predicate)
+                                and param.predicate(substs),
+                                (
+                                    s | {param.name: Literal(literal, param.type)}
+                                    for s in substitutions
+                                    for literal in literals[param.type]
+                                ),
+                            )
+                        )
+            elif isinstance(param, TermParamSpec):
+                args.append(GVar(param.name))
+                term_params.append(param)
+
+        for substitution in substitutions:
+            predicates = []
+            for term_param in term_params:
+                predicates.append(
+                    Predicate(term_param.predicate, predicate_substs=substitution)
+                )
+            instantiated_combinator_args: list[Literal | GVar] = [
+                substitution[arg] if not isinstance(arg, GVar) else arg for arg in args
+            ]
+            yield (
+                term_params,
+                predicates,
+                instantiated_combinator_args,
+                substitution,
+            )
+
+    def inhabit(self, *targets: Type) -> ParameterizedTreeGrammar[Type, C]:
         type_targets = deque(targets)
 
         # dictionary of type |-> sequence of combinatory expressions
-        memo: TreeGrammar[C] = dict()
+        memo: ParameterizedTreeGrammar[Type, C] = ParameterizedTreeGrammar()
 
         while type_targets:
             current_target = type_targets.pop()
             if memo.get(current_target) is None:
                 # target type was not seen before
-                # paths: list[Type] = list(target.organized)
-                possibilities: deque[tuple[C, list[Type]]] = deque()
+                possibilities: deque[RHSRule[Type, C]] = deque()
                 memo.update({current_target: possibilities})
                 # If the target is omega, then the result is junk
                 if current_target.is_omega:
@@ -153,17 +244,36 @@ class FiniteCombinatoryLogic(Generic[C]):
                 paths: list[Type] = list(current_target.organized)
 
                 # try each combinator and arity
-                for combinator, combinator_type in self.repository.items():
-                    for nary_types in combinator_type:
-                        arguments: list[list[Type]] = list(
-                            self._subqueries(nary_types, paths)
-                        )
-                        if len(arguments) == 0:
-                            continue
+                for combinator, (meta, combinator_type) in self.repository.items():
+                    for params, predicates, args, substitutions in meta:
+                        for nary_types in combinator_type:
+                            arguments: list[list[Type]] = list(
+                                self._subqueries(nary_types, paths, substitutions)
+                            )
+                            if len(arguments) == 0:
+                                continue
 
-                        for subquery in arguments:
-                            possibilities.append((combinator, subquery))
-                            type_targets.extendleft(subquery)
+                            specific_params = {
+                                param.name: param.type.subst(substitutions)
+                                for param in params
+                            }
+
+                            type_targets.extend(specific_params.values())
+
+                            for subquery in (
+                                [ty.subst(substitutions) for ty in query]
+                                for query in arguments
+                            ):
+                                possibilities.append(
+                                    RHSRule(
+                                        specific_params,
+                                        predicates,
+                                        combinator,
+                                        args,
+                                        subquery,
+                                    )
+                                )
+                                type_targets.extendleft(subquery)
 
         # prune not inhabited types
         FiniteCombinatoryLogic._prune(memo)
@@ -171,32 +281,51 @@ class FiniteCombinatoryLogic(Generic[C]):
         return memo
 
     @staticmethod
-    def _prune(memo: TreeGrammar[C]) -> None:
+    def _prune(memo: ParameterizedTreeGrammar[Type, C]) -> None:
         """Keep only productive grammar rules."""
 
-        def is_ground(args: list[Type], ground_types: set[Type]) -> bool:
-            return all(True for arg in args if arg in ground_types)
+        def is_ground(
+            binder: dict[str, Type],
+            parameters: Sequence[Literal | GVar],
+            args: Sequence[Type],
+            ground_types: set[Type],
+        ) -> bool:
+            return all(
+                True
+                for parameter in parameters
+                if isinstance(parameter, Literal)
+                or binder[parameter.name] in ground_types
+            ) and all(True for arg in args if arg in ground_types)
 
         ground_types: set[Type] = set()
         new_ground_types, candidates = partition(
             lambda ty: any(
-                True for (_, args) in memo[ty] if is_ground(args, ground_types)
+                True
+                for rule in memo[ty]
+                if is_ground(rule.binder, rule.parameters, rule.args, ground_types)
             ),
-            memo.keys(),
+            memo.nonterminals(),
         )
         # initialize inhabited (ground) types
         while new_ground_types:
             ground_types.update(new_ground_types)
             new_ground_types, candidates = partition(
                 lambda ty: any(
-                    True for _, args in memo[ty] if is_ground(args, ground_types)
+                    True
+                    for rule in memo[ty]
+                    if is_ground(rule.binder, rule.parameters, rule.args, ground_types)
                 ),
                 candidates,
             )
 
-        for target, possibilities in memo.items():
+        for target, possibilities in memo.as_tuples():
             memo[target] = deque(
                 possibility
                 for possibility in possibilities
-                if is_ground(possibility[1], ground_types)
+                if is_ground(
+                    possibility.binder,
+                    possibility.parameters,
+                    possibility.args,
+                    ground_types,
+                )
             )

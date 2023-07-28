@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import itertools
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -15,9 +15,6 @@ class Type(ABC):
 
     def __str__(self) -> str:
         return self._str_prec(0)
-
-    def __mul__(self, other: Type) -> Type:
-        return Product(self, other)
 
     @abstractmethod
     def _organized(self) -> set[Type]:
@@ -33,6 +30,10 @@ class Type(ABC):
 
     @abstractmethod
     def _str_prec(self, prec: int) -> str:
+        pass
+
+    @abstractmethod
+    def subst(self, substitution: dict[str, Literal]) -> Type:
         pass
 
     @staticmethod
@@ -63,6 +64,18 @@ class Type(ABC):
         self.__dict__["size"] = self._size()
         self.__dict__["organized"] = self._organized()
 
+    def __pow__(self, other: Type) -> Type:
+        return Arrow(self, other)
+
+    def __mul__(self, other: Type) -> Type:
+        return Product(self, other)
+
+    def __and__(self, other: Type) -> Type:
+        return Intersection(self, other)
+
+    def __rmatmul__(self, name: str) -> Type:
+        return Constructor(name, self)
+
 
 @dataclass(frozen=True)
 class Omega(Type):
@@ -88,6 +101,9 @@ class Omega(Type):
 
     def _str_prec(self, prec: int) -> str:
         return "omega"
+
+    def subst(self, substitution: dict[str, Literal]) -> Type:
+        return self
 
 
 @dataclass(frozen=True)
@@ -122,6 +138,9 @@ class Constructor(Type):
             return str(self.name)
         else:
             return f"{str(self.name)}({str(self.arg)})"
+
+    def subst(self, substitution: dict[str, Literal]) -> Type:
+        return Constructor(self.name, self.arg.subst(substitution))
 
 
 @dataclass(frozen=True)
@@ -171,6 +190,9 @@ class Product(Type):
         )
         return Type._parens(result) if prec > product_prec else result
 
+    def subst(self, substitution: dict[str, Literal]) -> Type:
+        return Product(self.left.subst(substitution), self.right.subst(substitution))
+
 
 @dataclass(frozen=True)
 class Arrow(Type):
@@ -217,6 +239,9 @@ class Arrow(Type):
                 )
         return Type._parens(result) if prec > arrow_prec else result
 
+    def subst(self, substitution: dict[str, Literal]) -> Type:
+        return Arrow(self.source.subst(substitution), self.target.subst(substitution))
+
 
 @dataclass(frozen=True)
 class Intersection(Type):
@@ -256,3 +281,117 @@ class Intersection(Type):
             f"{intersection_str_prec(self.left)} & {intersection_str_prec(self.right)}"
         )
         return Type._parens(result) if prec > intersection_prec else result
+
+    def subst(self, substitution: dict[str, Literal]) -> Type:
+        return Intersection(
+            self.left.subst(substitution), self.right.subst(substitution)
+        )
+
+
+@dataclass(frozen=True)
+class Literal(Type):
+    value: Any
+    type: Any
+    is_omega: bool = field(init=False, compare=False)
+    size: int = field(init=False, compare=False)
+    organized: set[Type] = field(init=False, compare=False)
+
+    def __post_init__(self) -> None:
+        super().__init__(
+            is_omega=self._is_omega(),
+            size=self._size(),
+            organized=self._organized(),
+        )
+
+    def _is_omega(self) -> bool:
+        return False
+
+    def _size(self) -> int:
+        return 1
+
+    def _organized(self) -> set[Type]:
+        return {self}
+
+    def _str_prec(self, prec: int) -> str:
+        return f"{str(self.value)}@({str(self.type)})"
+
+    def subst(self, substitution: dict[str, Literal]) -> Type:
+        return self
+
+
+@dataclass(frozen=True)
+class TVar(Type):
+    name: str
+    is_omega: bool = field(init=False, compare=False)
+    size: int = field(init=False, compare=False)
+    organized: set[Type] = field(init=False, compare=False)
+
+    def __post_init__(self) -> None:
+        super().__init__(
+            is_omega=self._is_omega(),
+            size=self._size(),
+            organized=self._organized(),
+        )
+
+    def _is_omega(self) -> bool:
+        return False
+
+    def _size(self) -> int:
+        return 1
+
+    def _organized(self) -> set[Type]:
+        return {self}
+
+    def _str_prec(self, prec: int) -> str:
+        return f"<{str(self.name)}>"
+
+    def subst(self, substitution: dict[str, Literal]) -> Type:
+        if self.name in substitution:
+            return substitution[self.name]
+        else:
+            return self
+
+
+@dataclass
+class ParamSpec:
+    pass
+
+
+# @dataclass(frozen=True)
+@dataclass
+class LitParamSpec(ParamSpec):
+    name: str
+    type: Any
+    predicate: Callable[[dict[str, Any]], bool] | SetTo
+
+
+@dataclass
+class TermParamSpec(ParamSpec):
+    name: str
+    type: Type
+    predicate: Callable[[dict[str, Any]], bool]
+
+
+@dataclass
+class SetTo:
+    compute: Callable[[dict[str, Any]], Any]
+
+
+# @dataclass(frozen=True)
+@dataclass
+class Param:
+    name: str
+    type: Type | Any
+    predicate: Callable[[dict[str, Any]], bool] | SetTo
+    inner: Param | Type
+
+    def get_lit_spec(self) -> LitParamSpec:
+        return LitParamSpec(self.name, self.type, self.predicate)
+
+    def get_term_spec(self) -> TermParamSpec:
+        if isinstance(self.predicate, SetTo):
+            raise RuntimeError("Term parameters cannot have SetTo")
+        return TermParamSpec(self.name, self.type, self.predicate)
+
+    def __str__(self) -> str:
+        return f"<{self.name}, {self.type}, {self.predicate}>.{self.inner}"

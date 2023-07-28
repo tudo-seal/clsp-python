@@ -1,6 +1,7 @@
-from collections import deque
-from collections.abc import Iterable, Mapping, MutableMapping
+from collections.abc import Hashable, Iterable, Mapping
 from typing import Any, Optional, TypeVar
+
+from cls.grammar import ParameterizedTreeGrammar
 
 from .subtypes import Subtypes
 from .types import Type, Omega, Constructor, Product, Arrow, Intersection
@@ -22,6 +23,7 @@ __all__ = [
     "inhabit_and_interpret",
 ]
 
+T = TypeVar("T", bound=Hashable, covariant=True)
 C = TypeVar("C")
 
 
@@ -38,10 +40,7 @@ def inhabit_and_interpret(
     if not isinstance(query, list):
         query = [query]
 
-    grammar: MutableMapping[
-        Type,
-        deque[tuple[C, list[Type]]],
-    ] = fcl.inhabit(*query)
+    grammar: ParameterizedTreeGrammar[Type, C] = fcl.inhabit(*query)
 
     for q in query:
         enumerated_terms = enumerate_terms(
