@@ -3,9 +3,9 @@
 ################################################
 
 from typing import Any
-from cls.enumeration import enumerate_terms, interpret_term
-from cls.fcl import FiniteCombinatoryLogic
-from cls.types import (
+from picls.enumeration import enumerate_terms, interpret_term
+from picls.fcl import FiniteCombinatoryLogic
+from picls.types import (
     Arrow,
     Constructor,
     Literal,

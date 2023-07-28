@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from functools import reduce
 from typing import Any, Callable, Generic, TypeAlias, TypeVar, Optional
 
-from cls.grammar import GVar, ParameterizedTreeGrammar, Predicate, RHSRule
+from .grammar import GVar, ParameterizedTreeGrammar, Predicate, RHSRule
 
 from .combinatorics import maximal_elements, minimal_covers, partition
 from .subtypes import Subtypes

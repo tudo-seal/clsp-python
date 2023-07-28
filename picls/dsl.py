@@ -4,7 +4,7 @@ from collections.abc import Callable, Mapping
 from functools import reduce
 from typing import Any
 
-from cls.types import Arrow, Literal, Param, SetTo, Type
+from .types import Arrow, Literal, Param, SetTo, Type
 
 
 def TRUE(_: Mapping[str, Literal]) -> bool:

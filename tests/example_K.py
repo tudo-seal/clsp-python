@@ -1,5 +1,5 @@
 from collections.abc import Callable, Mapping
-from cls import (
+from picls import (
     Type,
     Constructor,
     Arrow,
@@ -7,7 +7,7 @@ from cls import (
     enumerate_terms,
     Subtypes,
 )
-from cls.enumeration import interpret_term
+from picls.enumeration import interpret_term
 
 
 def test() -> None:

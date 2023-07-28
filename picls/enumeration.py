@@ -12,13 +12,13 @@ from collections import deque
 from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
 from typing import Any, Optional, TypeAlias, TypeVar
 
-from cls.grammar import (
+from .grammar import (
     GVar,
     ParameterizedTreeGrammar,
     Predicate,
     RHSRule,
 )
-from cls.types import Literal
+from .types import Literal
 
 S = TypeVar("S")  # non-terminals
 T = TypeVar("T", bound=Hashable)

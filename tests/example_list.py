@@ -1,6 +1,6 @@
 from typing import Any, TypeVar
-from cls import inhabit_and_interpret
-from cls.types import Arrow, Constructor, Type
+from picls import inhabit_and_interpret
+from picls.types import Arrow, Constructor, Type
 
 T = TypeVar("T")
 

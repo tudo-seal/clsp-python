@@ -1,8 +1,8 @@
 from collections.abc import Mapping
-from cls.dsl import Use
-from cls.enumeration import enumerate_terms, interpret_term
-from cls.fcl import FiniteCombinatoryLogic
-from cls.types import Param, SetTo, TVar, Literal
+from picls.dsl import Use
+from picls.enumeration import enumerate_terms, interpret_term
+from picls.fcl import FiniteCombinatoryLogic
+from picls.types import Param, SetTo, TVar, Literal
 
 
 def X2(x: int, y: int, z: int, n: str) -> str:

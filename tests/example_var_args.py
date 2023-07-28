@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from cls import Type, Constructor, Arrow, inhabit_and_interpret
+from picls import Type, Constructor, Arrow, inhabit_and_interpret
 
 
 def F(*x: str) -> Sequence[str]:

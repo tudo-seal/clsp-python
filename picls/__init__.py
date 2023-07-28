@@ -1,7 +1,7 @@
 from collections.abc import Hashable, Iterable, Mapping
 from typing import Any, Optional, TypeVar
 
-from cls.grammar import ParameterizedTreeGrammar
+from .grammar import ParameterizedTreeGrammar
 
 from .subtypes import Subtypes
 from .types import Type, Omega, Constructor, Product, Arrow, Intersection

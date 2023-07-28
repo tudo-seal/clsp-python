@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from cls import (
+from picls import (
     Type,
     Constructor,
     Arrow,

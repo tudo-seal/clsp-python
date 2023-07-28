@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from cls import Type, Constructor, Arrow, Intersection, inhabit_and_interpret
+from picls import Type, Constructor, Arrow, Intersection, inhabit_and_interpret
 
 
 def test() -> None:

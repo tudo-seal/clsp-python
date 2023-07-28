@@ -1,11 +1,11 @@
 from collections.abc import Callable, Mapping
 import timeit
 from typing import Any
-from cls.dsl import Requires, Use
-from cls.enumeration import enumerate_terms, interpret_term
-from cls.fcl import FiniteCombinatoryLogic
+from picls.dsl import Requires, Use
+from picls.enumeration import enumerate_terms, interpret_term
+from picls.fcl import FiniteCombinatoryLogic
 
-from cls.types import Literal, Param, TVar, Type
+from picls.types import Literal, Param, TVar, Type
 
 
 def pred_plus_one(a: str, b: str) -> Callable[[Mapping[str, Literal]], bool]:

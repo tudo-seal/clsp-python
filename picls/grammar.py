@@ -4,7 +4,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from typing import Generic, TypeVar, Any, Optional
 
-from cls.types import Literal
+from .types import Literal
 
 NT = TypeVar("NT")
 T = TypeVar("T")

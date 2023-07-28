@@ -1,11 +1,11 @@
-from cls import (
+from picls import (
     Type,
     Constructor,
     Arrow,
 )
-from cls.enumeration import enumerate_terms, interpret_term
-from cls.fcl import FiniteCombinatoryLogic
-from cls.types import Param, TVar
+from picls.enumeration import enumerate_terms, interpret_term
+from picls.fcl import FiniteCombinatoryLogic
+from picls.types import Param, TVar
 
 
 def test() -> None:

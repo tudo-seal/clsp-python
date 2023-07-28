@@ -4,7 +4,7 @@ import timeit
 from dataclasses import dataclass, field
 from typing import Any
 
-from cls import (
+from picls import (
     Type,
     Constructor,
     Product,

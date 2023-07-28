@@ -1,6 +1,6 @@
 from collections.abc import Callable, Sequence
 from typing import Any
-from cls.combinatorics import minimal_covers, maximal_elements
+from picls.combinatorics import minimal_covers, maximal_elements
 from itertools import combinations
 from collections import deque
 from random import randrange

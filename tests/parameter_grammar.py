@@ -1,6 +1,6 @@
-from cls.enumeration import enumerate_terms
-from cls.grammar import GVar, ParameterizedTreeGrammar, Predicate, RHSRule
-from cls.types import Literal
+from picls.enumeration import enumerate_terms
+from picls.grammar import GVar, ParameterizedTreeGrammar, Predicate, RHSRule
+from picls.types import Literal
 
 
 def main() -> None:

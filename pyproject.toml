@@ -1,7 +1,7 @@
 [tool.poetry]
-name = "cls"
+name = "picls"
 version = "0.0.1"
-description = "Boolean enhanced fork of cls-python"
+description = "Synthesis framework using inhabitation in FCL with intersection types and limited support for type variables"
 authors = ["Jan Bessai <jan.bessai@tu-dortmund.de>", "Andrej Dudenhefner <andrej.dudenhefner@cs.tu-dortmund.de>", "Christoph Stahl <christoph.stahl@tu-dortmund.de>"]
 license = "Apache-2.0"
 

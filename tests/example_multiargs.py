@@ -11,7 +11,7 @@ MultiArgsComponent) or default values (See DefaultArgComponent).
 
 """
 from typing import Optional
-from cls import (
+from picls import (
     Constructor,
     Arrow,
     Intersection,

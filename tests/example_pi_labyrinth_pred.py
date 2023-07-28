@@ -1,10 +1,10 @@
 from collections.abc import Callable, Mapping
 import timeit
-from cls.dsl import Use
-from cls.enumeration import enumerate_terms, interpret_term
-from cls.fcl import FiniteCombinatoryLogic
+from picls.dsl import Use
+from picls.enumeration import enumerate_terms, interpret_term
+from picls.fcl import FiniteCombinatoryLogic
 
-from cls.types import Constructor, Literal, Param, Product, TVar, Type
+from picls.types import Constructor, Literal, Param, Product, TVar, Type
 
 
 def plus_one(a: str) -> Callable[[Mapping[str, Literal]], int]:
