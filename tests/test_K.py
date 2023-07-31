@@ -75,10 +75,10 @@ class TestK(unittest.TestCase):
             self.assertEqual("X", interpreted_term)
             self.logger.info(interpreted_term)
 
-    def test_length(self):
+    def test_length(self) -> None:
         self.assertEqual(6, len(self.enumerated_result))
 
-    def test_terms(self):
+    def test_terms(self) -> None:
         self.assertIn((K, (("X", ()), ("Y", ()))), self.enumerated_result[:2])
         self.assertIn((K2, (("X", ()), ("Y", ()))), self.enumerated_result[:2])
         self.assertIn((MAP, (("Y", ()), (K, (("X", ()),)))), self.enumerated_result[2:])
@@ -92,7 +92,7 @@ class TestK(unittest.TestCase):
             (MAP2, (("Y", ()), (K2, (("X", ()),)))), self.enumerated_result[2:]
         )
 
-    def test_interpretations(self):
+    def test_interpretations(self) -> None:
         for x in self.interpreted_terms:
             self.assertEqual("X", x)
 
