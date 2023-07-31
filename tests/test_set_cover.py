@@ -27,7 +27,7 @@ def equivalent_lists(l1: set[Any], l2: set[Any]) -> bool:
     return len(l1) == len(l2) and all(e in l2 for e in l1) and all(e in l1 for e in l2)
 
 
-def contains(s: Sequence[Any], e: Any) -> bool:
+def contains(s: Sequence[int], e: int) -> bool:
     return e in s
 
 
@@ -45,8 +45,7 @@ class Test(unittest.TestCase):
             and all(any(equivalent_lists(c1, c2) for c1 in covers1) for c2 in covers2)
         )
 
-    def test_set_cover1(self):
-        # TODO: testing framework
+    def test_set_cover1(self) -> None:
         sets: list[list[int]] = [
             [1, 4],
             [7, 3],
@@ -67,12 +66,12 @@ class Test(unittest.TestCase):
             naive_minimal_covers(sets, elements, contains),
         )
 
-    def test_set_cover2(self):
+    def test_set_cover2(self) -> None:
         # [7, 8, 9, 5, 3, 4, 1, 4] by
         # [[], [5], [], [5, 5, 0, 0, 1, 4, 5, 4, 1], [5], [7, 7, 9, 3, 7, 0, 7, 7, 0, 3, 8, 4],
         #   [4, 6, 8, 7, 1, 9, 2, 8, 6], [7, 8, 9, 4, 1, 9, 3, 5], [8, 5]]
         elements = [7, 8, 9, 5, 3, 4, 1, 4]
-        sets = [
+        sets: list[list[int]] = [
             [],
             [5],
             [],
@@ -90,7 +89,7 @@ class Test(unittest.TestCase):
             naive_minimal_covers(sets, elements, contains),
         )
 
-    def test_set_cover3(self):
+    def test_set_cover3(self) -> None:
         # equivalence exhaustive check
         max_elements = 20
         max_sets = 20
