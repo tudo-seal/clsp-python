@@ -1,4 +1,4 @@
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 import timeit
 from typing import Any
 from picls.dsl import Requires, Use
@@ -8,19 +8,7 @@ from picls.fcl import FiniteCombinatoryLogic
 from picls.types import Literal, Param, TVar, Type
 
 
-def pred_plus_one(a: str, b: str) -> Callable[[Mapping[str, Literal]], bool]:
-    def _inner(vars: Mapping[str, Literal]) -> bool:
-        return bool(vars[a].value == vars[b].value + 1)
-
-    return _inner
-
-
 def main(SIZE: int = 10, output: bool = True) -> float:
-    def make_is_free(l_str: list[str]) -> Callable[[Mapping[str, Literal]], bool]:
-        return lambda vars: is_free(
-            vars["b"].value, vars["a"].value
-        )  # bool(l_str[vars["b"].value][vars["a"].value] == " ")
-
     def is_free(row: int, col: int) -> bool:
         SEED = 0
         if row == col:
@@ -30,19 +18,6 @@ def main(SIZE: int = 10, output: bool = True) -> float:
                 pow(11, (row + col + SEED) * (row + col + SEED) + col + 7, 1000003) % 5
                 > 0
             )
-
-    labyrinth_str = [
-        " ┃        ",
-        " ┃        ",
-        " ┃ ┏━━━━ ┓",
-        "   ┃     ┃",
-        " ┏━┫ ┏━┓ ┗",
-        " ┃ ┃ ┃ ┃  ",
-        " ┃ ┃ ┗━┻━ ",
-        " ┃ ┃      ",
-        " ┗━┛ ┏━━┓ ",
-        "     ┃  ┃ ",
-    ]
 
     FREE = lambda a, b: f"FREE({a}, {b})"
     U = lambda a, b, c, p, f: f"{p} => UP({c}, {a})"
@@ -59,26 +34,26 @@ def main(SIZE: int = 10, output: bool = True) -> float:
     ] = {
         FREE: Use("a", int)
         .Use("b", int)
-        .With(make_is_free(labyrinth_str))
+        .With(lambda a, b: is_free(b, a))
         .In(free("a", "b")),
         U: Use("a", int)
         .Use("b", int)
-        .With(pred_plus_one("b", "a"))
+        .With(lambda a, b: a == b + 1)
         .Use("c", int)
         .In(Requires(pos("c", "b"), free("c", "a")).Provides(pos("c", "a"))),
         D: Use("a", int)
         .Use("b", int)
-        .With(pred_plus_one("b", "a"))
+        .With(lambda a, b: a == b + 1)
         .Use("c", int)
         .In(pos("c", "a") ** free("c", "b") ** pos("c", "b")),
         L: Use("a", int)
         .Use("b", int)
-        .With(pred_plus_one("b", "a"))
+        .With(lambda a, b: a == b + 1)
         .Use("c", int)
         .In(pos("b", "c") ** free("a", "c") ** pos("a", "c")),
         R: Use("a", int)
         .Use("b", int)
-        .With(pred_plus_one("b", "a"))
+        .With(lambda a, b: a == b + 1)
         .Use("c", int)
         .In(pos("a", "c") ** free("b", "c") ** pos("b", "c")),
         "START": "pos" @ (Literal(0, int) * Literal(0, int)),
@@ -86,10 +61,6 @@ def main(SIZE: int = 10, output: bool = True) -> float:
 
     literals = {int: list(range(SIZE))}
 
-    # print("▒▒▒▒▒▒▒▒▒▒▒▒")
-    # for line in labyrinth_str:
-    #     print(f"▒{line}▒")
-    # print("▒▒▒▒▒▒▒▒▒▒▒▒")
     if output:
         for row in range(SIZE):
             for col in range(SIZE):

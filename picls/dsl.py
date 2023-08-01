@@ -3,12 +3,26 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from functools import reduce
 from typing import Any
+from inspect import signature
 
 from .types import Arrow, Literal, Param, SetTo, Type
 
 
 def TRUE(_: Mapping[str, Literal]) -> bool:
     return True
+
+
+def unwrap_predicate(
+    predicate: Callable[..., Any]
+) -> Callable[[Mapping[str, Literal | Any]], Any]:
+    needed_parameters = signature(predicate).parameters
+    return lambda vars: predicate(
+        **{
+            param: v.value if isinstance(v, Literal) else v
+            for param, v in vars.items()
+            if param in needed_parameters
+        }
+    )
 
 
 class Use:
@@ -18,12 +32,12 @@ class Use:
         self._predicate: Callable[[Mapping[str, Literal]], bool] | SetTo = TRUE
         self._accumulator: list[Use] = []
 
-    def With(self, predicate: Callable[[Mapping[str, Literal | Any]], bool]) -> Use:
-        self._predicate = predicate
+    def With(self, predicate: Callable[..., Any]) -> Use:
+        self._predicate = unwrap_predicate(predicate)
         return self
 
-    def As(self, set_to: Callable[[Mapping[str, Literal]], Any]) -> Use:
-        self._predicate = SetTo(set_to)
+    def As(self, set_to: Callable[..., Any]) -> Use:
+        self._predicate = SetTo(unwrap_predicate(set_to))
         return self
 
     def Use(self, name: str, ty: Any) -> Use:

@@ -15,12 +15,7 @@ def plus_one(a: str) -> Callable[[Mapping[str, Literal]], int]:
 
 
 def main(SIZE: int = 10, output: bool = True) -> float:
-    def is_free(a: str, b: str) -> Callable[[Mapping[str, Literal]], bool]:
-        return lambda vars: _is_free(
-            vars[b].value, vars[a].value
-        )  # bool(l_str[vars["b"].value][vars["a"].value] == " ")
-
-    def _is_free(row: int, col: int) -> bool:
+    def is_free(col: int, row: int) -> bool:
         SEED = 0
         if row == col:
             return True
@@ -47,30 +42,30 @@ def main(SIZE: int = 10, output: bool = True) -> float:
     ] = {
         U: Use("a", int)
         .Use("b", int)
-        .As(plus_one("a"))
+        .As(lambda a: a + 1)
         .Use("c", int)
-        .With(is_free("c", "a"))
+        .With(lambda c, a: is_free(c, a))
         .Use("pos", pos("c", "b"))
         .In(pos("c", "a")),
         D: Use("a", int)
         .Use("b", int)
-        .As(plus_one("a"))
+        .As(lambda a: a + 1)
         .Use("c", int)
-        .With(is_free("c", "b"))
+        .With(lambda c, b: is_free(c, b))
         .Use("pos", pos("c", "a"))
         .In(pos("c", "b")),
         L: Use("a", int)
         .Use("b", int)
-        .As(plus_one("a"))
+        .As(lambda a: a + 1)
         .Use("c", int)
-        .With(is_free("a", "c"))
+        .With(lambda a, c: is_free(a, c))
         .Use("pos", pos("b", "c"))
         .In(pos("a", "c")),
         R: Use("a", int)
         .Use("b", int)
-        .As(plus_one("a"))
+        .As(lambda a: a + 1)
         .Use("c", int)
-        .With(is_free("b", "c"))
+        .With(lambda b, c: is_free(b, c))
         .Use("pos", pos("a", "c"))
         .In(pos("b", "c")),
         "START": "pos" @ (Literal(0, int) * Literal(0, int)),
@@ -81,7 +76,7 @@ def main(SIZE: int = 10, output: bool = True) -> float:
     if output:
         for row in range(SIZE):
             for col in range(SIZE):
-                if _is_free(row, col):
+                if is_free(row, col):
                     print("-", end="")
                 else:
                     print("#", end="")

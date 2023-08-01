@@ -16,12 +16,7 @@ def plus_one(a: str) -> Callable[[Mapping[str, Literal]], int]:
 
 
 def main(SIZE: int = 10, output: bool = True) -> float:
-    def is_free(a: str, b: str) -> Callable[[Mapping[str, Literal]], bool]:
-        return lambda vars: _is_free(
-            vars[b].value, vars[a].value
-        )  # bool(l_str[vars["b"].value][vars["a"].value] == " ")
-
-    def _is_free(row: int, col: int) -> bool:
+    def is_free(row: int, col: int) -> bool:
         labyrinth_str = [
             " ┃xxxxxxxx",
             " ┃        ",
@@ -35,14 +30,14 @@ def main(SIZE: int = 10, output: bool = True) -> float:
             "     ┃  ┃ ",
         ]
         return labyrinth_str[row][col] == " "
-        SEED = 0
-        if row == col:
-            return True
-        else:
-            return (
-                pow(11, (row + col + SEED) * (row + col + SEED) + col + 7, 1000003) % 5
-                > 0
-            )
+        # SEED = 0
+        # if row == col:
+        #     return True
+        # else:
+        #     return (
+        #         pow(11, (row + col + SEED) * (row + col + SEED) + col + 7, 1000003) % 5
+        #         > 0
+        #     )
 
     U: Callable[
         [int, int, int, tuple[tuple[tuple[int, int], ...], str]],
@@ -71,47 +66,35 @@ def main(SIZE: int = 10, output: bool = True) -> float:
     ] = {
         U: Use("a", int)
         .Use("b", int)
-        .As(plus_one("a"))
+        .As(lambda a: a + 1)
         .Use("c", int)
-        .With(is_free("c", "a"))
+        .With(lambda c, a: is_free(c, a))
         .Use("pos", pos("c", "b"))
-        .With(
-            lambda vars: not isinstance(vars["pos"], Literal)
-            and (vars["c"].value, vars["a"].value) not in interpret_term(vars["pos"])[0]
-        )
+        .With(lambda c, a, pos: (c, a) not in interpret_term(pos)[0])
         .In(pos("c", "a")),
         D: Use("a", int)
         .Use("b", int)
-        .As(plus_one("a"))
+        .As(lambda a: a + 1)
         .Use("c", int)
-        .With(is_free("c", "b"))
+        .With(lambda c, b: is_free(c, b))
         .Use("pos", pos("c", "a"))
-        .With(
-            lambda vars: not isinstance(vars["pos"], Literal)
-            and (vars["c"].value, vars["b"].value) not in interpret_term(vars["pos"])[0]
-        )
+        .With(lambda c, b, pos: (c, b) not in interpret_term(pos)[0])
         .In(pos("c", "b")),
         L: Use("a", int)
         .Use("b", int)
-        .As(plus_one("a"))
+        .As(lambda a: a + 1)
         .Use("c", int)
-        .With(is_free("a", "c"))
+        .With(lambda a, c: is_free(a, c))
         .Use("pos", pos("b", "c"))
-        .With(
-            lambda vars: not isinstance(vars["pos"], Literal)
-            and (vars["a"].value, vars["c"].value) not in interpret_term(vars["pos"])[0]
-        )
+        .With(lambda a, c, pos: (a, c) not in interpret_term(pos)[0])
         .In(pos("a", "c")),
         R: Use("a", int)
         .Use("b", int)
-        .As(plus_one("a"))
+        .As(lambda a: a + 1)
         .Use("c", int)
-        .With(is_free("b", "c"))
+        .With(lambda b, c: is_free(b, c))
         .Use("pos", pos("a", "c"))
-        .With(
-            lambda vars: not isinstance(vars["pos"], Literal)
-            and (vars["b"].value, vars["c"].value) not in interpret_term(vars["pos"])[0]
-        )
+        .With(lambda b, c, pos: (b, c) not in interpret_term(pos)[0])
         .In(pos("b", "c")),
         (((0, 0),), "START"): "pos" @ (Literal(0, int) * Literal(0, int)),
     }
@@ -121,7 +104,7 @@ def main(SIZE: int = 10, output: bool = True) -> float:
     if output:
         for row in range(SIZE):
             for col in range(SIZE):
-                if _is_free(row, col):
+                if is_free(row, col):
                     print("-", end="")
                 else:
                     print("#", end="")

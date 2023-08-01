@@ -1,7 +1,6 @@
 from collections.abc import Callable, Iterable, Sequence
 import inspect
-from typing import Optional
-from . import benchmark_labyrinth
+from typing import Any, Optional
 from . import benchmark_labyrinth_vanilla_picls
 from . import benchmark_labyrinth_param_pred
 
@@ -18,24 +17,32 @@ def run(
             yield f(n, False)
 
 
+def modulename(function: Any) -> str:
+    module = inspect.getmodule(function)
+    return module.__name__ if module is not None else "???"
+
+
 if __name__ == "__main__":
     functions = [
-        benchmark_labyrinth.main,
+        # benchmark_labyrinth.main,
         benchmark_labyrinth_vanilla_picls.main,
         benchmark_labyrinth_param_pred.main,
     ]
-    ns = range(5, 60, 5)
-    timeout = 20
+    ns = range(5, 100, 5)
+    timeout = 120
     skip: list[Callable[[int, bool], float]] = []
+    print(f"n,{','.join(map(modulename, functions))}")
     for n in ns:
-        print(f"{n=}")
+        # print(f"{n=}")
+        row: list[str] = [str(n)]
         results = run(functions, n, skip)
         for i, (function, time) in enumerate(zip(functions, results)):
-            module = inspect.getmodule(function)
-            modulename = module.__name__ if module is not None else "???"
             if function in skip:
-                print(f"{modulename}: skipped")
+                # print(f"{modulename}: skipped")
+                row.append("-")
                 continue
-            print(f"{modulename}: {time}s")
+            # print(f"{modulename}: {time}s")
+            row.append(str(time))
             if timeout is not None and time is not None and time >= timeout:
                 skip.append(function)
+        print(",".join(row))
