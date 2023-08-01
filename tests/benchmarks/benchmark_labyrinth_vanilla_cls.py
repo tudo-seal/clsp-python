@@ -8,9 +8,7 @@ from picls import (
     Type,
     Constructor,
     Product,
-    Omega,
     Arrow,
-    Intersection,
     FiniteCombinatoryLogic,
     enumerate_terms,
     interpret_term,
@@ -41,10 +39,6 @@ def pos(row: int, col: int) -> Type:
     return Constructor("Pos", Product(int_to_type(row), int_to_type(col)))
 
 
-def seen(row: int, col: int) -> Type:
-    return Constructor(f"Seen_({row}, {col})")
-
-
 @dataclass(frozen=True)
 class Move:
     direction: str = field(init=True)
@@ -66,24 +60,16 @@ def move(SIZE: int, drow_from: int, dcol_from: int, drow_to: int, dcol_to: int) 
                 pos(row + drow_from, col + dcol_from),
                 Arrow(
                     free(row + drow_to, col + dcol_to),
-                    Intersection(
-                        pos(row + drow_to, col + dcol_to),
-                        seen(row + drow_to, col + dcol_to),
-                    ),
+                    pos(row + drow_to, col + dcol_to),
                 ),
             )
-            for row in range(0, SIZE)
-            for col in range(0, SIZE)
-        ]
-        + [
-            Arrow(seen(row, col), Arrow(Omega(), seen(row, col)))
             for row in range(0, SIZE)
             for col in range(0, SIZE)
         ]
     )
 
 
-def labyrinth(SIZE: int = 10, output: bool = True) -> float:
+def main(SIZE: int = 10, output: bool = True) -> float:
     if output:
         for row in range(SIZE):
             for col in range(SIZE):
@@ -101,7 +87,7 @@ def labyrinth(SIZE: int = 10, output: bool = True) -> float:
     }
 
     repository: Mapping[Any, Type] = {
-        Start(): Intersection(pos(0, 0), seen(0, 0)),
+        Start(): pos(0, 0),
         Move("up"): move(SIZE, 1, 0, 0, 0),
         Move("down"): move(SIZE, 0, 0, 1, 0),
         Move("left"): move(SIZE, 0, 1, 0, 0),
@@ -121,7 +107,7 @@ def labyrinth(SIZE: int = 10, output: bool = True) -> float:
     results = gamma.inhabit(target)
     if output:
         print("Time (Inhabitation): ", timeit.default_timer() - start)
-    for t in itertools.islice(enumerate_terms(target, results), 3):
+    for t in itertools.islice(enumerate_terms(target, results), 2):
         if output:
             print("Term:")
             print(t)
@@ -134,4 +120,4 @@ def labyrinth(SIZE: int = 10, output: bool = True) -> float:
 
 
 if __name__ == "__main__":
-    labyrinth()
+    main()

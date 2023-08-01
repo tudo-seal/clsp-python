@@ -15,7 +15,7 @@ def pred_plus_one(a: str, b: str) -> Callable[[Mapping[str, Literal]], bool]:
     return _inner
 
 
-def labyrinth(SIZE: int = 10, output: bool = True) -> float:
+def main(SIZE: int = 10, output: bool = True) -> float:
     def make_is_free(l_str: list[str]) -> Callable[[Mapping[str, Literal]], bool]:
         return lambda vars: is_free(
             vars["b"].value, vars["a"].value
@@ -117,4 +117,4 @@ def labyrinth(SIZE: int = 10, output: bool = True) -> float:
 
 
 if __name__ == "__main__":
-    labyrinth()
+    main()

@@ -1,6 +1,5 @@
 from collections.abc import Callable, Mapping
 import timeit
-from typing import Any
 from picls.dsl import Use
 from picls.enumeration import enumerate_terms, interpret_term
 from picls.fcl import FiniteCombinatoryLogic
@@ -15,26 +14,13 @@ def plus_one(a: str) -> Callable[[Mapping[str, Literal]], int]:
     return _inner
 
 
-def labyrinth(SIZE: int = 10, output: bool = True) -> float:
+def main(SIZE: int = 10, output: bool = True) -> float:
     def is_free(a: str, b: str) -> Callable[[Mapping[str, Literal]], bool]:
         return lambda vars: _is_free(
             vars[b].value, vars[a].value
         )  # bool(l_str[vars["b"].value][vars["a"].value] == " ")
 
     def _is_free(row: int, col: int) -> bool:
-        labyrinth_str = [
-            " ┃xxxxxxxx",
-            " ┃        ",
-            " ┃ ┏━━━━ ┓",
-            "   ┃     ┃",
-            " ┏━┫ ┏━┓ ┗",
-            " ┃ ┃ ┃ ┃  ",
-            " ┃ ┃ ┗━┻━ ",
-            " ┃ ┃      ",
-            " ┗━┛ ┏━━┓ ",
-            "     ┃  ┃ ",
-        ]
-        return labyrinth_str[row][col] == " "
         SEED = 0
         if row == col:
             return True
@@ -44,29 +30,19 @@ def labyrinth(SIZE: int = 10, output: bool = True) -> float:
                 > 0
             )
 
-    U: Callable[
-        [int, int, int, tuple[tuple[tuple[int, int], ...], str]],
-        tuple[tuple[tuple[int, int], ...], str],
-    ] = lambda a, _, c, p: ((*p[0], (c, a)), f"{p[1]} => UP({c}, {a})")
-    D: Callable[
-        [int, int, int, tuple[tuple[tuple[int, int], ...], str]],
-        tuple[tuple[tuple[int, int], ...], str],
-    ] = lambda _, b, c, p: ((*p[0], (c, b)), f"{p[1]} => DOWN({c}, {b})")
-    L: Callable[
-        [int, int, int, tuple[tuple[tuple[int, int], ...], str]],
-        tuple[tuple[tuple[int, int], ...], str],
-    ] = lambda a, _, c, p: ((*p[0], (a, c)), f"{p[1]} => LEFT({a}, {c})")
+    U: Callable[[int, int, int, str], str] = lambda a, _, c, p: f"{p} => UP({c}, {a})"
+    D: Callable[[int, int, int, str], str] = lambda _, b, c, p: f"{p} => DOWN({c}, {b})"
+    L: Callable[[int, int, int, str], str] = lambda a, _, c, p: f"{p} => LEFT({a}, {c})"
     R: Callable[
-        [int, int, int, tuple[tuple[tuple[int, int], ...], str]],
-        tuple[tuple[tuple[int, int], ...], str],
-    ] = lambda _, b, c, p: ((*p[0], (b, c)), f"{p[1]} => RIGHT({b}, {c})")
+        [int, int, int, str], str
+    ] = lambda _, b, c, p: f"{p} => RIGHT({b}, {c})"
 
     pos: Callable[[str, str], Type] = lambda a, b: Constructor(
         "pos", (Product(TVar(a), TVar(b)))
     )
 
     repo: Mapping[
-        Callable[[int, int, int, Any], Any] | Any,
+        Callable[[int, int, int, str], str] | str,
         Param | Type,
     ] = {
         U: Use("a", int)
@@ -75,10 +51,6 @@ def labyrinth(SIZE: int = 10, output: bool = True) -> float:
         .Use("c", int)
         .With(is_free("c", "a"))
         .Use("pos", pos("c", "b"))
-        .With(
-            lambda vars: not isinstance(vars["pos"], Literal)
-            and (vars["c"].value, vars["a"].value) not in interpret_term(vars["pos"])[0]
-        )
         .In(pos("c", "a")),
         D: Use("a", int)
         .Use("b", int)
@@ -86,10 +58,6 @@ def labyrinth(SIZE: int = 10, output: bool = True) -> float:
         .Use("c", int)
         .With(is_free("c", "b"))
         .Use("pos", pos("c", "a"))
-        .With(
-            lambda vars: not isinstance(vars["pos"], Literal)
-            and (vars["c"].value, vars["b"].value) not in interpret_term(vars["pos"])[0]
-        )
         .In(pos("c", "b")),
         L: Use("a", int)
         .Use("b", int)
@@ -97,10 +65,6 @@ def labyrinth(SIZE: int = 10, output: bool = True) -> float:
         .Use("c", int)
         .With(is_free("a", "c"))
         .Use("pos", pos("b", "c"))
-        .With(
-            lambda vars: not isinstance(vars["pos"], Literal)
-            and (vars["a"].value, vars["c"].value) not in interpret_term(vars["pos"])[0]
-        )
         .In(pos("a", "c")),
         R: Use("a", int)
         .Use("b", int)
@@ -108,12 +72,8 @@ def labyrinth(SIZE: int = 10, output: bool = True) -> float:
         .Use("c", int)
         .With(is_free("b", "c"))
         .Use("pos", pos("a", "c"))
-        .With(
-            lambda vars: not isinstance(vars["pos"], Literal)
-            and (vars["b"].value, vars["c"].value) not in interpret_term(vars["pos"])[0]
-        )
         .In(pos("b", "c")),
-        (((0, 0),), "START"): "pos" @ (Literal(0, int) * Literal(0, int)),
+        "START": "pos" @ (Literal(0, int) * Literal(0, int)),
     }
 
     literals = {int: list(range(SIZE))}
@@ -136,14 +96,13 @@ def labyrinth(SIZE: int = 10, output: bool = True) -> float:
     start = timeit.default_timer()
     grammar = fcl.inhabit(fin)
 
-    for i, term in enumerate(enumerate_terms(fin, grammar, 100)):
+    for term in enumerate_terms(fin, grammar, 3):
         t = interpret_term(term)
         if output:
-            length = len(t[0])
-            print(f"{i}: {length=}, {t[1]}")
+            print(t)
 
     return timeit.default_timer() - start
 
 
 if __name__ == "__main__":
-    labyrinth()
+    main()

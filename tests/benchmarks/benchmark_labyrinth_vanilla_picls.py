@@ -54,7 +54,7 @@ def move(drow_from: int, dcol_from: int, drow_to: int, dcol_to: int, SIZE: int) 
     )
 
 
-def labyrinth(SIZE: int = 10, output: bool = True) -> float:
+def main(SIZE: int = 10, output: bool = True) -> float:
     if output:
         for row in range(SIZE):
             for col in range(SIZE):
@@ -207,4 +207,4 @@ def labyrinth(SIZE: int = 10, output: bool = True) -> float:
 
 
 if __name__ == "__main__":
-    labyrinth()
+    main()

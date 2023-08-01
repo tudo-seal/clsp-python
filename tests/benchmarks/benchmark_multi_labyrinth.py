@@ -3,13 +3,13 @@ import inspect
 from typing import Optional
 from . import benchmark_labyrinth
 from . import benchmark_labyrinth_vanilla_picls
-from . import example_pi_labyrinth_pred
+from . import benchmark_labyrinth_param_pred
 
 
 def run(
     functions: Sequence[Callable[[int, bool], float]],
     n: int,
-    skip: Sequence[Callable[[int, bool], float]],
+    skip: list[Callable[[int, bool], float]],
 ) -> Iterable[Optional[float]]:
     for f in functions:
         if f in skip:
@@ -20,13 +20,13 @@ def run(
 
 if __name__ == "__main__":
     functions = [
-        benchmark_labyrinth.labyrinth,
-        benchmark_labyrinth_vanilla_picls.labyrinth,
-        example_pi_labyrinth_pred.labyrinth,
+        benchmark_labyrinth.main,
+        benchmark_labyrinth_vanilla_picls.main,
+        benchmark_labyrinth_param_pred.main,
     ]
-    ns = range(5, 100, 5)
-    timeout = None
-    skip: Sequence[Callable[[int, bool], float]] = []
+    ns = range(5, 60, 5)
+    timeout = 20
+    skip: list[Callable[[int, bool], float]] = []
     for n in ns:
         print(f"{n=}")
         results = run(functions, n, skip)

@@ -1,4 +1,5 @@
 from collections.abc import Callable
+import timeit
 from typing import Any
 from picls.enumeration import enumerate_terms, interpret_term
 from picls.fcl import FiniteCombinatoryLogic
@@ -13,7 +14,7 @@ def set_plus_one(b: str) -> SetTo:
     return SetTo(_inner)
 
 
-def labyrinth_set_to() -> None:
+def main(_: int = 0, output: bool = True) -> float:
     def make_is_free(l_str: list[str]) -> Callable[[dict[str, Literal]], bool]:
         return lambda vars: bool(l_str[vars["b"].value][vars["a"].value] == " ")
 
@@ -122,10 +123,11 @@ def labyrinth_set_to() -> None:
 
     literals = {int: list(range(10))}
 
-    print("▒▒▒▒▒▒▒▒▒▒▒▒")
-    for line in labyrinth_str:
-        print(f"▒{line}▒")
-    print("▒▒▒▒▒▒▒▒▒▒▒▒")
+    if output:
+        print("▒▒▒▒▒▒▒▒▒▒▒▒")
+        for line in labyrinth_str:
+            print(f"▒{line}▒")
+        print("▒▒▒▒▒▒▒▒▒▒▒▒")
 
     fin = Constructor("pos", Product(Literal(9, int), Literal(9, int)))
 
@@ -133,11 +135,15 @@ def labyrinth_set_to() -> None:
         Callable[[Any, Any, Any, Any, Any], str] | Callable[[Any, Any], str] | str
     ] = FiniteCombinatoryLogic(repo, literals=literals)
 
+    start = timeit.default_timer()
     grammar = fcl.inhabit(fin)
 
     for term in enumerate_terms(fin, grammar, 3):
-        print(interpret_term(term))
+        if output:
+            print(interpret_term(term))
+
+    return timeit.default_timer() - start
 
 
 if __name__ == "__main__":
-    labyrinth_set_to()
+    main()
