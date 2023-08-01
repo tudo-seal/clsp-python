@@ -235,6 +235,8 @@ class FiniteCombinatoryLogic(Generic[C]):
             if memo.get(current_target) is None:
                 # target type was not seen before
                 possibilities: deque[RHSRule[Type, C]] = deque()
+                if isinstance(current_target, Literal):
+                    continue
                 memo.update({current_target: possibilities})
                 # If the target is omega, then the result is junk
                 if current_target.is_omega:
