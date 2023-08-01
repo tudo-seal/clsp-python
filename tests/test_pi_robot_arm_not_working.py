@@ -87,10 +87,10 @@ class TestRobotArm(unittest.TestCase):
         self.terms = list(enumerate_terms(query, grammar))
         # self.logger.info(grammar.show())
 
-    def test_count(self):
+    def test_count(self) -> None:
         self.assertEqual(4, len(self.terms))
 
-    def test_elements(self):
+    def test_elements(self) -> None:
         results = [
             "Base (Motor (ShortLink (Motor (ShortLink (Motor (Effector)))))){motorcount=3}",
             "Base (Motor (Link (Motor (Link (Motor (Effector)))))){motorcount=3}",

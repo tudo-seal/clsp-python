@@ -109,10 +109,10 @@ class TestRobotArm(unittest.TestCase):
         self.terms = list(enumerate_terms(query, grammar))
         # self.logger.info(grammar.show())
 
-    def test_count(self):
+    def test_count(self) -> None:
         self.assertEqual(4, len(self.terms))
 
-    def test_elements(self):
+    def test_elements(self) -> None:
         results = [
             "Base params: (3, 'motor params: (2, 3, 'Link params: (2, 'motor params: (1, 2, "
             "\"ShortLink params: (1, 'motor params: (0, 1, Effector)')\")')')')",
