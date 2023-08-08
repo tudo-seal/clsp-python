@@ -5,16 +5,15 @@
 import logging
 from typing import Any
 import unittest
+from picls.dsl import Use
 from picls.enumeration import enumerate_terms, interpret_term
 from picls.fcl import FiniteCombinatoryLogic
 from picls.types import (
-    Arrow,
     Constructor,
     Literal,
     Param,
     TVar,
     Type,
-    Intersection,
 )
 
 
@@ -24,10 +23,6 @@ def motorcount(robot: Any) -> Any:
     # self.logger.info(robot.value)
     # self.logger.info("RobotEnd")
     return robot.value
-
-
-def c(x: Type) -> Type:
-    return Constructor("c", x)
 
 
 class Part:
@@ -57,24 +52,17 @@ class TestRobotArm(unittest.TestCase):
 
     def setUp(self) -> None:
         repo: dict[Part, Param | Type] = {
-            Part("Motor"): Arrow(Constructor("Structural"), Constructor("Motor")),
-            Part("Link"): Arrow(Constructor("Motor"), Constructor("Structural")),
-            Part("ShortLink"): Arrow(Constructor("Motor"), Constructor("Structural")),
+            Part("Motor"): Constructor("Structural") ** Constructor("Motor"),
+            Part("Link"): Constructor("Motor") ** Constructor("Structural"),
+            Part("ShortLink"): Constructor("Motor") ** Constructor("Structural"),
             Part("Effector"): Constructor("Structural"),
-            Part("Base"): Param(
-                "current_motor_count",
-                int,
-                lambda _: True,
-                Param(
-                    "Robot",
-                    Constructor("Motor"),
-                    lambda vars: bool(
-                        vars["current_motor_count"].value
-                        == motorcount(interpret_term(vars["Robot"]))
-                    ),
-                    Intersection(Constructor("Base"), c(TVar("current_motor_count"))),
-                ),
-            ),
+            Part("Base"): Use("current_motor_count", int)
+            .Use("Robot", Constructor("Motor"))
+            .With(
+                lambda current_motor_count, Robot: current_motor_count
+                == motorcount(interpret_term(Robot))
+            )
+            .In(Constructor("Base") & ("c" @ TVar("current_motor_count"))),
         }
 
         literals = {int: list(range(10))}
@@ -82,7 +70,7 @@ class TestRobotArm(unittest.TestCase):
         fcl: FiniteCombinatoryLogic[Part] = FiniteCombinatoryLogic(
             repo, literals=literals
         )
-        query = Intersection(Constructor("Base"), c(Literal(3, int)))
+        query = Constructor("Base") & ("c" @ Literal(3, int))
         grammar = fcl.inhabit(query)
         self.terms = list(enumerate_terms(query, grammar))
         # self.logger.info(grammar.show())

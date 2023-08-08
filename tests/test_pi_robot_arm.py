@@ -10,16 +10,11 @@ from picls.types import (
     Param,
     TVar,
     Type,
-    Intersection,
 )
 
 
 def motorcount() -> None:
     pass
-
-
-def c(x: Type) -> Type:
-    return Constructor("c", x)
 
 
 class Part:
@@ -78,7 +73,7 @@ class TestRobotArm(unittest.TestCase):
         fcl: FiniteCombinatoryLogic[Part] = FiniteCombinatoryLogic(
             repo, literals=literals
         )
-        query = Intersection(Constructor("Base"), c(Literal(3, int)))
+        query = Constructor("Base") & ("c" @ (Literal(3, int)))
         grammar = fcl.inhabit(query)
         self.terms = list(enumerate_terms(query, grammar))
         # self.logger.info(grammar.show())
