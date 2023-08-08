@@ -3,8 +3,8 @@ import logging
 import unittest
 from picls.enumeration import enumerate_terms, interpret_term
 from picls.fcl import FiniteCombinatoryLogic
+from picls.dsl import Use
 from picls.types import (
-    Arrow,
     Constructor,
     Literal,
     Param,
@@ -42,60 +42,34 @@ class TestRobotArm(unittest.TestCase):
 
     def setUp(self) -> None:
         repo: dict[Part, Type | Param] = {
-            Part("motor"): Param(
-                "current_motor_count",
-                int,
-                lambda _: True,
-                Param(
-                    "new_motor_count",
-                    int,
-                    lambda vars: bool(
-                        vars["current_motor_count"].value + 1
-                        == vars["new_motor_count"].value
-                    ),
-                    Intersection(
-                        Arrow(Constructor("Structural"), Constructor("Motor")),
-                        Arrow(
-                            c(TVar("current_motor_count")), c(TVar("new_motor_count"))
-                        ),
-                    ),
-                ),
+            Part("motor"): Use("current_motor_count", int)
+            .Use("new_motor_count", int)
+            .As(lambda current_motor_count: current_motor_count + 1)
+            .In(
+                Constructor("Structural") ** Constructor("Motor")
+                & ("c" @ TVar("current_motor_count")) ** ("c" @ TVar("new_motor_count"))
             ),
-            Part("Link"): Param(
-                "current_motor_count",
-                int,
-                lambda _: True,
-                Intersection(
-                    Arrow(Constructor("Motor"), Constructor("Structural")),
-                    Arrow(
-                        c(TVar("current_motor_count")), c(TVar("current_motor_count"))
-                    ),
-                ),
+            Part("Link"): Use("current_motor_count", int).In(
+                Constructor("Motor") ** Constructor("Structural")
+                & (
+                    ("c" @ TVar("current_motor_count"))
+                    ** ("c" @ TVar("current_motor_count"))
+                )
             ),
-            Part("ShortLink"): Param(
-                "current_motor_count",
-                int,
-                lambda _: True,
-                Intersection(
-                    Arrow(Constructor("Motor"), Constructor("Structural")),
-                    Arrow(
-                        c(TVar("current_motor_count")), c(TVar("current_motor_count"))
-                    ),
-                ),
+            Part("ShortLink"): Use("current_motor_count", int).In(
+                Constructor("Motor") ** Constructor("Structural")
+                & (
+                    ("c" @ TVar("current_motor_count"))
+                    ** ("c" @ TVar("current_motor_count"))
+                )
             ),
-            Part("Effector"): Intersection(
-                Constructor("Structural"), c(Literal(0, int))
-            ),
-            Part("Base"): Param(
-                "current_motor_count",
-                int,
-                lambda _: True,
-                Intersection(
-                    Arrow(Constructor("Motor"), Constructor("Base")),
-                    Arrow(
-                        c(TVar("current_motor_count")), c(TVar("current_motor_count"))
-                    ),
-                ),
+            Part("Effector"): Constructor("Structural") & ("c" @ Literal(0, int)),
+            Part("Base"): Use("current_motor_count", int).In(
+                Constructor("Motor") ** Constructor("Base")
+                & (
+                    ("c" @ TVar("current_motor_count"))
+                    ** ("c" @ TVar("current_motor_count"))
+                )
             ),
         }
 

@@ -107,7 +107,7 @@ def main(SIZE: int = 10, output: bool = True) -> float:
     results = gamma.inhabit(target)
     if output:
         print("Time (Inhabitation): ", timeit.default_timer() - start)
-    for t in itertools.islice(enumerate_terms(target, results), 2):
+    for t in itertools.islice(enumerate_terms(target, results), 3):
         if output:
             print("Term:")
             print(t)
