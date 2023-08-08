@@ -3,7 +3,7 @@ import logging
 import unittest
 from picls.enumeration import enumerate_terms, interpret_term
 from picls.fcl import FiniteCombinatoryLogic
-from picls.dsl import Use
+from picls.dsl import DSL
 from picls.types import (
     Constructor,
     Literal,
@@ -37,21 +37,26 @@ class TestRobotArm(unittest.TestCase):
 
     def setUp(self) -> None:
         repo: dict[Part, Type | Param] = {
-            Part("motor"): Use("current_motor_count", int)
+            Part("motor"): DSL()
+            .Use("current_motor_count", int)
             .Use("new_motor_count", int)
             .As(lambda current_motor_count: current_motor_count + 1)
             .In(
                 Constructor("Structural") ** Constructor("Motor")
                 & ("c" @ TVar("current_motor_count")) ** ("c" @ TVar("new_motor_count"))
             ),
-            Part("Link"): Use("current_motor_count", int).In(
+            Part("Link"): DSL()
+            .Use("current_motor_count", int)
+            .In(
                 Constructor("Motor") ** Constructor("Structural")
                 & (
                     ("c" @ TVar("current_motor_count"))
                     ** ("c" @ TVar("current_motor_count"))
                 )
             ),
-            Part("ShortLink"): Use("current_motor_count", int).In(
+            Part("ShortLink"): DSL()
+            .Use("current_motor_count", int)
+            .In(
                 Constructor("Motor") ** Constructor("Structural")
                 & (
                     ("c" @ TVar("current_motor_count"))
@@ -59,7 +64,9 @@ class TestRobotArm(unittest.TestCase):
                 )
             ),
             Part("Effector"): Constructor("Structural") & ("c" @ Literal(0, int)),
-            Part("Base"): Use("current_motor_count", int).In(
+            Part("Base"): DSL()
+            .Use("current_motor_count", int)
+            .In(
                 Constructor("Motor") ** Constructor("Base")
                 & (
                     ("c" @ TVar("current_motor_count"))

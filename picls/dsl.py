@@ -53,6 +53,41 @@ class Use:
         return pi
 
 
+class DSL:
+    def __init__(self) -> None:
+        self._accumulator: list[
+            tuple[str, Any, Callable[[Mapping[str, Literal]], bool] | SetTo]
+        ] = []
+
+    def Use(self, name: str, ty: Any) -> DSL:
+        self._accumulator.append((name, ty, TRUE))
+        return self
+
+    def As(self, set_to: Callable[..., Any]) -> DSL:
+        last_element = self._accumulator[-1]
+        self._accumulator[-1] = (
+            last_element[0],
+            last_element[1],
+            SetTo(unwrap_predicate((set_to))),
+        )
+        return self
+
+    def With(self, set_to: Callable[..., Any]) -> DSL:
+        last_element = self._accumulator[-1]
+        self._accumulator[-1] = (
+            last_element[0],
+            last_element[1],
+            unwrap_predicate((set_to)),
+        )
+        return self
+
+    def In(self, ty: Type) -> Param | Type:
+        return_type: Param | Type = ty
+        for spec in reversed(self._accumulator):
+            return_type = Param(*spec, return_type)
+        return return_type
+
+
 class Requires:
     def __init__(self, *arguments: Type) -> None:
         self._arguments = list(arguments)
