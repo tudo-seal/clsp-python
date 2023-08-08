@@ -25,6 +25,14 @@ def unwrap_predicate(
     )
 
 
+def extracted_values(
+    predicate: Callable[[Mapping[str, Any]], Any]
+) -> Callable[[Mapping[str, Literal | Any]], Any]:
+    return lambda vars: predicate(
+        {k: v.value if isinstance(v, Literal) else v for k, v in vars.items()}
+    )
+
+
 class Use:
     def __init__(self, name: str, typ: Any) -> None:
         self.name = name
@@ -68,16 +76,34 @@ class DSL:
         self._accumulator[-1] = (
             last_element[0],
             last_element[1],
-            SetTo(unwrap_predicate((set_to))),
+            SetTo(unwrap_predicate(set_to)),
         )
         return self
 
-    def With(self, set_to: Callable[..., Any]) -> DSL:
+    def AsRaw(self, set_to: Callable[[Mapping[str, Any]], Any]) -> DSL:
         last_element = self._accumulator[-1]
         self._accumulator[-1] = (
             last_element[0],
             last_element[1],
-            unwrap_predicate((set_to)),
+            SetTo(extracted_values(set_to)),
+        )
+        return self
+
+    def WithRaw(self, predicate: Callable[..., Any]) -> DSL:
+        last_element = self._accumulator[-1]
+        self._accumulator[-1] = (
+            last_element[0],
+            last_element[1],
+            extracted_values(predicate),
+        )
+        return self
+
+    def With(self, predicate: Callable[..., Any]) -> DSL:
+        last_element = self._accumulator[-1]
+        self._accumulator[-1] = (
+            last_element[0],
+            last_element[1],
+            unwrap_predicate(predicate),
         )
         return self
 
