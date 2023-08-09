@@ -1,6 +1,6 @@
 from collections.abc import Callable, Mapping
 import timeit
-from picls.dsl import Use
+from picls.dsl import DSL
 from picls.enumeration import enumerate_terms, interpret_term
 from picls.fcl import FiniteCombinatoryLogic
 
@@ -40,28 +40,32 @@ def main(SIZE: int = 10, output: bool = True) -> float:
         Callable[[int, int, int, str], str] | str,
         Param | Type,
     ] = {
-        U: Use("a", int)
+        U: DSL()
+        .Use("a", int)
         .Use("b", int)
         .With(lambda a, b: b == a + 1)
         .Use("c", int)
         .With(lambda c, a: is_free(c, a))
         .Use("pos", pos("c", "b"))
         .In(pos("c", "a")),
-        D: Use("a", int)
+        D: DSL()
+        .Use("a", int)
         .Use("b", int)
         .With(lambda a, b: b == a + 1)
         .Use("c", int)
         .With(lambda c, b: is_free(c, b))
         .Use("pos", pos("c", "a"))
         .In(pos("c", "b")),
-        L: Use("a", int)
+        L: DSL()
+        .Use("a", int)
         .Use("b", int)
         .With(lambda a, b: b == a + 1)
         .Use("c", int)
         .With(lambda a, c: is_free(a, c))
         .Use("pos", pos("b", "c"))
         .In(pos("a", "c")),
-        R: Use("a", int)
+        R: DSL()
+        .Use("a", int)
         .Use("b", int)
         .With(lambda a, b: b == a + 1)
         .Use("c", int)

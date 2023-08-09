@@ -1,6 +1,6 @@
 import logging
 import unittest
-from picls.dsl import TRUE, Use, Requires
+from picls.dsl import DSL, Requires
 from picls.enumeration import enumerate_terms, interpret_term
 from picls.fcl import FiniteCombinatoryLogic
 from picls.types import (
@@ -48,7 +48,8 @@ class TestDSL(unittest.TestCase):
             return f"X {x} {y} {a} {z}"
 
         term1 = (
-            Use("x", int)
+            DSL()
+            .Use("x", int)
             .With(lambda x: x < 4 and x > 1)
             .Use("y", int)
             .As(lambda x: x + 1)
@@ -76,7 +77,7 @@ class TestDSL(unittest.TestCase):
                     "a",
                     int,
                     lambda vars: bool(vars["y"].value > vars["x"].value),
-                    Param("z", str, TRUE, self.a),
+                    Param("z", str, DSL.TRUE, self.a),
                 ),
             ),
         )

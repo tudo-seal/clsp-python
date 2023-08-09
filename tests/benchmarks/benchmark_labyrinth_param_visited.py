@@ -1,7 +1,7 @@
 from collections.abc import Callable, Mapping
 import timeit
 from typing import Any
-from picls.dsl import Use
+from picls.dsl import DSL
 from picls.enumeration import enumerate_terms, interpret_term
 from picls.fcl import FiniteCombinatoryLogic
 
@@ -64,7 +64,8 @@ def main(SIZE: int = 10, output: bool = True) -> float:
         Callable[[int, int, int, Any], Any] | Any,
         Param | Type,
     ] = {
-        U: Use("a", int)
+        U: DSL()
+        .Use("a", int)
         .Use("b", int)
         .As(lambda a: a + 1)
         .Use("c", int)
@@ -72,7 +73,8 @@ def main(SIZE: int = 10, output: bool = True) -> float:
         .Use("pos", pos("c", "b"))
         .With(lambda c, a, pos: (c, a) not in interpret_term(pos)[0])
         .In(pos("c", "a")),
-        D: Use("a", int)
+        D: DSL()
+        .Use("a", int)
         .Use("b", int)
         .As(lambda a: a + 1)
         .Use("c", int)
@@ -80,7 +82,8 @@ def main(SIZE: int = 10, output: bool = True) -> float:
         .Use("pos", pos("c", "a"))
         .With(lambda c, b, pos: (c, b) not in interpret_term(pos)[0])
         .In(pos("c", "b")),
-        L: Use("a", int)
+        L: DSL()
+        .Use("a", int)
         .Use("b", int)
         .As(lambda a: a + 1)
         .Use("c", int)
@@ -88,7 +91,8 @@ def main(SIZE: int = 10, output: bool = True) -> float:
         .Use("pos", pos("b", "c"))
         .With(lambda a, c, pos: (a, c) not in interpret_term(pos)[0])
         .In(pos("a", "c")),
-        R: Use("a", int)
+        R: DSL()
+        .Use("a", int)
         .Use("b", int)
         .As(lambda a: a + 1)
         .Use("c", int)

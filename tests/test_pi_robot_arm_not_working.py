@@ -5,7 +5,7 @@
 import logging
 from typing import Any
 import unittest
-from picls.dsl import Use
+from picls.dsl import DSL
 from picls.enumeration import enumerate_terms, interpret_term
 from picls.fcl import FiniteCombinatoryLogic
 from picls.types import (
@@ -56,7 +56,8 @@ class TestRobotArm(unittest.TestCase):
             Part("Link"): Constructor("Motor") ** Constructor("Structural"),
             Part("ShortLink"): Constructor("Motor") ** Constructor("Structural"),
             Part("Effector"): Constructor("Structural"),
-            Part("Base"): Use("current_motor_count", int)
+            Part("Base"): DSL()
+            .Use("current_motor_count", int)
             .Use("Robot", Constructor("Motor"))
             .With(
                 lambda current_motor_count, Robot: current_motor_count
