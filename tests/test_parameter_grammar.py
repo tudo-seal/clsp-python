@@ -20,7 +20,9 @@ class TestParamGrammar(unittest.TestCase):
         )
         self.grammar.add_rule(
             "Y",
-            RHSRule({}, [Predicate(lambda _: True, "⊤")], "y1", [Literal(3, int)], []),
+            RHSRule(
+                {}, [Predicate(lambda _: True, "⊤")], "y1", [Literal(3, "int")], []
+            ),
         )
         self.grammar.add_rule(
             "Y", RHSRule({}, [Predicate(lambda _: False, "⊥")], "y2", [], [])
@@ -29,7 +31,7 @@ class TestParamGrammar(unittest.TestCase):
     def test_grammar(self) -> None:
         self.logger.info(self.grammar.show())
         self.assertEqual(
-            "X ~> ∀(y:Y).x(<y>)(<y>)\nY ~> ⊤ ⇛ y1(3@(<class 'int'>)) | ⊥ ⇛ y2",
+            "X ~> ∀(y:Y).x(<y>)(<y>)\nY ~> ⊤ ⇛ y1([3, int]) | ⊥ ⇛ y2",
             self.grammar.show(),
         )
 

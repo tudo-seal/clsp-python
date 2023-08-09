@@ -84,7 +84,7 @@ class FiniteCombinatoryLogic(Generic[C]):
         self,
         repository: Mapping[C, Param | Type],
         subtypes: Subtypes = Subtypes({}),
-        literals: Optional[dict[Any, list[Any]]] = None,
+        literals: Optional[dict[str, list[Any]]] = None,
     ):
         self.literals: dict[Any, list[Any]] = {} if literals is None else literals
         self.repository: Mapping[
@@ -116,10 +116,7 @@ class FiniteCombinatoryLogic(Generic[C]):
         ) -> tuple[list[TermParamSpec | LitParamSpec], Type]:
             params: list[TermParamSpec | LitParamSpec] = []
             while isinstance(ty, Param):
-                if isinstance(ty.type, Type):
-                    params.append(ty.get_term_spec())
-                else:
-                    params.append(ty.get_lit_spec())
+                params.append(ty.get_spec())
                 ty = ty.inner
             return (params, ty)
 
@@ -180,7 +177,7 @@ class FiniteCombinatoryLogic(Generic[C]):
 
         for param in params:
             if isinstance(param, LitParamSpec):
-                if param.type not in literals:
+                if param.group not in literals:
                     return []
                 else:
                     args.append(param.name)
@@ -188,8 +185,8 @@ class FiniteCombinatoryLogic(Generic[C]):
                         filter_list = []
                         for substitution in substitutions:
                             value = param.predicate.compute(substitution)
-                            filter_list.append(value in literals[param.type])
-                            substitution[param.name] = Literal(value, param.type)
+                            filter_list.append(value in literals[param.group])
+                            substitution[param.name] = Literal(value, param.group)
 
                         substitutions = deque(compress(substitutions, filter_list))
                     else:
@@ -198,9 +195,9 @@ class FiniteCombinatoryLogic(Generic[C]):
                                 lambda substs: callable(param.predicate)
                                 and param.predicate(substs),
                                 (
-                                    s | {param.name: Literal(literal, param.type)}
+                                    s | {param.name: Literal(literal, param.group)}
                                     for s in substitutions
-                                    for literal in literals[param.type]
+                                    for literal in literals[param.group]
                                 ),
                             )
                         )
@@ -255,7 +252,7 @@ class FiniteCombinatoryLogic(Generic[C]):
                                 continue
 
                             specific_params = {
-                                param.name: param.type.subst(substitutions)
+                                param.name: param.group.subst(substitutions)
                                 for param in params
                             }
 

@@ -57,7 +57,7 @@ class TestRobotArm(unittest.TestCase):
             Part("ShortLink"): Constructor("Motor") ** Constructor("Structural"),
             Part("Effector"): Constructor("Structural"),
             Part("Base"): DSL()
-            .Use("current_motor_count", int)
+            .Use("current_motor_count", "int")
             .Use("Robot", Constructor("Motor"))
             .With(
                 lambda current_motor_count, Robot: current_motor_count
@@ -66,12 +66,12 @@ class TestRobotArm(unittest.TestCase):
             .In(Constructor("Base") & ("c" @ TVar("current_motor_count"))),
         }
 
-        literals = {int: list(range(10))}
+        literals = {"int": list(range(10))}
 
         fcl: FiniteCombinatoryLogic[Part] = FiniteCombinatoryLogic(
             repo, literals=literals
         )
-        query = Constructor("Base") & ("c" @ Literal(3, int))
+        query = Constructor("Base") & ("c" @ Literal(3, "int"))
         grammar = fcl.inhabit(query)
         self.terms = list(enumerate_terms(query, grammar))
         # self.logger.info(grammar.show())

@@ -24,25 +24,25 @@ class TestConting(unittest.TestCase):
         repo: dict[X | str, Param | Type] = {
             X(): Param(
                 "a",
-                int,
+                "int",
                 lambda _: True,
                 Param(
                     "b",
-                    int,
+                    "int",
                     lambda vars: bool(vars["a"].value + 1 == vars["b"].value),
                     Arrow(c(TVar("a")), c(TVar("b"))),
                 ),
             ),
-            "Y": c(Literal(3, int)),
+            "Y": c(Literal(3, "int")),
         }
-        literals = {int: list(range(20))}
+        literals = {"int": list(range(20))}
 
         fcl: FiniteCombinatoryLogic[X | str] = FiniteCombinatoryLogic(
             repo, literals=literals
         )
-        grammar = fcl.inhabit(c(Literal(5, int)))
+        grammar = fcl.inhabit(c(Literal(5, "int")))
         # self.logger.info(grammar.show())
-        for term in enumerate_terms(c(Literal(5, int)), grammar):
+        for term in enumerate_terms(c(Literal(5, "int")), grammar):
             self.logger.info(interpret_term(term))
             self.assertEqual("X <4> <5> (X <3> <4> (Y))", interpret_term(term))
 

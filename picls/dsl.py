@@ -20,7 +20,7 @@ class DSL:
     A domain-specific language (DSL) to define specification.
 
     This class provides a interface for defining specifications in a declarative manner. It allows
-    users to specify the name and type of each parameter, as well as filter.
+    users to specify the name and group of each parameter, as well as filter.
 
     Examples:
         DSL()
@@ -98,24 +98,34 @@ class DSL:
             tuple[str, Any, Callable[[Mapping[str, Literal]], bool] | SetTo]
         ] = []
 
-    def Use(self, name: str, ty: Any) -> DSL:
+    def Use(self, name: str, group: str | Type) -> DSL:
         """
         Introduce a new variable.
 
-        If `ty` is a `LiteralType`, you can use its value directly in all filters and in the type at
-        the end using `TVar(name)`. If `ty` is a `Type`, you can only use it other filters
-        corresponding to `Type` variables, these will be set to Terms inhabiting the Type.
+        This can be twofold. Either `group` is a string, or `group` is a `Type`
 
-        Using `Type` variables is generally more powerful, but also generally slower.
+        If `group` is a string, then an instance of this specification will be generated
+        for each valid literal in the corresponding literal group (That satisfy all given
+        predicates). You can use this variable as TVar(name) in all `Type`s, after the introduction
+        and in all predicates. Corresponding predicates will be evaluated when building the
+        repository. We call these variables "`Literal` variables"
+
+        If `group` is a `Type`, an instance will be generated for each combinatory term, satisfying
+        the type. Since this can only be done in the enumeration step, you can only use this
+        variables in predicates, that themselves belong to variables whose `group` is a `Type`.
+        We call these variables "`Type` variables"
+
+        Using `Type` variables is generally more powerful, but since the corresponding predicates
+        can only be evaluated in the enumeration step, this is generally much slower.
 
         :param name: The name of the new variable.
         :type name: str
-        :param ty: The type of the variable.
-        :type ty: Any
+        :param group: The type of the variable.
+        :type group: str | Type
         :return: The DSL object. To concatenate multiple calls.
         :rtype: DSL
         """
-        self._accumulator.append((name, ty, DSL.TRUE))
+        self._accumulator.append((name, group, DSL.TRUE))
         return self
 
     def As(self, set_to: Callable[..., Any]) -> DSL:
@@ -165,9 +175,11 @@ class DSL:
         """
         Filter on the previously definied variables.
 
-        If the last variable introduced was a variable with a `Type`-type (as opposed to a
-        `Literal`-type), the predicate has access to all previously defined variable. Otherwise
-        it has only access to `Literal` variables.
+        If the last variable introduced was a `Type` variable, the predicate has access to all
+        previously defined variable. Otherwise it has only access to `Literal` variables.
+        Values from `Literal` variables can be used in the predicate directly, values from
+        `Type` variables are given as their `Tree[T]`, that can be `interpret`ed in the
+        predicate.
 
         *Note:* Filtering on `Literal` variables is significantly faster than filtering on
         `Type` variable

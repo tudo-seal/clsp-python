@@ -291,7 +291,7 @@ class Intersection(Type):
 @dataclass(frozen=True)
 class Literal(Type):
     value: Any
-    type: Any
+    group: str
     is_omega: bool = field(init=False, compare=False)
     size: int = field(init=False, compare=False)
     organized: set[Type] = field(init=False, compare=False)
@@ -313,7 +313,7 @@ class Literal(Type):
         return {self}
 
     def _str_prec(self, prec: int) -> str:
-        return f"{str(self.value)}@({str(self.type)})"
+        return f"[{str(self.value)}, {self.group}]"
 
     def subst(self, substitution: dict[str, Literal]) -> Type:
         return self
@@ -361,14 +361,14 @@ class ParamSpec:
 @dataclass
 class LitParamSpec(ParamSpec):
     name: str
-    type: Any
+    group: str
     predicate: Callable[[dict[str, Any]], bool] | SetTo
 
 
 @dataclass
 class TermParamSpec(ParamSpec):
     name: str
-    type: Type
+    group: Type
     predicate: Callable[[dict[str, Any]], bool]
 
 
@@ -381,17 +381,17 @@ class SetTo:
 @dataclass
 class Param:
     name: str
-    type: Type | Any
+    group: Type | str
     predicate: Callable[[dict[str, Any]], bool] | SetTo
     inner: Param | Type
 
-    def get_lit_spec(self) -> LitParamSpec:
-        return LitParamSpec(self.name, self.type, self.predicate)
-
-    def get_term_spec(self) -> TermParamSpec:
-        if isinstance(self.predicate, SetTo):
-            raise RuntimeError("Term parameters cannot have SetTo")
-        return TermParamSpec(self.name, self.type, self.predicate)
+    def get_spec(self) -> LitParamSpec | TermParamSpec:
+        if isinstance(self.group, Type):
+            if isinstance(self.predicate, SetTo):
+                raise RuntimeError("Term parameters cannot have SetTo")
+            return TermParamSpec(self.name, self.group, self.predicate)
+        else:
+            return LitParamSpec(self.name, self.group, self.predicate)
 
     def __str__(self) -> str:
-        return f"<{self.name}, {self.type}, {self.predicate}>.{self.inner}"
+        return f"<{self.name}, {self.group}, {self.predicate}>.{self.inner}"

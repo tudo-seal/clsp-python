@@ -65,45 +65,45 @@ def main(SIZE: int = 10, output: bool = True) -> float:
         Param | Type,
     ] = {
         U: DSL()
-        .Use("a", int)
-        .Use("b", int)
+        .Use("a", "int")
+        .Use("b", "int")
         .As(lambda a: a + 1)
-        .Use("c", int)
+        .Use("c", "int")
         .With(lambda c, a: is_free(c, a))
         .Use("pos", pos("c", "b"))
         .With(lambda c, a, pos: (c, a) not in interpret_term(pos)[0])
         .In(pos("c", "a")),
         D: DSL()
-        .Use("a", int)
-        .Use("b", int)
+        .Use("a", "int")
+        .Use("b", "int")
         .As(lambda a: a + 1)
-        .Use("c", int)
+        .Use("c", "int")
         .With(lambda c, b: is_free(c, b))
         .Use("pos", pos("c", "a"))
         .With(lambda c, b, pos: (c, b) not in interpret_term(pos)[0])
         .In(pos("c", "b")),
         L: DSL()
-        .Use("a", int)
-        .Use("b", int)
+        .Use("a", "int")
+        .Use("b", "int")
         .As(lambda a: a + 1)
-        .Use("c", int)
+        .Use("c", "int")
         .With(lambda a, c: is_free(a, c))
         .Use("pos", pos("b", "c"))
         .With(lambda a, c, pos: (a, c) not in interpret_term(pos)[0])
         .In(pos("a", "c")),
         R: DSL()
-        .Use("a", int)
-        .Use("b", int)
+        .Use("a", "int")
+        .Use("b", "int")
         .As(lambda a: a + 1)
-        .Use("c", int)
+        .Use("c", "int")
         .With(lambda b, c: is_free(b, c))
         .Use("pos", pos("a", "c"))
         .With(lambda b, c, pos: (b, c) not in interpret_term(pos)[0])
         .In(pos("b", "c")),
-        (((0, 0),), "START"): "pos" @ (Literal(0, int) * Literal(0, int)),
+        (((0, 0),), "START"): "pos" @ (Literal(0, "int") * Literal(0, "int")),
     }
 
-    literals = {int: list(range(SIZE))}
+    literals = {"int": list(range(SIZE))}
 
     if output:
         for row in range(SIZE):
@@ -114,7 +114,7 @@ def main(SIZE: int = 10, output: bool = True) -> float:
                     print("#", end="")
             print("")
 
-    fin = "pos" @ (Literal(SIZE - 1, int) * Literal(SIZE - 1, int))
+    fin = "pos" @ (Literal(SIZE - 1, "int") * Literal(SIZE - 1, "int"))
 
     fcl: FiniteCombinatoryLogic[
         Callable[[int, int, int, str], str] | str

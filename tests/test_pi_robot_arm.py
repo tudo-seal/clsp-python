@@ -38,15 +38,15 @@ class TestRobotArm(unittest.TestCase):
     def setUp(self) -> None:
         repo: dict[Part, Type | Param] = {
             Part("motor"): DSL()
-            .Use("current_motor_count", int)
-            .Use("new_motor_count", int)
+            .Use("current_motor_count", "int")
+            .Use("new_motor_count", "int")
             .AsRaw(lambda vars: vars["current_motor_count"] + 1)
             .In(
                 Constructor("Structural") ** Constructor("Motor")
                 & ("c" @ TVar("current_motor_count")) ** ("c" @ TVar("new_motor_count"))
             ),
             Part("Link"): DSL()
-            .Use("current_motor_count", int)
+            .Use("current_motor_count", "int")
             .In(
                 Constructor("Motor") ** Constructor("Structural")
                 & (
@@ -55,7 +55,7 @@ class TestRobotArm(unittest.TestCase):
                 )
             ),
             Part("ShortLink"): DSL()
-            .Use("current_motor_count", int)
+            .Use("current_motor_count", "int")
             .In(
                 Constructor("Motor") ** Constructor("Structural")
                 & (
@@ -63,9 +63,9 @@ class TestRobotArm(unittest.TestCase):
                     ** ("c" @ TVar("current_motor_count"))
                 )
             ),
-            Part("Effector"): Constructor("Structural") & ("c" @ Literal(0, int)),
+            Part("Effector"): Constructor("Structural") & ("c" @ Literal(0, "int")),
             Part("Base"): DSL()
-            .Use("current_motor_count", int)
+            .Use("current_motor_count", "int")
             .In(
                 Constructor("Motor") ** Constructor("Base")
                 & (
@@ -75,12 +75,12 @@ class TestRobotArm(unittest.TestCase):
             ),
         }
 
-        literals = {int: list(range(10))}
+        literals = {"int": list(range(10))}
 
         fcl: FiniteCombinatoryLogic[Part] = FiniteCombinatoryLogic(
             repo, literals=literals
         )
-        query = Constructor("Base") & ("c" @ (Literal(3, int)))
+        query = Constructor("Base") & ("c" @ (Literal(3, "int")))
         grammar = fcl.inhabit(query)
         self.terms = list(enumerate_terms(query, grammar))
         # self.logger.info(grammar.show())

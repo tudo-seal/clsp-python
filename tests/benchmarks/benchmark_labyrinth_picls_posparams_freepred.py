@@ -44,46 +44,46 @@ def main(SIZE: int = 10, output: bool = True) -> float:
         Param | Type,
     ] = {
         FREE: DSL()
-        .Use("a", int)
-        .Use("b", int)
+        .Use("a", "int")
+        .Use("b", "int")
         .With(lambda a, b: is_free(b, a))
         .In(free("a", "b")),
         U: DSL()
-        .Use("a", int)
-        .Use("b", int)
+        .Use("a", "int")
+        .Use("b", "int")
         .With(lambda a, b: b == a + 1)
-        .Use("c", int)
+        .Use("c", "int")
         .With(lambda c, a: is_free(c, a))
         .Use("pos", pos("c", "b"))
         .In(pos("c", "a")),
         D: DSL()
-        .Use("a", int)
-        .Use("b", int)
+        .Use("a", "int")
+        .Use("b", "int")
         .With(lambda a, b: b == a + 1)
-        .Use("c", int)
+        .Use("c", "int")
         .With(lambda c, b: is_free(c, b))
         .Use("pos", pos("c", "a"))
         .In(pos("c", "b")),
         L: DSL()
-        .Use("a", int)
-        .Use("b", int)
+        .Use("a", "int")
+        .Use("b", "int")
         .With(lambda a, b: b == a + 1)
-        .Use("c", int)
+        .Use("c", "int")
         .With(lambda a, c: is_free(a, c))
         .Use("pos", pos("b", "c"))
         .In(pos("a", "c")),
         R: DSL()
-        .Use("a", int)
-        .Use("b", int)
+        .Use("a", "int")
+        .Use("b", "int")
         .With(lambda a, b: b == a + 1)
-        .Use("c", int)
+        .Use("c", "int")
         .With(lambda b, c: is_free(b, c))
         .Use("pos", pos("a", "c"))
         .In(pos("b", "c")),
-        "START": "pos" @ (Literal(0, int) * Literal(0, int)),
+        "START": "pos" @ (Literal(0, "int") * Literal(0, "int")),
     }
 
-    literals = {int: list(range(SIZE))}
+    literals = {"int": list(range(SIZE))}
 
     if output:
         for row in range(SIZE):
@@ -94,7 +94,7 @@ def main(SIZE: int = 10, output: bool = True) -> float:
                     print("#", end="")
             print("")
 
-    fin = "pos" @ (Literal(SIZE - 1, int) * Literal(SIZE - 1, int))
+    fin = "pos" @ (Literal(SIZE - 1, "int") * Literal(SIZE - 1, "int"))
 
     fcl: FiniteCombinatoryLogic[
         Callable[[int, int, int, str], str] | str

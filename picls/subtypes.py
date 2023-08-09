@@ -18,11 +18,11 @@ class Subtypes:
         if supertype.is_omega:
             return True
         match supertype:
-            case Literal(name2, ty2):
+            case Literal(name2, group2):
                 while subtypes:
                     match subtypes.pop():
-                        case Literal(name1, ty1):
-                            if name2 == name1 and ty1 == ty2:
+                        case Literal(name1, group1):
+                            if name2 == name1 and group1 == group2:
                                 return True
                         case TVar(name1):
                             if substitutions[name1] == supertype:
@@ -81,9 +81,9 @@ class Subtypes:
             case TVar(name):
                 while subtypes:
                     match subtypes.pop():
-                        case Literal(value, ty):
+                        case Literal(value, group):
                             x = substitutions[name]
-                            if x.value == value and x.type == ty:
+                            if x.value == value and x.group == group:
                                 return True
                         case Intersection(l, r):
                             subtypes.extend((l, r))

@@ -27,10 +27,10 @@ class TestLiterals(unittest.TestCase):
         Y = lambda x, y: f"Y {x} {y}"
         # F: Callable[[str], str] = lambda x: f"F({x})"
 
-        repository = dict({Y: Param("x", int, lambda _: True, Arrow(TVar("x"), c))})
+        repository = dict({Y: Param("x", "int", lambda _: True, Arrow(TVar("x"), c))})
         # for real_result in inhabit_and_interpret(repository, [Literal("3", int)]):
         #     self.logger.info(real_result)
-        result = FiniteCombinatoryLogic(repository, literals={int: [3]}).inhabit(c)
+        result = FiniteCombinatoryLogic(repository, literals={"int": [3]}).inhabit(c)
         self.logger.info(result.show())
         for term in enumerate_terms(c, result):
             self.logger.info(interpret_term(term))

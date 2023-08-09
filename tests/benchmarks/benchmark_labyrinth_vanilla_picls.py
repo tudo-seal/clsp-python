@@ -83,26 +83,26 @@ def main(SIZE: int = 10, output: bool = True) -> float:
     ] = {
         FREE: Param(
             "a",
-            int,
+            "int",
             lambda _: True,
             Param(
                 "b",
-                int,
+                "int",
                 lambda vars: is_free(vars["b"].value, vars["a"].value),
                 free("a", "b"),
             ),
         ),
         U: Param(
             "a",
-            int,
+            "int",
             lambda _: True,
             Param(
                 "b",
-                int,
+                "int",
                 set_plus_one("a"),
                 Param(
                     "c",
-                    int,
+                    "int",
                     lambda _: True,
                     Param(
                         "p",
@@ -115,15 +115,15 @@ def main(SIZE: int = 10, output: bool = True) -> float:
         ),
         D: Param(
             "a",
-            int,
+            "int",
             lambda _: True,
             Param(
                 "b",
-                int,
+                "int",
                 set_plus_one("a"),
                 Param(
                     "c",
-                    int,
+                    "int",
                     lambda _: True,
                     Param(
                         "p",
@@ -136,15 +136,15 @@ def main(SIZE: int = 10, output: bool = True) -> float:
         ),
         L: Param(
             "a",
-            int,
+            "int",
             lambda _: True,
             Param(
                 "b",
-                int,
+                "int",
                 set_plus_one("a"),
                 Param(
                     "c",
-                    int,
+                    "int",
                     lambda _: True,
                     Param(
                         "p",
@@ -157,15 +157,15 @@ def main(SIZE: int = 10, output: bool = True) -> float:
         ),
         R: Param(
             "a",
-            int,
+            "int",
             lambda _: True,
             Param(
                 "b",
-                int,
+                "int",
                 set_plus_one("a"),
                 Param(
                     "c",
-                    int,
+                    "int",
                     lambda _: True,
                     Param(
                         "p",
@@ -176,13 +176,15 @@ def main(SIZE: int = 10, output: bool = True) -> float:
                 ),
             ),
         ),
-        "START": Constructor("pos", Product(Literal(0, int), Literal(0, int))),
+        "START": Constructor("pos", Product(Literal(0, "int"), Literal(0, "int"))),
     }
 
     start = timeit.default_timer()
 
-    literals = {int: list(range(SIZE))}
-    target = Constructor("pos", Product(Literal(SIZE - 1, int), Literal(SIZE - 1, int)))
+    literals = {"int": list(range(SIZE))}
+    target = Constructor(
+        "pos", Product(Literal(SIZE - 1, "int"), Literal(SIZE - 1, "int"))
+    )
 
     fcl = FiniteCombinatoryLogic(repo, literals=literals)
 

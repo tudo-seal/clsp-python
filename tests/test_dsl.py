@@ -49,40 +49,40 @@ class TestDSL(unittest.TestCase):
 
         term1 = (
             DSL()
-            .Use("x", int)
+            .Use("x", "int")
             .With(lambda x: x < 4 and x > 1)
-            .Use("y", int)
+            .Use("y", "int")
             .As(lambda x: x + 1)
-            .Use("a", int)
+            .Use("a", "int")
             .With(lambda y, x: y > x)
-            .Use("z", str)
+            .Use("z", "str")
             .In(self.a)
         )
 
         grammar1 = FiniteCombinatoryLogic(
-            {X: term1}, literals={int: [1, 2, 3, 4], str: ["a", "b"]}
+            {X: term1}, literals={"int": [1, 2, 3, 4], "str": ["a", "b"]}
         ).inhabit(self.a)
 
         result1 = {interpret_term(term) for term in enumerate_terms(self.a, grammar1)}
 
         term2 = Param(
             "x",
-            int,
+            "int",
             lambda vars: bool(vars["x"].value < 4 and vars["x"].value > 1),
             Param(
                 "y",
-                int,
+                "int",
                 SetTo(lambda vars: vars["x"].value + 1),
                 Param(
                     "a",
-                    int,
+                    "int",
                     lambda vars: bool(vars["y"].value > vars["x"].value),
-                    Param("z", str, DSL.TRUE, self.a),
+                    Param("z", "str", DSL.TRUE, self.a),
                 ),
             ),
         )
         grammar2 = FiniteCombinatoryLogic(
-            {X: term2}, literals={int: [1, 2, 3, 4], str: ["a", "b"]}
+            {X: term2}, literals={"int": [1, 2, 3, 4], "str": ["a", "b"]}
         ).inhabit(self.a)
 
         result2 = {interpret_term(term) for term in enumerate_terms(self.a, grammar2)}

@@ -33,38 +33,38 @@ def main(SIZE: int = 10, output: bool = True) -> float:
         Param | Type,
     ] = {
         FREE: DSL()
-        .Use("a", int)
-        .Use("b", int)
+        .Use("a", "int")
+        .Use("b", "int")
         .With(lambda a, b: is_free(b, a))
         .In(free("a", "b")),
         U: DSL()
-        .Use("a", int)
-        .Use("b", int)
+        .Use("a", "int")
+        .Use("b", "int")
         .With(lambda a, b: a == b + 1)
-        .Use("c", int)
+        .Use("c", "int")
         .In(Requires(pos("c", "b"), free("c", "a")).Provides(pos("c", "a"))),
         D: DSL()
-        .Use("a", int)
-        .Use("b", int)
+        .Use("a", "int")
+        .Use("b", "int")
         .With(lambda a, b: a == b + 1)
-        .Use("c", int)
+        .Use("c", "int")
         .In(pos("c", "a") ** free("c", "b") ** pos("c", "b")),
         L: DSL()
-        .Use("a", int)
-        .Use("b", int)
+        .Use("a", "int")
+        .Use("b", "int")
         .With(lambda a, b: a == b + 1)
-        .Use("c", int)
+        .Use("c", "int")
         .In(pos("b", "c") ** free("a", "c") ** pos("a", "c")),
         R: DSL()
-        .Use("a", int)
-        .Use("b", int)
+        .Use("a", "int")
+        .Use("b", "int")
         .With(lambda a, b: a == b + 1)
-        .Use("c", int)
+        .Use("c", "int")
         .In(pos("a", "c") ** free("b", "c") ** pos("b", "c")),
-        "START": "pos" @ (Literal(0, int) * Literal(0, int)),
+        "START": "pos" @ (Literal(0, "int") * Literal(0, "int")),
     }
 
-    literals = {int: list(range(SIZE))}
+    literals = {"int": list(range(SIZE))}
 
     if output:
         for row in range(SIZE):
@@ -75,7 +75,7 @@ def main(SIZE: int = 10, output: bool = True) -> float:
                     print("#", end="")
             print("")
 
-    fin = "pos" @ (Literal(SIZE - 1, int) * Literal(SIZE - 1, int))
+    fin = "pos" @ (Literal(SIZE - 1, "int") * Literal(SIZE - 1, "int"))
 
     fcl: FiniteCombinatoryLogic[
         Callable[[Any, Any, Any, Any, Any], str] | Callable[[Any, Any], str] | str

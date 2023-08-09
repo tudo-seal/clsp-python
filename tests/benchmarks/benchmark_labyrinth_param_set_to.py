@@ -50,21 +50,21 @@ def main(_: int = 0, output: bool = True) -> float:
     ] = {
         FREE: Param(
             "a",
-            int,
+            "int",
             lambda _: True,
-            Param("b", int, make_is_free(labyrinth_str), free("a", "b")),
+            Param("b", "int", make_is_free(labyrinth_str), free("a", "b")),
         ),
         U: Param(
             "a",
-            int,
+            "int",
             lambda _: True,
             Param(
                 "b",
-                int,
+                "int",
                 set_plus_one("a"),
                 Param(
                     "c",
-                    int,
+                    "int",
                     lambda _: True,
                     Arrow(pos("c", "b"), Arrow(free("c", "a"), pos("c", "a"))),
                 ),
@@ -72,15 +72,15 @@ def main(_: int = 0, output: bool = True) -> float:
         ),
         D: Param(
             "a",
-            int,
+            "int",
             lambda _: True,
             Param(
                 "b",
-                int,
+                "int",
                 set_plus_one("a"),
                 Param(
                     "c",
-                    int,
+                    "int",
                     lambda _: True,
                     Arrow(pos("c", "a"), Arrow(free("c", "b"), pos("c", "b"))),
                 ),
@@ -88,15 +88,15 @@ def main(_: int = 0, output: bool = True) -> float:
         ),
         L: Param(
             "a",
-            int,
+            "int",
             lambda _: True,
             Param(
                 "b",
-                int,
+                "int",
                 set_plus_one("a"),
                 Param(
                     "c",
-                    int,
+                    "int",
                     lambda _: True,
                     Arrow(pos("b", "c"), Arrow(free("a", "c"), pos("a", "c"))),
                 ),
@@ -104,24 +104,24 @@ def main(_: int = 0, output: bool = True) -> float:
         ),
         R: Param(
             "a",
-            int,
+            "int",
             lambda _: True,
             Param(
                 "b",
-                int,
+                "int",
                 set_plus_one("a"),
                 Param(
                     "c",
-                    int,
+                    "int",
                     lambda _: True,
                     Arrow(pos("a", "c"), Arrow(free("b", "c"), pos("b", "c"))),
                 ),
             ),
         ),
-        "START": Constructor("pos", Product(Literal(0, int), Literal(0, int))),
+        "START": Constructor("pos", Product(Literal(0, "int"), Literal(0, "int"))),
     }
 
-    literals = {int: list(range(10))}
+    literals = {"int": list(range(10))}
 
     if output:
         print("▒▒▒▒▒▒▒▒▒▒▒▒")
@@ -129,7 +129,7 @@ def main(_: int = 0, output: bool = True) -> float:
             print(f"▒{line}▒")
         print("▒▒▒▒▒▒▒▒▒▒▒▒")
 
-    fin = Constructor("pos", Product(Literal(9, int), Literal(9, int)))
+    fin = Constructor("pos", Product(Literal(9, "int"), Literal(9, "int")))
 
     fcl: FiniteCombinatoryLogic[
         Callable[[Any, Any, Any, Any, Any], str] | Callable[[Any, Any], str] | str
