@@ -51,7 +51,7 @@ def maximal_elements(
 
 
 def minimal_covers(
-    sets: list[S], to_cover: list[E], contains: Callable[[S, E], bool]
+    sets: Sequence[S], to_cover: Sequence[E], contains: Callable[[S, E], bool]
 ) -> list[list[S]]:
     """List minimal covers of elements in to_cover using given sets.
 

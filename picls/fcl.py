@@ -84,9 +84,9 @@ class FiniteCombinatoryLogic(Generic[C]):
         self,
         repository: Mapping[C, Param | Type],
         subtypes: Subtypes = Subtypes({}),
-        literals: Optional[dict[str, list[Any]]] = None,
+        literals: Optional[Mapping[str, list[Any]]] = None,
     ):
-        self.literals: dict[Any, list[Any]] = {} if literals is None else literals
+        self.literals: Mapping[str, list[Any]] = {} if literals is None else literals
         self.repository: Mapping[
             C,
             tuple[list[InstantiationMeta], list[list[MultiArrow]]],
@@ -98,7 +98,7 @@ class FiniteCombinatoryLogic(Generic[C]):
 
     @staticmethod
     def _function_types(
-        p_or_ty: Param | Type, literals: dict[Any, list[Any]]
+        p_or_ty: Param | Type, literals: Mapping[str, list[Any]]
     ) -> tuple[list[InstantiationMeta], list[list[MultiArrow]],]:
         """Presents a type as a list of 0-ary, 1-ary, ..., n-ary function types."""
 
@@ -136,9 +136,9 @@ class FiniteCombinatoryLogic(Generic[C]):
 
     def _subqueries(
         self,
-        nary_types: list[MultiArrow],
-        paths: list[Type],
-        substitutions: dict[str, Literal],
+        nary_types: Sequence[MultiArrow],
+        paths: Sequence[Type],
+        substitutions: Mapping[str, Literal],
     ) -> Sequence[list[Type]]:
         # does the target of a multi-arrow contain a given type?
         target_contains: Callable[
@@ -168,8 +168,8 @@ class FiniteCombinatoryLogic(Generic[C]):
 
     @staticmethod
     def _instantiate(
-        literals: dict[Any, list[Any]],
-        params: list[LitParamSpec | TermParamSpec],
+        literals: Mapping[str, list[Any]],
+        params: Sequence[LitParamSpec | TermParamSpec],
     ) -> Iterable[InstantiationMeta]:
         substitutions: deque[dict[str, Literal]] = deque([{}])
         args: deque[str | GVar] = deque()

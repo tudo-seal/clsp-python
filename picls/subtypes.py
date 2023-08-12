@@ -1,10 +1,11 @@
 from collections import deque
+from collections.abc import Mapping
 
 from .types import Arrow, Constructor, Intersection, Literal, Product, TVar, Type
 
 
 class Subtypes:
-    def __init__(self, environment: dict[str, set[str]]):
+    def __init__(self, environment: Mapping[str, set[str]]):
         self.environment = self._transitive_closure(
             self._reflexive_closure(environment)
         )
@@ -13,7 +14,7 @@ class Subtypes:
         self,
         subtypes: deque[Type],
         supertype: Type,
-        substitutions: dict[str, Literal],
+        substitutions: Mapping[str, Literal],
     ) -> bool:
         if supertype.is_omega:
             return True
@@ -92,14 +93,14 @@ class Subtypes:
                 raise TypeError(f"Unsupported type in check_subtype: {supertype}")
 
     def check_subtype(
-        self, subtype: Type, supertype: Type, substitutions: dict[str, Literal]
+        self, subtype: Type, supertype: Type, substitutions: Mapping[str, Literal]
     ) -> bool:
         """Decides whether subtype <= supertype."""
 
         return self._check_subtype_rec(deque((subtype,)), supertype, substitutions)
 
     @staticmethod
-    def _reflexive_closure(env: dict[str, set[str]]) -> dict[str, set[str]]:
+    def _reflexive_closure(env: Mapping[str, set[str]]) -> dict[str, set[str]]:
         all_types: set[str] = set(env.keys())
         for v in env.values():
             all_types.update(v)
@@ -109,7 +110,7 @@ class Subtypes:
         return result
 
     @staticmethod
-    def _transitive_closure(env: dict[str, set[str]]) -> dict[str, set[str]]:
+    def _transitive_closure(env: Mapping[str, set[str]]) -> dict[str, set[str]]:
         result: dict[str, set[str]] = {
             subtype: supertypes.copy() for (subtype, supertypes) in env.items()
         }
