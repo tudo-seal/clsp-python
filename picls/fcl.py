@@ -58,23 +58,6 @@ InstantiationMeta: TypeAlias = tuple[
 TreeGrammar: TypeAlias = MutableMapping[Type, deque[tuple[C, list[Type]]]]
 
 
-def show_grammar(grammar: TreeGrammar[C]) -> Iterable[str]:
-    for clause, possibilities in grammar.items():
-        lhs = str(clause)
-        yield (
-            lhs
-            + " => "
-            + "; ".join(
-                (str(combinator) + "(" + ", ".join(map(str, args)) + ")")
-                for combinator, args in possibilities
-            )
-        )
-
-
-def mstr(m: MultiArrow) -> tuple[str, str]:
-    return str(list(map(str, m.args))), str(m.target)
-
-
 class LiteralNotFoundException(Exception):
     pass
 
@@ -134,38 +117,6 @@ class FiniteCombinatoryLogic(Generic[C]):
             ]
         return (instantiations, multiarrows)
 
-    def _subqueries(
-        self,
-        nary_types: Sequence[MultiArrow],
-        paths: Sequence[Type],
-        substitutions: Mapping[str, Literal],
-    ) -> Sequence[list[Type]]:
-        # does the target of a multi-arrow contain a given type?
-        target_contains: Callable[
-            [MultiArrow, Type], bool
-        ] = lambda m, t: self.subtypes.check_subtype(m.target, t, substitutions)
-        # cover target using targets of multi-arrows in nary_types
-        covers = minimal_covers(nary_types, paths, target_contains)
-        if len(covers) == 0:
-            return []
-        # intersect corresponding arguments of multi-arrows in each cover
-        intersect_args: Callable[
-            [Iterable[Type], Iterable[Type]], list[Type]
-        ] = lambda args1, args2: [Intersection(a, b) for a, b in zip(args1, args2)]
-
-        intersected_args = (
-            list(reduce(intersect_args, (m.args for m in ms))) for ms in covers
-        )
-        # consider only maximal argument vectors
-        compare_args = lambda args1, args2: all(
-            map(
-                lambda a, b: self.subtypes.check_subtype(a, b, substitutions),
-                args1,
-                args2,
-            )
-        )
-        return maximal_elements(intersected_args, compare_args)
-
     @staticmethod
     def _instantiate(
         literals: Mapping[str, list[Any]],
@@ -220,6 +171,38 @@ class FiniteCombinatoryLogic(Generic[C]):
                 instantiated_combinator_args,
                 substitution,
             )
+
+    def _subqueries(
+        self,
+        nary_types: Sequence[MultiArrow],
+        paths: Sequence[Type],
+        substitutions: Mapping[str, Literal],
+    ) -> Sequence[list[Type]]:
+        # does the target of a multi-arrow contain a given type?
+        target_contains: Callable[
+            [MultiArrow, Type], bool
+        ] = lambda m, t: self.subtypes.check_subtype(m.target, t, substitutions)
+        # cover target using targets of multi-arrows in nary_types
+        covers = minimal_covers(nary_types, paths, target_contains)
+        if len(covers) == 0:
+            return []
+        # intersect corresponding arguments of multi-arrows in each cover
+        intersect_args: Callable[
+            [Iterable[Type], Iterable[Type]], list[Type]
+        ] = lambda args1, args2: [Intersection(a, b) for a, b in zip(args1, args2)]
+
+        intersected_args = (
+            list(reduce(intersect_args, (m.args for m in ms))) for ms in covers
+        )
+        # consider only maximal argument vectors
+        compare_args = lambda args1, args2: all(
+            map(
+                lambda a, b: self.subtypes.check_subtype(a, b, substitutions),
+                args1,
+                args2,
+            )
+        )
+        return maximal_elements(intersected_args, compare_args)
 
     def inhabit(self, *targets: Type) -> ParameterizedTreeGrammar[Type, C]:
         type_targets = deque(targets)
