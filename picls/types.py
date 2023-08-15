@@ -1,3 +1,7 @@
+"""
+Definitions of `Type`, that can be 
+"""
+
 from __future__ import annotations
 
 import itertools
@@ -352,21 +356,16 @@ class TVar(Type):
             return self
 
 
-@dataclass
-class ParamSpec:
-    pass
-
-
 # @dataclass(frozen=True)
 @dataclass
-class LitParamSpec(ParamSpec):
+class LitParamSpec:
     name: str
     group: str
     predicate: Callable[[dict[str, Any]], bool] | SetTo
 
 
 @dataclass
-class TermParamSpec(ParamSpec):
+class TermParamSpec:
     name: str
     group: Type
     predicate: Callable[[dict[str, Any]], bool]

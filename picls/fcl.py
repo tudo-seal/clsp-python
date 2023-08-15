@@ -30,14 +30,9 @@ from .types import (
 
 C = TypeVar("C")
 
-# ([theta_1, ..., theta_m], [sigma_1, ..., sigma_n], tau) means
-#   theta_1 => ... => theta_m => sigma_1 -> ... -> sigma_n -> tau
-
 
 @dataclass(frozen=True)
 class MultiArrow:
-    # lit_params: list[LitParamSpec]
-    # term_params: list[TermParamSpec]
     args: list[Type]
     target: Type
 
@@ -54,12 +49,6 @@ InstantiationMeta: TypeAlias = tuple[
     list[Literal | GVar],
     dict[str, Literal],
 ]
-
-TreeGrammar: TypeAlias = MutableMapping[Type, deque[tuple[C, list[Type]]]]
-
-
-class LiteralNotFoundException(Exception):
-    pass
 
 
 class FiniteCombinatoryLogic(Generic[C]):
@@ -174,9 +163,9 @@ class FiniteCombinatoryLogic(Generic[C]):
 
     def _subqueries(
         self,
-        nary_types: Sequence[MultiArrow],
-        paths: Sequence[Type],
-        substitutions: Mapping[str, Literal],
+        nary_types: list[MultiArrow],
+        paths: list[Type],
+        substitutions: dict[str, Literal],
     ) -> Sequence[list[Type]]:
         # does the target of a multi-arrow contain a given type?
         target_contains: Callable[
