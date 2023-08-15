@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from functools import reduce
 from itertools import compress
 from typing import Any, Callable, Generic, TypeAlias, TypeVar, Optional
+from uuid import uuid4, UUID
+from multiprocessing import Queue, Process
 
 from .grammar import GVar, ParameterizedTreeGrammar, Predicate, RHSRule
 
@@ -66,18 +68,28 @@ class FiniteCombinatoryLogic(Generic[C]):
     def __init__(
         self,
         repository: Mapping[C, Param | Type],
-        subtypes: Subtypes = Subtypes({}),
+        subtypes: Optional[Mapping[str, set[str]]] | Subtypes = None,
         literals: Optional[Mapping[str, list[Any]]] = None,
     ):
         self.literals: Mapping[str, list[Any]] = {} if literals is None else literals
+        self.c_to_uuid: Mapping[C, UUID] = {c: uuid4() for c in repository.keys()}
+        self.uuid_to_c: Mapping[UUID, C] = {
+            self.c_to_uuid[c]: c for c in repository.keys()
+        }
         self.repository: Mapping[
-            C,
+            UUID,
             tuple[list[InstantiationMeta], list[list[MultiArrow]]],
         ] = {
-            c: FiniteCombinatoryLogic._function_types(ty, self.literals)
+            self.c_to_uuid[c]: FiniteCombinatoryLogic._function_types(ty, self.literals)
             for c, ty in repository.items()
         }
-        self.subtypes = subtypes
+        self.subtypes: Mapping[str, set[str]] = (
+            {}
+            if subtypes is None
+            else Subtypes.env_closure(subtypes)
+            if not isinstance(subtypes, Subtypes)
+            else subtypes.environment
+        )
 
     @staticmethod
     def _function_types(
@@ -172,16 +184,17 @@ class FiniteCombinatoryLogic(Generic[C]):
                 substitution,
             )
 
+    @staticmethod
     def _subqueries(
-        self,
         nary_types: Sequence[MultiArrow],
         paths: Sequence[Type],
         substitutions: Mapping[str, Literal],
+        subtypes: Mapping[str, set[str]],
     ) -> Sequence[list[Type]]:
         # does the target of a multi-arrow contain a given type?
         target_contains: Callable[
             [MultiArrow, Type], bool
-        ] = lambda m, t: self.subtypes.check_subtype(m.target, t, substitutions)
+        ] = lambda m, t: Subtypes.check_subtype(m.target, t, substitutions, subtypes)
         # cover target using targets of multi-arrows in nary_types
         covers = minimal_covers(nary_types, paths, target_contains)
         if len(covers) == 0:
@@ -197,27 +210,27 @@ class FiniteCombinatoryLogic(Generic[C]):
         # consider only maximal argument vectors
         compare_args = lambda args1, args2: all(
             map(
-                lambda a, b: self.subtypes.check_subtype(a, b, substitutions),
+                lambda a, b: Subtypes.check_subtype(a, b, substitutions, subtypes),
                 args1,
                 args2,
             )
         )
         return maximal_elements(intersected_args, compare_args)
 
+
     def inhabit(self, *targets: Type) -> ParameterizedTreeGrammar[Type, C]:
         type_targets = deque(targets)
 
         # dictionary of type |-> sequence of combinatory expressions
-        memo: ParameterizedTreeGrammar[Type, C] = ParameterizedTreeGrammar()
+        memo: ParameterizedTreeGrammar[Type, UUID] = ParameterizedTreeGrammar()
 
         while type_targets:
             current_target = type_targets.pop()
             if memo.get(current_target) is None:
                 # target type was not seen before
-                possibilities: deque[RHSRule[Type, C]] = deque()
+                possibilities: deque[RHSRule[Type, UUID]] = deque()
                 if isinstance(current_target, Literal):
                     continue
-                memo.update({current_target: possibilities})
                 # If the target is omega, then the result is junk
                 if current_target.is_omega:
                     continue
@@ -227,9 +240,12 @@ class FiniteCombinatoryLogic(Generic[C]):
                 # try each combinator and arity
                 for combinator, (meta, combinator_type) in self.repository.items():
                     for params, predicates, args, substitutions in meta:
+                        self._inhabit_single(combinator, meta, combinator_type)
                         for nary_types in combinator_type:
                             arguments: list[list[Type]] = list(
-                                self._subqueries(nary_types, paths, substitutions)
+                                self._subqueries(
+                                    nary_types, paths, substitutions, self.subtypes
+                                )
                             )
                             if len(arguments) == 0:
                                 continue
@@ -255,11 +271,12 @@ class FiniteCombinatoryLogic(Generic[C]):
                                     )
                                 )
                                 type_targets.extendleft(subquery)
+                memo.update({current_target: possibilities})
 
         # prune not inhabited types
         FiniteCombinatoryLogic._prune(memo)
 
-        return memo
+        return memo.map_over_terminals(lambda uuid: self.uuid_to_c[uuid])
 
     @staticmethod
     def _prune(memo: ParameterizedTreeGrammar[Type, C]) -> None:

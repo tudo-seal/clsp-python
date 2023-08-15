@@ -31,11 +31,9 @@ def inhabit_and_interpret(
     repository: Mapping[C, Type],
     query: list[Type] | Type,
     max_count: Optional[int] = 100,
-    subtypes: Optional[Subtypes] = None,
+    subtypes: Optional[Mapping[str, set[str]]] = None,
 ) -> Iterable[Any]:
-    fcl = FiniteCombinatoryLogic(
-        repository, Subtypes(dict()) if subtypes is None else subtypes
-    )
+    fcl = FiniteCombinatoryLogic(repository, {} if subtypes is None else subtypes)
 
     if not isinstance(query, list):
         query = [query]

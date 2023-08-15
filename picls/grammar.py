@@ -8,6 +8,7 @@ from .types import Literal
 
 NT = TypeVar("NT")
 T = TypeVar("T")
+T2 = TypeVar("T2")
 
 
 # @dataclass
@@ -65,6 +66,11 @@ class RHSRule(Generic[NT, T]):
         argstring = "".join([f"({str(arg)})" for arg in self.args])
         return f"{forallstrings}{predicatestrings}{str(self.terminal)}{paramstring}{argstring}"
 
+    def map_terminal(self, f: Callable[[T], T2]) -> RHSRule[NT, T2]:
+        return RHSRule(
+            self.binder, self.predicates, f(self.terminal), self.parameters, self.args
+        )
+
 
 @dataclass()
 class ParameterizedTreeGrammar(Generic[NT, T]):
@@ -93,6 +99,16 @@ class ParameterizedTreeGrammar(Generic[NT, T]):
             self._rules[nonterminal].append(rule)
         else:
             self._rules[nonterminal] = deque([rule])
+
+    def map_over_terminals(
+        self, f: Callable[[T], T2]
+    ) -> ParameterizedTreeGrammar[NT, T2]:
+        return ParameterizedTreeGrammar(
+            {
+                nt: deque(map(lambda rule: rule.map_terminal(f), rules))
+                for nt, rules in self._rules.items()
+            }
+        )
 
     def show(self) -> str:
         return "\n".join(
