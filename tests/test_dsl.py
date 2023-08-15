@@ -44,8 +44,8 @@ class TestDSL(unittest.TestCase):
         )
 
     def test_param(self) -> None:
-        def X(x: int, y: int, a: int, z: str) -> str:
-            return f"X {x} {y} {a} {z}"
+        def X(x: int, y: int, a: int, z: str, b: int) -> str:
+            return f"X {x} {y} {a} {z} {b}"
 
         term1 = (
             DSL()
@@ -56,6 +56,8 @@ class TestDSL(unittest.TestCase):
             .Use("a", "int")
             .With(lambda y, x: y > x)
             .Use("z", "str")
+            .Use("b", "int")
+            .As(lambda: 3)
             .In(self.a)
         )
 
@@ -77,7 +79,12 @@ class TestDSL(unittest.TestCase):
                     "a",
                     "int",
                     lambda vars: bool(vars["y"].value > vars["x"].value),
-                    Param("z", "str", DSL.TRUE, self.a),
+                    Param(
+                        "z",
+                        "str",
+                        DSL.TRUE,
+                        Param("b", "int", SetTo(lambda vars: 3), self.a),
+                    ),
                 ),
             ),
         )
@@ -87,7 +94,20 @@ class TestDSL(unittest.TestCase):
 
         result2 = {interpret_term(term) for term in enumerate_terms(self.a, grammar2)}
 
+        result3 = set()
+        for x in [1, 2, 3, 4]:
+            if not (x < 4 and x > 1):
+                continue
+            y = x + 1
+            for a in [1, 2, 3, 4]:
+                if not y > x:
+                    continue
+                for z in ["a", "b"]:
+                    b = 3
+                    result3.add(f"X {x} {y} {a} {z} {b}")
+
         self.assertEqual(result1, result2)
+        self.assertEqual(result1, result3)
 
     def test_req_prov(self) -> None:
         self.assertEqual(

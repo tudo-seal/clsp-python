@@ -5,7 +5,6 @@ from collections import deque
 from collections.abc import (
     Iterable,
     Mapping,
-    MutableMapping,
     Sequence,
 )
 from dataclasses import dataclass
