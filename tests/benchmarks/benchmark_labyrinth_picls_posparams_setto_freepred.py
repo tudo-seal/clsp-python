@@ -14,7 +14,7 @@ def plus_one(a: str) -> Callable[[Mapping[str, Literal]], int]:
     return _inner
 
 
-def main(SIZE: int = 10, output: bool = True) -> float:
+def main(SIZE: int = 65, output: bool = True) -> float:
     def is_free(col: int, row: int) -> bool:
         SEED = 0
         if row == col:
@@ -104,4 +104,4 @@ def main(SIZE: int = 10, output: bool = True) -> float:
 
 
 if __name__ == "__main__":
-    main()
+    print(main())

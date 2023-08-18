@@ -52,7 +52,7 @@ def bounded_union(
 
 
 def new_terms(
-    rhs: Iterable[RHSRule[S, T]], existing_terms: dict[S, set[Tree[T]]]
+    rhs: Iterable[RHSRule[S, T, Predicate]], existing_terms: dict[S, set[Tree[T]]]
 ) -> set[Tree[T]]:
     output_set: set[Tree[T]] = set()
     for rule in rhs:
@@ -94,7 +94,7 @@ def new_terms(
 
 def enumerate_terms(
     start: S,
-    grammar: ParameterizedTreeGrammar[S, T],
+    grammar: ParameterizedTreeGrammar[S, T, Predicate],
     max_count: Optional[int] = 100,
 ) -> Iterable[Tree[T]]:
     """Given a start symbol and a tree grammar, enumerate at most max_count ground terms derivable
@@ -302,7 +302,7 @@ def test() -> None:
     #     "X": [("a", []), ("b", ["X", "Y"])],
     #     "Y": [("c", []), ("d", ["Y", "X"])],
     # }
-    d: ParameterizedTreeGrammar[str, str] = ParameterizedTreeGrammar()
+    d: ParameterizedTreeGrammar[str, str, Predicate] = ParameterizedTreeGrammar()
     d.update(
         {
             "X": deque(
@@ -376,7 +376,9 @@ def test2() -> None:
     #     "X": [(A(), []), (B(), ["X", "Y"]), ("Z", [])],
     #     "Y": [(C(), []), (D(), ["Y", "X"])],
     # }
-    d: ParameterizedTreeGrammar[str, A | B | C | D | str] = ParameterizedTreeGrammar()
+    d: ParameterizedTreeGrammar[
+        str, A | B | C | D | str, Predicate
+    ] = ParameterizedTreeGrammar()
     d.update(
         {
             "X": deque(
@@ -411,7 +413,7 @@ def test2() -> None:
 
 
 def test3() -> None:
-    grammar: ParameterizedTreeGrammar[str, str] = ParameterizedTreeGrammar()
+    grammar: ParameterizedTreeGrammar[str, str, Predicate] = ParameterizedTreeGrammar()
     grammar.add_rule("X", RHSRule({"y": "Y"}, [], "y", [], []))
     grammar.add_rule("Y", RHSRule({}, [Predicate(lambda _: True)], "y1", [], []))
     grammar.add_rule("Y", RHSRule({}, [Predicate(lambda _: False)], "y2", [], []))

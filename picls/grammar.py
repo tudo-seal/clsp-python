@@ -8,6 +8,8 @@ from .types import Literal
 
 NT = TypeVar("NT")
 T = TypeVar("T")
+P = TypeVar("P")
+P2 = TypeVar("P2")
 T2 = TypeVar("T2")
 
 
@@ -49,9 +51,9 @@ class GVar:
 
 
 @dataclass
-class RHSRule(Generic[NT, T]):
+class RHSRule(Generic[NT, T, P]):
     binder: dict[str, NT]
-    predicates: list[Predicate]
+    predicates: list[P]
 
     terminal: T
     parameters: list[Literal | GVar]
@@ -66,46 +68,52 @@ class RHSRule(Generic[NT, T]):
         argstring = "".join([f"({str(arg)})" for arg in self.args])
         return f"{forallstrings}{predicatestrings}{str(self.terminal)}{paramstring}{argstring}"
 
-    def map_terminal(self, f: Callable[[T], T2]) -> RHSRule[NT, T2]:
+    def map_uuids(
+        self, f: Callable[[T], T2], p: Callable[[P], P2]
+    ) -> RHSRule[NT, T2, P2]:
         return RHSRule(
-            self.binder, self.predicates, f(self.terminal), self.parameters, self.args
+            self.binder,
+            [p(pred) for pred in self.predicates],
+            f(self.terminal),
+            self.parameters,
+            self.args,
         )
 
 
 @dataclass()
-class ParameterizedTreeGrammar(Generic[NT, T]):
-    _rules: dict[NT, deque[RHSRule[NT, T]]] = field(default_factory=dict)
+class ParameterizedTreeGrammar(Generic[NT, T, P]):
+    _rules: dict[NT, deque[RHSRule[NT, T, P]]] = field(default_factory=dict)
 
-    def get(self, nonterminal: NT) -> Optional[deque[RHSRule[NT, T]]]:
+    def get(self, nonterminal: NT) -> Optional[deque[RHSRule[NT, T, P]]]:
         return self._rules.get(nonterminal)
 
-    def update(self, param: dict[NT, deque[RHSRule[NT, T]]]) -> None:
+    def update(self, param: dict[NT, deque[RHSRule[NT, T, P]]]) -> None:
         self._rules.update(param)
 
-    def __getitem__(self, nonterminal: NT) -> deque[RHSRule[NT, T]]:
+    def __getitem__(self, nonterminal: NT) -> deque[RHSRule[NT, T, P]]:
         return self._rules[nonterminal]
 
     def nonterminals(self) -> Iterable[NT]:
         return self._rules.keys()
 
-    def as_tuples(self) -> Iterable[tuple[NT, deque[RHSRule[NT, T]]]]:
+    def as_tuples(self) -> Iterable[tuple[NT, deque[RHSRule[NT, T, P]]]]:
         return self._rules.items()
 
-    def __setitem__(self, nonterminal: NT, rhs: deque[RHSRule[NT, T]]) -> None:
+    def __setitem__(self, nonterminal: NT, rhs: deque[RHSRule[NT, T, P]]) -> None:
         self._rules[nonterminal] = rhs
 
-    def add_rule(self, nonterminal: NT, rule: RHSRule[NT, T]) -> None:
+    def add_rule(self, nonterminal: NT, rule: RHSRule[NT, T, P]) -> None:
         if nonterminal in self._rules:
             self._rules[nonterminal].append(rule)
         else:
             self._rules[nonterminal] = deque([rule])
 
-    def map_over_terminals(
-        self, f: Callable[[T], T2]
-    ) -> ParameterizedTreeGrammar[NT, T2]:
+    def map_over_uuids(
+        self, f: Callable[[T], T2], p: Callable[[P], P2]
+    ) -> ParameterizedTreeGrammar[NT, T2, P2]:
         return ParameterizedTreeGrammar(
             {
-                nt: deque(map(lambda rule: rule.map_terminal(f), rules))
+                nt: deque(map(lambda rule: rule.map_uuids(f, p), rules))
                 for nt, rules in self._rules.items()
             }
         )

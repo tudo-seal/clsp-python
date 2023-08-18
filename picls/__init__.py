@@ -1,7 +1,7 @@
 from collections.abc import Hashable, Iterable, Mapping
 from typing import Any, Optional, TypeVar
 
-from .grammar import ParameterizedTreeGrammar
+from .grammar import ParameterizedTreeGrammar, Predicate
 
 from .subtypes import Subtypes
 from .types import Type, Omega, Constructor, Product, Arrow, Intersection
@@ -38,7 +38,7 @@ def inhabit_and_interpret(
     if not isinstance(query, list):
         query = [query]
 
-    grammar: ParameterizedTreeGrammar[Type, C] = fcl.inhabit(*query)
+    grammar: ParameterizedTreeGrammar[Type, C, Predicate] = fcl.inhabit(*query)
 
     for q in query:
         enumerated_terms = enumerate_terms(

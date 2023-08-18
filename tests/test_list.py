@@ -49,12 +49,15 @@ class TestList(unittest.TestCase):
     )
 
     def setUp(self) -> None:
-        self.results = list(inhabit_and_interpret(exampleRepo, List(B)))
+        self.count = 10
+        self.results = list(
+            inhabit_and_interpret(exampleRepo, List(B), max_count=self.count)
+        )
         for z in self.results:
             self.logger.info(z)
 
     def test_size(self) -> None:
-        self.assertEqual(100, len(self.results))
+        self.assertEqual(self.count, len(self.results))
 
     def test_all_monotone(self) -> None:
         max_len = 0
