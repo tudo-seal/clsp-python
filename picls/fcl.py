@@ -11,13 +11,20 @@ from collections.abc import (
 from dataclasses import dataclass
 from functools import reduce
 from itertools import compress
-from multiprocessing.connection import Connection
-from multiprocessing.managers import BaseManager
 from typing import Any, Callable, Generic, TypeAlias, TypeVar, Optional
 from uuid import uuid4, UUID
 
-from multiprocessing import JoinableQueue, Lock, Manager, Pipe, Queue, Process
-from queue import Empty
+from multiprocessing import (
+    Lock,
+    Manager,
+    Process,
+    Semaphore,
+    Value,
+)
+
+
+from multiprocessing.managers import SharedMemoryManager
+from pickle import UnpicklingError, dumps, loads
 
 from .grammar import GVar, ParameterizedTreeGrammar, Predicate, RHSRule
 
@@ -43,145 +50,77 @@ C = TypeVar("C")
 #   theta_1 => ... => theta_m => sigma_1 -> ... -> sigma_n -> tau
 
 
-# class InhabitationManager(BaseManager):
-#     pass
-#
-#
-# InhabitationManager.register("set", set)
-#
-# puts = 0
-# dones = 0
-
-
-# def putprint():
-#     global puts
-#     puts += 1
-#     print(f"put: {dones}/{puts}")
-#
-#
-# def doneprint():
-#     global dones
-#     dones += 1
-#     print(f"done: {dones}/{puts}")
-
-
-# class Process:
-#     def __init__(self, target: Callable[..., None], args: tuple[Any, ...]) -> None:
-#         self.f = target
-#         self.args = args
-#
-#     def start(self) -> None:
-#         self.f(*self.args)
-#
-#     def join(self) -> None:
-#         pass
-
-
-def encode_type(
-    typ: Type, constructors: list[str], litvalues: list[Any], litgroups: list[str]
-) -> list[int]:
+def encode_type(typ: Type) -> bytes:
     match typ:
-        case Omega():
-            return [0]
         case Arrow(src, tgt):
-            return (
-                [1]
-                + encode_type(src, constructors, litvalues, litgroups)
-                + encode_type(tgt, constructors, litvalues, litgroups)
-            )
+            return b"\x01" + encode_type(src) + encode_type(tgt)
         case Intersection(left, right):
-            return (
-                [2]
-                + encode_type(left, constructors, litvalues, litgroups)
-                + encode_type(right, constructors, litvalues, litgroups)
-            )
+            return b"\x02" + encode_type(left) + encode_type(right)
         case Product(left, right):
-            return (
-                [3]
-                + encode_type(left, constructors, litvalues, litgroups)
-                + encode_type(right, constructors, litvalues, litgroups)
-            )
+            return b"\x03" + encode_type(left) + encode_type(right)
         case Constructor(name, args):
-            return [4, constructors.index(name)] + encode_type(
-                args, constructors, litvalues, litgroups
-            )
+            return b"\x04" + name.encode() + b"\x00" + encode_type(args)
         case Literal(value, group):
-            return [5, litvalues.index(value), litgroups.index(group)]
-    return []
+            byte_value = dumps(value)
+            return (
+                b"\x05"
+                + len(byte_value).to_bytes(4, "big")
+                + byte_value
+                + group.encode()
+                + b"\x00\x01"  # see https://github.com/python/cpython/issues/106939
+            )
+        case Omega():
+            return b"\x06"
+    return b"\x00"
 
 
-def decode_type(
-    encoded_types: list[int],
-    constructors: list[str],
-    litvalues: list[Any],
-    litgroups: list[str],
-) -> Type:
-    head = encoded_types.pop()
-    match head:
-        case 0:
-            return Omega()
-        case 1:
-            src = decode_type(encoded_types, constructors, litvalues, litgroups)
-            tgt = decode_type(encoded_types, constructors, litvalues, litgroups)
-            return Arrow(src, tgt)
-        case 2:
-            left = decode_type(encoded_types, constructors, litvalues, litgroups)
-            right = decode_type(encoded_types, constructors, litvalues, litgroups)
-            return Intersection(left, right)
-        case 3:
-            left = decode_type(encoded_types, constructors, litvalues, litgroups)
-            right = decode_type(encoded_types, constructors, litvalues, litgroups)
-            return Product(left, right)
-        case 4:
-            name = constructors[encoded_types.pop()]
-            args = decode_type(encoded_types, constructors, litvalues, litgroups)
-            return Constructor(name, args)
-        case 5:
-            value = litvalues[encoded_types.pop()]
-            group = litgroups[encoded_types.pop()]
-            return Literal(value, group)
-    return Omega()
+def decode_type(encoded_type: bytes):
+    def _decode_type(encoded_type: bytes, index: int = 0) -> tuple[int, Type]:
+        match encoded_type[index]:
+            case 1:
+                end_src, src = _decode_type(encoded_type, index + 1)
+                end_tgt, tgt = _decode_type(encoded_type, end_src + 1)
+                return (end_tgt, Arrow(src, tgt))
+            case 2:
+                end_left, left = _decode_type(encoded_type, index + 1)
+                end_right, right = _decode_type(encoded_type, end_left + 1)
+                return (end_right, Intersection(left, right))
+            case 3:
+                end_left, left = _decode_type(encoded_type, index + 1)
+                end_right, right = _decode_type(encoded_type, end_left + 1)
+                return (end_right, Product(left, right))
+            case 4:
+                index += 1
+                end = index
+                while encoded_type[end] != 0:
+                    end += 1
+                name = encoded_type[index:end].decode()
+                end_args, args = _decode_type(encoded_type, end + 1)
+                return (end_args, Constructor(name, args))
+            case 5:
+                index += 1
+                end_length = index + 4
+                value_length = int.from_bytes(encoded_type[index:end_length], "big")
+                end_value = end_length + value_length
+                literal_value = loads(encoded_type[end_length:end_value])
+                end_group = end_value
+                while encoded_type[end_group] != 0:
+                    end_group += 1
+                group_name = encoded_type[end_value:end_group].decode()
+                return (end_group + 1, Literal(literal_value, group_name))
+
+            case 6:
+                return (index, Omega())
+        return (0, Omega())
+
+    return _decode_type(encoded_type)[1]
 
 
 T = TypeVar("T")
 
 
-# class XQueue(Generic[T]):
-#     def __init__(self) -> None:
-#         self._queue: deque[T] = deque()
-#         self.puts = 0
-#         self.dones = 0
-#         self.gets = 0
-#
-#     def put(self, item: T) -> None:
-#         self.puts += 1
-#         self._queue.append(item)
-#
-#     def get_nowait(self) -> T:
-#         if len(self._queue) == 0:
-#             raise Empty
-#         self.gets += 1
-#         return self._queue.popleft()
-#
-#     def empty(self) -> bool:
-#         return len(self._queue) == 0
-#
-#     def task_done(self):
-#         self.dones += 1
-#
-#     def join(self) -> None:
-#         if self.puts == self.dones:
-#             return
-#         print("NONONO")
-#
-#     def qsize(self) -> int:
-#         return len(self._queue)
-
-
 @dataclass(frozen=True)
 class MultiArrow:
-    # lit_params: list[LitParamSpec]
-    # term_params: list[TermParamSpec]
     args: list[Type]
     target: Type
 
@@ -243,19 +182,6 @@ class FiniteCombinatoryLogic(Generic[C]):
             if not isinstance(subtypes, Subtypes)
             else subtypes.environment
         )
-
-    def _get_all_constructor_names(self) -> list[str]:
-        def exctract_constructors(typ: Type) -> list[str]:
-            return []
-
-        collect = []
-        for _, marrows in self._repository.values():
-            for marrow in marrows:
-                for arrow in marrow:
-                    collect.extend(exctract_constructors(arrow.target))
-                    for typ in arrow.args:
-                        collect.extend(exctract_constructors(typ))
-        return list(set(collect))
 
     def transform_pred_uuid(
         self,
@@ -420,50 +346,42 @@ class FiniteCombinatoryLogic(Generic[C]):
 
     @staticmethod
     def _inhabit_single(
-        # current_target: Type,
-        target_queue: JoinableQueue[Type],
-        # rules_queue: JoinableQueue[tuple[Type, deque[RHSRule[Type, UUID, UUID]]]],
         repository: Mapping[
             UUID, tuple[list[InstantiationMeta[UUID]], list[list[MultiArrow]]]
         ],
         subtypes: Mapping[str, set[str]],
-        seen: dict[int, None],
-        rules: dict[
-            Type,
-            deque[
-                tuple[
-                    dict[str, Type],
-                    list[UUID],
-                    UUID,
-                    list[Literal | GVar],
-                    list[Type],
-                ]
-            ],
-        ],
-        transactionlock,
+        seen: dict[bytes, None],
+        seenlock,
+        put_count,
+        done_count,
+        get_index,
+        put_index,
+        target_list,
+        filled_sem,
+        rules_dump,
+        done_sem,
+        queue_shm_size,
     ) -> None:
         # get one
         localseen = set()
+        rules_written = 0
         while True:
             # get as much, as you can get
-            with transactionlock:
-                one_target = target_queue.get()
-                seen[hash(one_target)] = None
-                localseen.add(one_target)
-            batch = [one_target]
-            try:
-                while True:
-                    with transactionlock:
-                        next_target = target_queue.get_nowait()
-                        localseen.add(next_target)
-                        seen[hash(next_target)] = None
-                    batch.append(next_target)
-            except Empty:
-                pass
-            for current_target in batch:
-                # rules[current_target] = None
+            filled_sem.acquire()
+            batch: list[int] = []
+            with get_index.get_lock():
+                batch.append(get_index.value)
+                get_index.value += 1
+                if get_index.value >= queue_shm_size:
+                    get_index.value = 0
+                while filled_sem.acquire(False):
+                    batch.append(get_index.value)
+                    get_index.value += 1
+                    if get_index.value >= queue_shm_size:
+                        get_index.value = 0
 
-                possibilities: deque[
+            for current_target in (decode_type(target_list[index]) for index in batch):
+                possibilities: list[
                     tuple[
                         dict[str, Type],
                         list[UUID],
@@ -471,8 +389,7 @@ class FiniteCombinatoryLogic(Generic[C]):
                         list[Literal | GVar],
                         list[Type],
                     ]
-                ] = deque()
-                # rules[current_target] = possibilities
+                ] = list()
 
                 paths: list[Type] = list(current_target.organized)
 
@@ -496,20 +413,31 @@ class FiniteCombinatoryLogic(Generic[C]):
                             for typ in specific_params.values():
                                 # If the target is omega, then the result is junk
                                 if typ.is_omega:
-                                    # target_queue.task_done()
                                     continue
 
                                 if typ in localseen:
                                     continue
+                                localseen.add(typ)
 
                                 if isinstance(typ, Literal):
-                                    # target_queue.task_done()
                                     continue
 
-                                if hash(typ) in seen:
-                                    # target_queue.task_done()
-                                    continue
-                                target_queue.put(typ)
+                                etype = encode_type(typ)
+                                with seenlock:
+                                    if etype in seen:
+                                        continue
+                                    seen[etype] = None
+                                with put_index.get_lock():
+                                    put = put_index.value
+                                    put_index.value += 1
+                                    if put_index.value == get_index.value:
+                                        raise RuntimeError("Queue to small")
+                                    if put_index.value >= queue_shm_size:
+                                        put_index.value = 0
+                                with put_count.get_lock():
+                                    put_count.value += 1
+                                target_list[put] = etype
+                                filled_sem.release()
 
                             for subquery in (
                                 [ty.subst(meta.substitutions) for ty in query]
@@ -527,109 +455,142 @@ class FiniteCombinatoryLogic(Generic[C]):
                                 for typ in subquery:
                                     # If the target is omega, then the result is junk
                                     if typ.is_omega:
-                                        # target_queue.task_done()
                                         continue
 
                                     if typ in localseen:
                                         continue
+                                    localseen.add(typ)
 
                                     if isinstance(typ, Literal):
-                                        # target_queue.task_done()
                                         continue
 
-                                    if hash(typ) in seen:
-                                        # target_queue.task_done()
-                                        continue
-                                    target_queue.put(typ)
-                # rules[current_target] = possibilities
-                rules[current_target] = possibilities
-                target_queue.task_done()
+                                    etype = encode_type(typ)
+                                    with seenlock:
+                                        if etype in seen:
+                                            continue
+                                        seen[etype] = None
 
-    @staticmethod
-    def rule_gatherer(
-        recv: Connection, queue: JoinableQueue[Type], send: Connection
-    ) -> None:
-        data = bytearray()
-        recv.recv_bytes_into(data)
-        queue.join()
+                                    with put_index.get_lock():
+                                        put = put_index.value
+                                        put_index.value += 1
+                                        if put_index.value == get_index.value:
+                                            raise RuntimeError("Queue to small")
+                                        if put_index.value >= queue_shm_size:
+                                            put_index.value = 0
+
+                                    with put_count.get_lock():
+                                        put_count.value += 1
+
+                                    target_list[put] = encode_type(typ)
+                                    filled_sem.release()
+                rules_dump[rules_written] = dumps((current_target, possibilities))
+                rules_written += 1
+                with done_count.get_lock():
+                    done_count.value += 1
+                    if done_count.value == put_count.value:
+                        done_sem.release()
+                        return
+                # target_queue.task_done()
 
     def multiinhabit(
         self, *targets: Type, process_count: int = 4
     ) -> ParameterizedTreeGrammar[Type, C, Predicate]:
-        # init queue
-        target_queue: JoinableQueue[Optional[Type]] = JoinableQueue()
-        for target in targets:
-            target_queue.put(target)
-        transactionlock = Lock()
+        with SharedMemoryManager() as smm:
+            # init queue
+            queue_shm_size = 1024
+            target_list = smm.ShareableList(
+                [b"\x01" * 256] * queue_shm_size
+            )  # one hundred megabyte of shm
+            for i, target in enumerate(targets):
+                target_list[i] = encode_type(target)
 
-        memo: ParameterizedTreeGrammar[Type, UUID, UUID] = ParameterizedTreeGrammar()
+            put_count = Value("I", len(targets))
+            done_count = Value("I", 0)
+            get_index = Value("I", 0)  # Points to last entry popped
+            put_index = Value("I", len(targets))  # Points to first free entry
+            filled_sem = Semaphore(len(targets))
+            done_sem = Semaphore(0)
+            seenlock = Lock()
 
-        manager = Manager()
+            memo: ParameterizedTreeGrammar[
+                Type, C, Predicate
+            ] = ParameterizedTreeGrammar()
 
-        # We only use the keys of the dict. We would like to use a set, but sets are not
-        # implementented as a manages synchronized resource. Dicts are, and using the keys of the
-        # dict as a set is still faster than a list
-        # seen: MutableMapping[Type, None] = manager.dict()
-        # memo_rules = manager.dict()
-        seen: MutableMapping[int, None] = manager.dict()
-        # memo_rules = manager.dict()
-        mmemo_rules = []
+            manager = Manager()
 
-        processes = []
-        for process_nr in range(process_count):
-            memo_rules = manager.dict()
-            mmemo_rules.append(memo_rules)
-            processes.append(
-                Process(
-                    target=FiniteCombinatoryLogic._inhabit_single,
-                    args=(
-                        target_queue,
-                        self.repository,
-                        self.subtypes,
-                        seen,
-                        memo_rules,
-                        transactionlock,
-                    ),
+            # We only use the keys of the dict. We would like to use a set, but sets are not
+            # implementented as a manages synchronized resource. Dicts are, and using the keys of the
+            # dict as a set is still faster than a list
+            seen: MutableMapping[int, None] = manager.dict()
+            mmemo_rules = []
+
+            processes = []
+            for _ in range(process_count):
+                memo_rules = smm.ShareableList([b"\x01" * 1024] * 10240)
+                mmemo_rules.append(memo_rules)
+                processes.append(
+                    Process(
+                        target=FiniteCombinatoryLogic._inhabit_single,
+                        args=(
+                            # target_queue,
+                            self.repository,
+                            self.subtypes,
+                            seen,
+                            seenlock,
+                            put_count,
+                            done_count,
+                            get_index,
+                            put_index,
+                            target_list,
+                            filled_sem,
+                            memo_rules,
+                            done_sem,
+                            queue_shm_size,
+                        ),
+                    )
                 )
-            )
-            processes[-1].start()
+                processes[-1].start()
 
-        # watcher = Process(
-        #     target=FiniteCombinatoryLogic.qsizewatcher, args=(target_queue,)
-        # )
-        # watcher.start()
+            # Wait until queue is empty
+            done_sem.acquire()
 
-        # Wait until queue is empty
-        target_queue.join()
-        # memo_rules[1].close()
+            for memo_rules in mmemo_rules:
+                try:
+                    for entry in memo_rules:
+                        typ, rules = loads(entry)
+                        possibilities = deque()
+                        for (
+                            binder,
+                            predicates_uuid,
+                            terminal_uuid,
+                            parameters,
+                            args,
+                        ) in rules:
+                            possibilities.append(
+                                RHSRule(
+                                    binder,
+                                    [
+                                        self.uuid_to_pred[uuid]
+                                        for uuid in predicates_uuid
+                                    ],
+                                    self.uuid_to_c[terminal_uuid],
+                                    parameters,
+                                    args,
+                                )
+                            )
+                        memo.update({typ: possibilities})
+                except UnpicklingError:
+                    pass
+                except KeyError:
+                    pass
 
-        # for typ, rules in memo_rules.items():
-        # try:
-        #     while True:
-        #         typ, rules = memo_rules[0].recv()
-        #         possibilities = deque()
-        #         for tuple in rules:
-        #             possibilities.append(RHSRule(*tuple))
-        #         memo.update({typ: possibilities})
-        # except EOFError:
-        #     pass
-        for memo_rules in mmemo_rules:
-            for typ, rules in memo_rules.items():
-                possibilities = deque()
-                for tuple in rules:
-                    possibilities.append(RHSRule(*tuple))
-                memo.update({typ: possibilities})
+            for process in processes:
+                process.terminate()
 
-        for process in processes:
-            process.terminate()
-        # watcher.terminate()
-
-        return memo.map_over_uuids(
-            lambda uuid: self.uuid_to_c[uuid], lambda uuid: self.uuid_to_pred[uuid]
-        )
+            return memo
 
     def inhabit(self, *targets: Type) -> ParameterizedTreeGrammar[Type, C, Predicate]:
-        return self.multiinhabit(*targets, process_count=2)
+        return self.multiinhabit(*targets, process_count=1)
         # return self.multiinhabit(*targets)
         type_targets = deque(targets)
 
