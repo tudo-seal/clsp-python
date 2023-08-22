@@ -14,14 +14,15 @@ from itertools import compress
 from typing import Any, Callable, Generic, TypeAlias, TypeVar, Optional
 from uuid import uuid4, UUID
 
-from multiprocessing import (
-    Lock,
-    Manager,
-    Process,
-    Semaphore,
-    Value,
-)
+# from multiprocessing import (
+#     Lock,
+#     Manager,
+#     Process,
+#     Semaphore,
+#     Value,
+# )
 
+import multiprocessing as mp2
 
 from multiprocessing.managers import SharedMemoryManager
 from pickle import UnpicklingError, dumps, loads
@@ -495,6 +496,7 @@ class FiniteCombinatoryLogic(Generic[C]):
     def multiinhabit(
         self, *targets: Type, process_count: int = 4
     ) -> ParameterizedTreeGrammar[Type, C, Predicate]:
+        mp = mp2.get_context("fork")
         with SharedMemoryManager() as smm:
             # init queue
             queue_shm_size = 1024
@@ -504,19 +506,19 @@ class FiniteCombinatoryLogic(Generic[C]):
             for i, target in enumerate(targets):
                 target_list[i] = encode_type(target)
 
-            put_count = Value("I", len(targets))
-            done_count = Value("I", 0)
-            get_index = Value("I", 0)  # Points to last entry popped
-            put_index = Value("I", len(targets))  # Points to first free entry
-            filled_sem = Semaphore(len(targets))
-            done_sem = Semaphore(0)
-            seenlock = Lock()
+            put_count = mp.Value("I", len(targets))
+            done_count = mp.Value("I", 0)
+            get_index = mp.Value("I", 0)  # Points to last entry popped
+            put_index = mp.Value("I", len(targets))  # Points to first free entry
+            filled_sem = mp.Semaphore(len(targets))
+            done_sem = mp.Semaphore(0)
+            seenlock = mp.Lock()
 
             memo: ParameterizedTreeGrammar[
                 Type, C, Predicate
             ] = ParameterizedTreeGrammar()
 
-            manager = Manager()
+            manager = mp.Manager()
 
             # We only use the keys of the dict. We would like to use a set, but sets are not
             # implementented as a manages synchronized resource. Dicts are, and using the keys of the
@@ -529,7 +531,7 @@ class FiniteCombinatoryLogic(Generic[C]):
                 memo_rules = smm.ShareableList([b"\x01" * 1024] * 10240)
                 mmemo_rules.append(memo_rules)
                 processes.append(
-                    Process(
+                    mp.Process(
                         target=FiniteCombinatoryLogic._inhabit_single,
                         args=(
                             # target_queue,
@@ -590,7 +592,7 @@ class FiniteCombinatoryLogic(Generic[C]):
             return memo
 
     def inhabit(self, *targets: Type) -> ParameterizedTreeGrammar[Type, C, Predicate]:
-        return self.multiinhabit(*targets, process_count=1)
+        return self.multiinhabit(*targets, process_count=15)
         # return self.multiinhabit(*targets)
         type_targets = deque(targets)
 
