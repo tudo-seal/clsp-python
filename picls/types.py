@@ -16,6 +16,7 @@ class Type(ABC):
     is_omega: bool = field(init=True, kw_only=True, compare=False)
     size: int = field(init=True, kw_only=True, compare=False)
     organized: set[Type] = field(init=True, kw_only=True, compare=False)
+    free_vars: set[str] = field(init=True, kw_only=True, compare=False)
 
     def __str__(self) -> str:
         return self._str_prec(0)
@@ -34,6 +35,10 @@ class Type(ABC):
 
     @abstractmethod
     def _str_prec(self, prec: int) -> str:
+        pass
+
+    @abstractmethod
+    def _free_vars(self) -> set[str]:
         pass
 
     @abstractmethod
@@ -86,12 +91,14 @@ class Omega(Type):
     is_omega: bool = field(init=False, compare=False)
     size: bool = field(init=False, compare=False)
     organized: set[Type] = field(init=False, compare=False)
+    free_vars: set[str] = field(init=False, compare=False)
 
     def __post_init__(self) -> None:
         super().__init__(
             is_omega=self._is_omega(),
             size=self._size(),
             organized=self._organized(),
+            free_vars=self._free_vars(),
         )
 
     def _is_omega(self) -> bool:
@@ -106,6 +113,9 @@ class Omega(Type):
     def _str_prec(self, prec: int) -> str:
         return "omega"
 
+    def _free_vars(self) -> set[str]:
+        return set()
+
     def subst(self, substitution: dict[str, Literal]) -> Type:
         return self
 
@@ -117,12 +127,14 @@ class Constructor(Type):
     is_omega: bool = field(init=False, compare=False)
     size: int = field(init=False, compare=False)
     organized: set[Type] = field(init=False, compare=False)
+    free_vars: set[str] = field(init=False, compare=False)
 
     def __post_init__(self) -> None:
         super().__init__(
             is_omega=self._is_omega(),
             size=self._size(),
             organized=self._organized(),
+            free_vars=self._free_vars(),
         )
 
     def _is_omega(self) -> bool:
@@ -137,6 +149,9 @@ class Constructor(Type):
         else:
             return {Constructor(self.name, ap) for ap in self.arg.organized}
 
+    def _free_vars(self) -> set[str]:
+        return self.arg.free_vars
+
     def _str_prec(self, prec: int) -> str:
         if self.arg == Omega():
             return str(self.name)
@@ -144,6 +159,8 @@ class Constructor(Type):
             return f"{str(self.name)}({str(self.arg)})"
 
     def subst(self, substitution: dict[str, Literal]) -> Type:
+        if not any(var in substitution for var in self.free_vars):
+            return self
         return Constructor(self.name, self.arg.subst(substitution))
 
 
@@ -154,12 +171,14 @@ class Product(Type):
     is_omega: bool = field(init=False, compare=False)
     size: int = field(init=False, compare=False)
     organized: set[Type] = field(init=False, compare=False)
+    free_vars: set[str] = field(init=False, compare=False)
 
     def __post_init__(self) -> None:
         super().__init__(
             is_omega=self._is_omega(),
             size=self._size(),
             organized=self._organized(),
+            free_vars=self._free_vars(),
         )
 
     def _is_omega(self) -> bool:
@@ -179,6 +198,9 @@ class Product(Type):
                 )
             )
 
+    def _free_vars(self) -> set[str]:
+        return set.union(self.left.free_vars, self.right.free_vars)
+
     def _str_prec(self, prec: int) -> str:
         product_prec: int = 9
 
@@ -195,6 +217,8 @@ class Product(Type):
         return Type._parens(result) if prec > product_prec else result
 
     def subst(self, substitution: dict[str, Literal]) -> Type:
+        if not any(var in substitution for var in self.free_vars):
+            return self
         return Product(self.left.subst(substitution), self.right.subst(substitution))
 
 
@@ -205,12 +229,14 @@ class Arrow(Type):
     is_omega: bool = field(init=False, compare=False)
     size: int = field(init=False, compare=False)
     organized: set[Type] = field(init=False, compare=False)
+    free_vars: set[str] = field(init=False, compare=False)
 
     def __post_init__(self) -> None:
         super().__init__(
             is_omega=self._is_omega(),
             size=self._size(),
             organized=self._organized(),
+            free_vars=self._free_vars(),
         )
 
     def _is_omega(self) -> bool:
@@ -226,6 +252,9 @@ class Arrow(Type):
             return {self}
         else:
             return {Arrow(self.source, tp) for tp in self.target.organized}
+
+    def _free_vars(self) -> set[str]:
+        return set.union(self.source.free_vars, self.target.free_vars)
 
     def _str_prec(self, prec: int) -> str:
         arrow_prec: int = 8
@@ -244,6 +273,8 @@ class Arrow(Type):
         return Type._parens(result) if prec > arrow_prec else result
 
     def subst(self, substitution: dict[str, Literal]) -> Type:
+        if not any(var in substitution for var in self.free_vars):
+            return self
         return Arrow(self.source.subst(substitution), self.target.subst(substitution))
 
 
@@ -254,12 +285,14 @@ class Intersection(Type):
     is_omega: bool = field(init=False, compare=False)
     size: int = field(init=False, compare=False)
     organized: set[Type] = field(init=False, compare=False)
+    free_vars: set[str] = field(init=False, compare=False)
 
     def __post_init__(self) -> None:
         super().__init__(
             is_omega=self._is_omega(),
             size=self._size(),
             organized=self._organized(),
+            free_vars=self._free_vars(),
         )
 
     def _is_omega(self) -> bool:
@@ -270,6 +303,9 @@ class Intersection(Type):
 
     def _organized(self) -> set[Type]:
         return set.union(self.left.organized, self.right.organized)
+
+    def _free_vars(self) -> set[str]:
+        return set.union(self.left.free_vars, self.right.free_vars)
 
     def _str_prec(self, prec: int) -> str:
         intersection_prec: int = 10
@@ -287,6 +323,8 @@ class Intersection(Type):
         return Type._parens(result) if prec > intersection_prec else result
 
     def subst(self, substitution: dict[str, Literal]) -> Type:
+        if not any(var in substitution for var in self.free_vars):
+            return self
         return Intersection(
             self.left.subst(substitution), self.right.subst(substitution)
         )
@@ -299,12 +337,14 @@ class Literal(Type):
     is_omega: bool = field(init=False, compare=False)
     size: int = field(init=False, compare=False)
     organized: set[Type] = field(init=False, compare=False)
+    free_vars: set[str] = field(init=False, compare=False)
 
     def __post_init__(self) -> None:
         super().__init__(
             is_omega=self._is_omega(),
             size=self._size(),
             organized=self._organized(),
+            free_vars=self._free_vars(),
         )
 
     def _is_omega(self) -> bool:
@@ -315,6 +355,9 @@ class Literal(Type):
 
     def _organized(self) -> set[Type]:
         return {self}
+
+    def _free_vars(self) -> set[str]:
+        return set()
 
     def _str_prec(self, prec: int) -> str:
         return f"[{str(self.value)}, {self.group}]"
@@ -329,12 +372,14 @@ class TVar(Type):
     is_omega: bool = field(init=False, compare=False)
     size: int = field(init=False, compare=False)
     organized: set[Type] = field(init=False, compare=False)
+    free_vars: set[str] = field(init=False, compare=False)
 
     def __post_init__(self) -> None:
         super().__init__(
             is_omega=self._is_omega(),
             size=self._size(),
             organized=self._organized(),
+            free_vars=self._free_vars(),
         )
 
     def _is_omega(self) -> bool:
@@ -346,10 +391,15 @@ class TVar(Type):
     def _organized(self) -> set[Type]:
         return {self}
 
+    def _free_vars(self) -> set[str]:
+        return {self.name}
+
     def _str_prec(self, prec: int) -> str:
         return f"<{str(self.name)}>"
 
     def subst(self, substitution: dict[str, Literal]) -> Type:
+        if not any(var in substitution for var in self.free_vars):
+            return self
         if self.name in substitution:
             return substitution[self.name]
         else:
