@@ -1,5 +1,5 @@
 from __future__ import annotations
-from collections import deque
+from collections import defaultdict, deque
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from typing import Generic, TypeVar, Any, Optional
@@ -66,9 +66,11 @@ class RHSRule(Generic[NT, T]):
         return f"{forallstrings}{predicatestrings}{str(self.terminal)}{paramstring}{argstring}"
 
 
-@dataclass()
+@dataclass
 class ParameterizedTreeGrammar(Generic[NT, T]):
-    _rules: dict[NT, deque[RHSRule[NT, T]]] = field(default_factory=dict)
+    _rules: dict[NT, deque[RHSRule[NT, T]]] = field(
+        default_factory=lambda: defaultdict(deque)
+    )
 
     def get(self, nonterminal: NT) -> Optional[deque[RHSRule[NT, T]]]:
         return self._rules.get(nonterminal)
@@ -89,10 +91,7 @@ class ParameterizedTreeGrammar(Generic[NT, T]):
         self._rules[nonterminal] = rhs
 
     def add_rule(self, nonterminal: NT, rule: RHSRule[NT, T]) -> None:
-        if nonterminal in self._rules:
-            self._rules[nonterminal].append(rule)
-        else:
-            self._rules[nonterminal] = deque([rule])
+        self._rules[nonterminal].append(rule)
 
     def show(self) -> str:
         return "\n".join(

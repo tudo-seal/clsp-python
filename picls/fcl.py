@@ -9,7 +9,7 @@ from collections.abc import (
 )
 from dataclasses import dataclass
 from functools import reduce
-from itertools import compress
+from itertools import chain, compress
 from typing import Any, Callable, Generic, TypeAlias, TypeVar, Optional
 
 from .grammar import GVar, ParameterizedTreeGrammar, Predicate, RHSRule
@@ -198,14 +198,16 @@ class FiniteCombinatoryLogic(Generic[C]):
         # dictionary of type |-> sequence of combinatory expressions
         memo: ParameterizedTreeGrammar[Type, C] = ParameterizedTreeGrammar()
 
+        seen: set[Type] = set()
+
         while type_targets:
             current_target = type_targets.pop()
-            if memo.get(current_target) is None:
-                # target type was not seen before
-                possibilities: deque[RHSRule[Type, C]] = deque()
+
+            # target type was not seen before
+            if current_target not in seen:
+                seen.add(current_target)
                 if isinstance(current_target, Literal):
                     continue
-                memo.update({current_target: possibilities})
                 # If the target is omega, then the result is junk
                 if current_target.is_omega:
                     continue
@@ -219,6 +221,7 @@ class FiniteCombinatoryLogic(Generic[C]):
                             arguments: list[list[Type]] = list(
                                 self._subqueries(nary_types, paths, substitutions)
                             )
+
                             if len(arguments) == 0:
                                 continue
 
@@ -233,15 +236,17 @@ class FiniteCombinatoryLogic(Generic[C]):
                                 [ty.subst(substitutions) for ty in query]
                                 for query in arguments
                             ):
-                                possibilities.append(
+                                memo.add_rule(
+                                    current_target,
                                     RHSRule(
                                         specific_params,
                                         predicates,
                                         combinator,
                                         args,
                                         subquery,
-                                    )
+                                    ),
                                 )
+
                                 type_targets.extendleft(subquery)
 
         # prune not inhabited types
@@ -260,41 +265,38 @@ class FiniteCombinatoryLogic(Generic[C]):
             ground_types: set[Type],
         ) -> bool:
             return all(
-                True
+                isinstance(parameter, Literal) or binder[parameter.name] in ground_types
                 for parameter in parameters
-                if isinstance(parameter, Literal)
-                or binder[parameter.name] in ground_types
-            ) and all(True for arg in args if arg in ground_types)
+            ) and all(isinstance(arg, Literal) or arg in ground_types for arg in args)
 
         ground_types: set[Type] = set()
-        new_ground_types, candidates = partition(
+        candidates, new_ground_types = partition(
             lambda ty: any(
-                True
+                is_ground(rule.binder, rule.parameters, rule.args, ground_types)
                 for rule in memo[ty]
-                if is_ground(rule.binder, rule.parameters, rule.args, ground_types)
             ),
             memo.nonterminals(),
         )
-        # initialize inhabited (ground) types
         while new_ground_types:
             ground_types.update(new_ground_types)
-            new_ground_types, candidates = partition(
+            candidates, new_ground_types = partition(
                 lambda ty: any(
-                    True
+                    is_ground(rule.binder, rule.parameters, rule.args, ground_types)
                     for rule in memo[ty]
-                    if is_ground(rule.binder, rule.parameters, rule.args, ground_types)
                 ),
                 candidates,
             )
 
-        for target, possibilities in memo.as_tuples():
+        non_ground_types = set(memo.nonterminals()).difference(ground_types)
+        for target in non_ground_types:
+            del memo._rules[target]
+
+        for target in ground_types:
             memo[target] = deque(
                 possibility
-                for possibility in possibilities
-                if is_ground(
-                    possibility.binder,
-                    possibility.parameters,
-                    possibility.args,
-                    ground_types,
+                for possibility in memo[target]
+                if all(
+                    ty in ground_types
+                    for ty in chain(possibility.binder.values(), possibility.args)
                 )
             )
