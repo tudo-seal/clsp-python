@@ -1,4 +1,4 @@
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 import logging
 import unittest
 from picls import (
@@ -9,7 +9,6 @@ from picls import (
     enumerate_terms,
     Subtypes,
 )
-from picls.enumeration import interpret_term
 
 X: Callable[[str], str] = lambda y: f"X {y}"
 Y: Callable[[str], str] = lambda x: f"Y {x}"
