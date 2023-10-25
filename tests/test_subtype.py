@@ -1,6 +1,6 @@
 import logging
 import unittest
-from picls import Type, Constructor
+from picls import Constructor
 from picls.subtypes import Subtypes
 
 
