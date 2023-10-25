@@ -77,7 +77,7 @@ class Subtypes:
                 )
             case Intersection(l, r):
                 return self._check_subtype_rec(
-                    subtypes, l, substitutions
+                    subtypes.copy(), l, substitutions
                 ) and self._check_subtype_rec(subtypes, r, substitutions)
             case TVar(name):
                 while subtypes:
