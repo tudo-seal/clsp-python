@@ -75,4 +75,4 @@ Usage is best explained in an example:
 
 This corresponds to each type in the form x → y where x and y are numbers and x > y.
 
-Further examples can be found in the examples.
+Further examples can be found in the tests folder.
