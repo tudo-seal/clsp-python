@@ -50,7 +50,7 @@ To give combinators a specification and query for a result, we use an approach b
 Intersection types can be one of the following:
 
   * A *function type* "A → B", signifying that a combinator transforms an A into a B. These can be chained e.g. "A → B → C", meaning a something that transforms an A and a B into a C, or even nested e.g "(A → B) → C → D", meaning something that takes something of type A → B and of type C, and constructs a D.
-  * A *Constructor* "c(T)" with a name `c` and an inner type `T`, e.g. "list(A)"
+  * A *Constructor* "c(T)" with a name "c" and an inner type "T", e.g. "list(A)"
   * An *Intersection* "A ∩ B", signifying that something is both an A and a B.
   * ω, signifying a type, that every term inhabits (This is mostly used as an argument inside a constructor, when it is used as a nullary type constant, e.g. A(ω))
   * Any literal.
