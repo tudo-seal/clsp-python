@@ -1,8 +1,8 @@
 import logging
 from typing import Any, TypeVar
 import unittest
-from picls import inhabit_and_interpret
-from picls.types import Arrow, Constructor, Type
+from clsp import inhabit_and_interpret
+from clsp.types import Arrow, Constructor, Type
 
 T = TypeVar("T")
 

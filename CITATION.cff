@@ -1,0 +1,31 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: Combinatory Logic Synthesizer with Predicates
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Andrej
+    family-names: Dudenhefner
+    email: andrej.dudenhefner@cs.tu-dortmund.de
+    affiliation: TU Dortmund University
+    orcid: 'https://orcid.org/0000-0003-1104-444X'
+  - given-names: Christoph
+    family-names: Stahl
+    email: christoph.stahl@tu-dortmund.de
+    affiliation: TU Dortmund University
+    orcid: 'https://orcid.org/0009-0006-9079-8379'
+  - given-names: Jan
+    family-names: Bessai
+    email: jan.bessai@tu-dortmund.de
+repository-code: 'https://github.com/tudo-seal/clsp-python'
+keywords:
+  - combinatory logic
+  - type system
+  - inhabitation
+  - intersection types
+  - program synthesis
+license: Apache-2.0

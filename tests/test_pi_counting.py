@@ -1,9 +1,9 @@
 import logging
 from typing import Any
 import unittest
-from picls.enumeration import enumerate_terms, interpret_term
-from picls.fcl import FiniteCombinatoryLogic
-from picls.types import Arrow, Constructor, Literal, Param, TVar, Type
+from clsp.enumeration import enumerate_terms, interpret_term
+from clsp.fcl import FiniteCombinatoryLogic
+from clsp.types import Arrow, Constructor, Literal, Param, TVar, Type
 
 
 class TestConting(unittest.TestCase):

@@ -1,10 +1,10 @@
 from __future__ import annotations
 import logging
 import unittest
-from picls.enumeration import enumerate_terms, interpret_term
-from picls.fcl import FiniteCombinatoryLogic
-from picls.dsl import DSL
-from picls.types import (
+from clsp.enumeration import enumerate_terms, interpret_term
+from clsp.fcl import FiniteCombinatoryLogic
+from clsp.dsl import DSL
+from clsp.types import (
     Constructor,
     Literal,
     Param,

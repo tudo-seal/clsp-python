@@ -1,10 +1,11 @@
 from collections.abc import Callable, Mapping
 import timeit
-from picls.dsl import DSL
-from picls.enumeration import enumerate_terms, interpret_term
-from picls.fcl import FiniteCombinatoryLogic
+from typing import Any
+from clsp.dsl import DSL
+from clsp.enumeration import enumerate_terms, interpret_term
+from clsp.fcl import FiniteCombinatoryLogic
 
-from picls.types import Constructor, Literal, Param, Product, TVar, Type
+from clsp.types import Constructor, Literal, Param, Product, TVar, Type
 
 
 def plus_one(a: str) -> Callable[[Mapping[str, Literal]], int]:
@@ -25,53 +26,47 @@ def main(SIZE: int = 10, output: bool = True) -> float:
                 > 0
             )
 
-    U: Callable[[int, int, int, str], str] = lambda a, _, c, p: f"{p} => UP({c}, {a})"
-    D: Callable[[int, int, int, str], str] = lambda _, b, c, p: f"{p} => DOWN({c}, {b})"
-    L: Callable[[int, int, int, str], str] = lambda a, _, c, p: f"{p} => LEFT({a}, {c})"
-    R: Callable[
-        [int, int, int, str], str
-    ] = lambda _, b, c, p: f"{p} => RIGHT({b}, {c})"
+    U = lambda a, _, c, p: f"{p} => UP({c}, {a})"
+    D = lambda _, b, c, p: f"{p} => DOWN({c}, {b})"
+    L = lambda a, _, c, p: f"{p} => LEFT({a}, {c})"
+    R = lambda _, b, c, p: f"{p} => RIGHT({b}, {c})"
 
     pos: Callable[[str, str], Type] = lambda a, b: Constructor(
         "pos", (Product(TVar(a), TVar(b)))
     )
 
     repo: Mapping[
-        Callable[[int, int, int, str], str] | str,
+        Callable[[int, int, int, str], str] | str | Any,
         Param | Type,
     ] = {
         U: DSL()
         .Use("a", "int")
         .Use("b", "int")
-        .As(lambda a: a + 1)
+        .With(lambda a, b: b == a + 1)
         .Use("c", "int")
         .With(lambda c, a: is_free(c, a))
-        .Use("pos", pos("c", "b"))
-        .In(pos("c", "a")),
+        .In(pos("c", "b") ** pos("c", "a")),
         D: DSL()
         .Use("a", "int")
         .Use("b", "int")
-        .As(lambda a: a + 1)
+        .With(lambda a, b: b == a + 1)
         .Use("c", "int")
         .With(lambda c, b: is_free(c, b))
-        .Use("pos", pos("c", "a"))
-        .In(pos("c", "b")),
+        .In(pos("c", "a") ** pos("c", "b")),
         L: DSL()
         .Use("a", "int")
         .Use("b", "int")
-        .As(lambda a: a + 1)
+        .With(lambda a, b: b == a + 1)
         .Use("c", "int")
         .With(lambda a, c: is_free(a, c))
-        .Use("pos", pos("b", "c"))
-        .In(pos("a", "c")),
+        .In(pos("b", "c") ** pos("a", "c")),
         R: DSL()
         .Use("a", "int")
         .Use("b", "int")
-        .As(lambda a: a + 1)
+        .With(lambda a, b: b == a + 1)
         .Use("c", "int")
         .With(lambda b, c: is_free(b, c))
-        .Use("pos", pos("a", "c"))
-        .In(pos("b", "c")),
+        .In(pos("a", "c") ** pos("b", "c")),
         "START": "pos" @ (Literal(0, "int") * Literal(0, "int")),
     }
 
@@ -80,7 +75,7 @@ def main(SIZE: int = 10, output: bool = True) -> float:
     if output:
         for row in range(SIZE):
             for col in range(SIZE):
-                if is_free(row, col):
+                if is_free(col, row):
                     print("-", end="")
                 else:
                     print("#", end="")

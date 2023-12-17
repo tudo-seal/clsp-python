@@ -1,7 +1,7 @@
 import logging
 import unittest
-from picls import Constructor
-from picls.subtypes import Subtypes
+from clsp import Constructor
+from clsp.subtypes import Subtypes
 
 
 class TestSubtype(unittest.TestCase):

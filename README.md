@@ -1,6 +1,6 @@
-# Combinatory Logic Synthesis with Predicates in Python
+# Combinatory Logic Synthesizer with Predicates in Python (CLSP)
 
-Combinatory Logic Synthesis (CLS) is a family of synthesis frameworks based in combinatory logic and type theory.
+Combinatory Logic Synthesizer (CLS) is a family of synthesis frameworks based in combinatory logic and type theory.
 This implementation focuses on performance and implements inhabitation in Finite Combinatory Logic with Predicates.
 
 This repository is a fork of [cls-python](https://github.com/cls-python/cls-python).

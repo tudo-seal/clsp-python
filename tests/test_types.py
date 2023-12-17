@@ -1,6 +1,6 @@
 import unittest
 
-from picls import Product, Constructor, Intersection, Arrow, Omega, Type
+from clsp import Product, Constructor, Intersection, Arrow, Omega, Type
 
 a = Constructor("a")
 b = Constructor("b")

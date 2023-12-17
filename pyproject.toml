@@ -1,8 +1,8 @@
 [tool.poetry]
-name = "picls"
+name = "clsp"
 version = "0.0.1"
-description = "Synthesis framework using inhabitation in FCL with intersection types and limited support for type variables"
-authors = ["Jan Bessai <jan.bessai@tu-dortmund.de>", "Andrej Dudenhefner <andrej.dudenhefner@cs.tu-dortmund.de>", "Christoph Stahl <christoph.stahl@tu-dortmund.de>"]
+description = "Type based synthesis framework using inhabitation in FCLP"
+authors = ["Andrej Dudenhefner <andrej.dudenhefner@cs.tu-dortmund.de>", "Christoph Stahl <christoph.stahl@tu-dortmund.de>", "Jan Bessai <jan.bessai@tu-dortmund.de>"]
 license = "Apache-2.0"
 
 [tool.poetry.dependencies]

@@ -17,7 +17,7 @@ options:
   -t TIMEOUT, --timeout TIMEOUT
                         The maximum time allowed for a test to run. Default is 60
 
-Example: python -m tests.benchmarks.multi_benchmark -m tests.benchmarks.benchmark_labyrinth_picls \
+Example: python -m tests.benchmarks.multi_benchmark -m tests.benchmarks.benchmark_labyrinth_clsp \
     -m tests.benchmarks.benchmark_labyrinth -s 5 -e 15 -n 5
 """
 
@@ -89,7 +89,7 @@ if __name__ == "__main__":
         "value as an option and a boolean value that specifies whether the benchmark module itself "
         "should produce an output or not.",
         epilog="Example: python -m tests.benchmarks.multi_benchmark -m "
-        "tests.benchmarks.benchmark_labyrinth_picls -m tests.benchmarks.benchmark_labyrinth"
+        "tests.benchmarks.benchmark_labyrinth_clsp -m tests.benchmarks.benchmark_labyrinth"
         " -s 5 -e 15 -n 5",
     )
     parser.add_argument(

@@ -1,11 +1,11 @@
 from collections.abc import Callable
 import timeit
 from typing import Any
-from picls.dsl import Requires, DSL
-from picls.enumeration import enumerate_terms, interpret_term
-from picls.fcl import FiniteCombinatoryLogic
+from clsp.dsl import Requires, DSL
+from clsp.enumeration import enumerate_terms, interpret_term
+from clsp.fcl import FiniteCombinatoryLogic
 
-from picls.types import Literal, Param, TVar, Type
+from clsp.types import Literal, Param, TVar, Type
 
 
 def main(SIZE: int = 10, output: bool = True) -> float:

@@ -1,7 +1,7 @@
 from collections.abc import Callable, Mapping
 import logging
 import unittest
-from picls import (
+from clsp import (
     Type,
     Constructor,
     Arrow,
@@ -9,7 +9,7 @@ from picls import (
     enumerate_terms,
     Subtypes,
 )
-from picls.enumeration import interpret_term
+from clsp.enumeration import interpret_term
 
 X: str = "X"
 Y: str = "Y"

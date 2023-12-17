@@ -1,7 +1,7 @@
 from collections.abc import Callable
 import logging
 import unittest
-from picls import Type, Constructor, Arrow, Intersection, inhabit_and_interpret
+from clsp import Type, Constructor, Arrow, Intersection, inhabit_and_interpret
 
 
 class TestWrongSpec(unittest.TestCase):

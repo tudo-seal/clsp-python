@@ -2,7 +2,7 @@ from collections.abc import Callable
 import unittest
 import logging
 
-from picls import (
+from clsp import (
     Type,
     Constructor,
     Arrow,
@@ -11,7 +11,7 @@ from picls import (
     enumerate_terms,
     Subtypes,
 )
-from picls.enumeration import interpret_term
+from clsp.enumeration import interpret_term
 
 
 class TestExample1(unittest.TestCase):

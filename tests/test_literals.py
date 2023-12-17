@@ -1,13 +1,13 @@
 import logging
 import unittest
-from picls import (
+from clsp import (
     Type,
     Constructor,
     Arrow,
 )
-from picls.enumeration import enumerate_terms, interpret_term
-from picls.fcl import FiniteCombinatoryLogic
-from picls.types import Param, TVar
+from clsp.enumeration import enumerate_terms, interpret_term
+from clsp.fcl import FiniteCombinatoryLogic
+from clsp.types import Param, TVar
 
 
 class TestLiterals(unittest.TestCase):

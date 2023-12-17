@@ -1,20 +1,19 @@
-from collections.abc import Mapping
 import itertools
 import timeit
 from dataclasses import dataclass, field
 from typing import Any
 
-from picls import (
-    Type,
-    Constructor,
-    Product,
-    Omega,
+from clsp import (
     Arrow,
-    Intersection,
+    Constructor,
     FiniteCombinatoryLogic,
+    Intersection,
+    Omega,
+    Product,
+    Subtypes,
+    Type,
     enumerate_terms,
     interpret_term,
-    Subtypes,
 )
 
 
@@ -24,9 +23,7 @@ def is_free(row: int, col: int) -> bool:
     if row == col:
         return True
     else:
-        return (
-            pow(11, (row + col + SEED) * (row + col + SEED) + col + 7, 1000003) % 5 > 0
-        )
+        return pow(11, (row + col + SEED) * (row + col + SEED) + col + 7, 1000003) % 5 > 0
 
 
 def int_to_type(x: int) -> Type:
@@ -93,14 +90,14 @@ def main(SIZE: int = 10, output: bool = True) -> float:
                     print("#", end="")
             print("")
 
-    free_fields: Mapping[str, Type] = {
+    free_fields: dict[str, Type] = {
         f"Pos_at_({row}, {col})": free(row, col)
         for row in range(0, SIZE)
         for col in range(0, SIZE)
         if is_free(row, col)
     }
 
-    repository: Mapping[Any, Type] = {
+    repository: dict[Any, Type] = {
         Start(): Intersection(pos(0, 0), seen(0, 0)),
         Move("up"): move(SIZE, 1, 0, 0, 0),
         Move("down"): move(SIZE, 0, 0, 1, 0),

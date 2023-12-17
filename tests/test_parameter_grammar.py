@@ -1,8 +1,8 @@
 import logging
 import unittest
-from picls.enumeration import enumerate_terms
-from picls.grammar import GVar, ParameterizedTreeGrammar, Predicate, RHSRule
-from picls.types import Literal
+from clsp.enumeration import enumerate_terms
+from clsp.grammar import GVar, ParameterizedTreeGrammar, Predicate, RHSRule
+from clsp.types import Literal
 
 
 class TestParamGrammar(unittest.TestCase):

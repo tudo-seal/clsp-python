@@ -2,7 +2,7 @@ from collections.abc import Callable, Sequence
 import logging
 from typing import Any
 import unittest
-from picls.combinatorics import minimal_covers, maximal_elements
+from clsp.combinatorics import minimal_covers, maximal_elements
 from itertools import combinations
 from collections import deque
 from random import randrange

@@ -13,7 +13,7 @@ MultiArgsComponent) or default values (See DefaultArgComponent).
 import logging
 from typing import Optional
 import unittest
-from picls import (
+from clsp import (
     Constructor,
     Arrow,
     Intersection,

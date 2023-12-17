@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 import logging
 import unittest
-from picls import Type, Constructor, Arrow, inhabit_and_interpret
+from clsp import Type, Constructor, Arrow, inhabit_and_interpret
 
 
 def F(*x: str) -> Sequence[str]:

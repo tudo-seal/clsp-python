@@ -1,7 +1,7 @@
 from collections.abc import Callable
 import logging
 import unittest
-from picls import (
+from clsp import (
     Type,
     Constructor,
     Arrow,

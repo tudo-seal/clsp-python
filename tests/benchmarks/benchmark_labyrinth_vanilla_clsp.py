@@ -2,10 +2,10 @@ import timeit
 
 from collections.abc import Callable
 from typing import Any
-from picls.enumeration import enumerate_terms, interpret_term
-from picls.fcl import FiniteCombinatoryLogic
+from clsp.enumeration import enumerate_terms, interpret_term
+from clsp.fcl import FiniteCombinatoryLogic
 
-from picls.types import Arrow, Constructor, Literal, Param, Product, SetTo, TVar, Type
+from clsp.types import Arrow, Constructor, Literal, Param, Product, SetTo, TVar, Type
 
 
 def set_plus_one(b: str) -> SetTo:
