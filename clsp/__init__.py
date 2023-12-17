@@ -4,13 +4,15 @@ from typing import Any, Optional, TypeVar
 from .grammar import ParameterizedTreeGrammar
 
 from .subtypes import Subtypes
-from .types import Type, Omega, Constructor, Product, Arrow, Intersection
+from .types import Type, Omega, Constructor, Product, Arrow, Intersection, Literal, LVar
 from .enumeration import enumerate_terms, interpret_term, enumerate_terms_of_size
 from .fcl import FiniteCombinatoryLogic
 from .dsl import DSL
 
 __all__ = [
     "DSL",
+    "Literal",
+    "LVar",
     "Subtypes",
     "Type",
     "Omega",

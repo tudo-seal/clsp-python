@@ -29,14 +29,14 @@ class DSL:
             .As(lambda x: x + 1)
             .Use("z", str)
             .With(lambda x y z: len(z) == x + y)
-            .In(<Type using TVar("x"), TVar("y") and TVar("z")>)
+            .In(<Type using LVar("x"), LVar("y") and LVar("z")>)
 
         This corresponds to:
             Param("x", int, lambda _: True,
                 Param("y", int, SetTo(lambda vars: vars["x"].value + 1)
                     Param("z", str,
                         lambda vars: len(vars["z"].value) == vars["x"].value + vars["y"].value,
-                        <Type using TVar("x"), TVar("y") and TVar("z")>
+                        <Type using LVar("x"), LVar("y") and LVar("z")>
                         )
                     )
                 )
@@ -51,7 +51,7 @@ class DSL:
 
     @staticmethod
     def _unwrap_predicate(
-        predicate: Callable[..., Any]
+        predicate: Callable[..., Any],
     ) -> Callable[[Mapping[str, Literal | Any]], Any]:
         """
         Transforms a DSL-predicate to a predicate, that the `Param`-class can use.
@@ -75,7 +75,7 @@ class DSL:
 
     @staticmethod
     def _extracted_values(
-        predicate: Callable[[Mapping[str, Any]], Any]
+        predicate: Callable[[Mapping[str, Any]], Any],
     ) -> Callable[[Mapping[str, Literal | Any]], Any]:
         """
         Transforms a predicate, that directly uses the values of `vars` to a `Param`-predicate
@@ -106,7 +106,7 @@ class DSL:
 
         If `group` is a string, then an instance of this specification will be generated
         for each valid literal in the corresponding literal group (That satisfy all given
-        predicates). You can use this variable as TVar(name) in all `Type`s, after the introduction
+        predicates). You can use this variable as LVar(name) in all `Type`s, after the introduction
         and in all predicates. Corresponding predicates will be evaluated when building the
         repository. We call these variables "`Literal` variables"
 

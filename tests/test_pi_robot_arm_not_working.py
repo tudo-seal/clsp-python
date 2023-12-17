@@ -12,7 +12,7 @@ from clsp.types import (
     Constructor,
     Literal,
     Param,
-    TVar,
+    LVar,
     Type,
 )
 
@@ -63,7 +63,7 @@ class TestRobotArm(unittest.TestCase):
                 lambda current_motor_count, Robot: current_motor_count
                 == motorcount(interpret_term(Robot))
             )
-            .In(Constructor("Base") & ("c" @ TVar("current_motor_count"))),
+            .In(Constructor("Base") & ("c" @ LVar("current_motor_count"))),
         }
 
         literals = {"int": list(range(10))}

@@ -3,7 +3,7 @@ from typing import Any
 import unittest
 from clsp.enumeration import enumerate_terms, interpret_term
 from clsp.fcl import FiniteCombinatoryLogic
-from clsp.types import Arrow, Constructor, Literal, Param, TVar, Type
+from clsp.types import Arrow, Constructor, Literal, Param, LVar, Type
 
 
 class TestConting(unittest.TestCase):
@@ -30,7 +30,7 @@ class TestConting(unittest.TestCase):
                     "b",
                     "int",
                     lambda vars: bool(vars["a"].value + 1 == vars["b"].value),
-                    Arrow(c(TVar("a")), c(TVar("b"))),
+                    Arrow(c(LVar("a")), c(LVar("b"))),
                 ),
             ),
             "Y": c(Literal(3, "int")),

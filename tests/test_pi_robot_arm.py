@@ -8,7 +8,7 @@ from clsp.types import (
     Constructor,
     Literal,
     Param,
-    TVar,
+    LVar,
     Type,
 )
 
@@ -43,15 +43,15 @@ class TestRobotArm(unittest.TestCase):
             .AsRaw(lambda vars: vars["current_motor_count"] + 1)
             .In(
                 Constructor("Structural") ** Constructor("Motor")
-                & ("c" @ TVar("current_motor_count")) ** ("c" @ TVar("new_motor_count"))
+                & ("c" @ LVar("current_motor_count")) ** ("c" @ LVar("new_motor_count"))
             ),
             Part("Link"): DSL()
             .Use("current_motor_count", "int")
             .In(
                 Constructor("Motor") ** Constructor("Structural")
                 & (
-                    ("c" @ TVar("current_motor_count"))
-                    ** ("c" @ TVar("current_motor_count"))
+                    ("c" @ LVar("current_motor_count"))
+                    ** ("c" @ LVar("current_motor_count"))
                 )
             ),
             Part("ShortLink"): DSL()
@@ -59,8 +59,8 @@ class TestRobotArm(unittest.TestCase):
             .In(
                 Constructor("Motor") ** Constructor("Structural")
                 & (
-                    ("c" @ TVar("current_motor_count"))
-                    ** ("c" @ TVar("current_motor_count"))
+                    ("c" @ LVar("current_motor_count"))
+                    ** ("c" @ LVar("current_motor_count"))
                 )
             ),
             Part("Effector"): Constructor("Structural") & ("c" @ Literal(0, "int")),
@@ -69,8 +69,8 @@ class TestRobotArm(unittest.TestCase):
             .In(
                 Constructor("Motor") ** Constructor("Base")
                 & (
-                    ("c" @ TVar("current_motor_count"))
-                    ** ("c" @ TVar("current_motor_count"))
+                    ("c" @ LVar("current_motor_count"))
+                    ** ("c" @ LVar("current_motor_count"))
                 )
             ),
         }

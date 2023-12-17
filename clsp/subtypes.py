@@ -1,14 +1,12 @@
 from collections import deque
 from collections.abc import Mapping
 
-from .types import Arrow, Constructor, Intersection, Literal, Product, TVar, Type
+from .types import Arrow, Constructor, Intersection, Literal, Product, LVar, Type
 
 
 class Subtypes:
     def __init__(self, environment: Mapping[str, set[str]]):
-        self.environment = self._transitive_closure(
-            self._reflexive_closure(environment)
-        )
+        self.environment = self._transitive_closure(self._reflexive_closure(environment))
 
     def _check_subtype_rec(
         self,
@@ -25,7 +23,7 @@ class Subtypes:
                         case Literal(name1, group1):
                             if name2 == name1 and group1 == group2:
                                 return True
-                        case TVar(name1):
+                        case LVar(name1):
                             if substitutions[name1] == supertype:
                                 return True
                         case Intersection(l, r):
@@ -36,9 +34,7 @@ class Subtypes:
                 while subtypes:
                     match subtypes.pop():
                         case Constructor(name1, arg1):
-                            if name2 == name1 or name2 in self.environment.get(
-                                name1, {}
-                            ):
+                            if name2 == name1 or name2 in self.environment.get(name1, {}):
                                 casted_constr.append(arg1)
                         case Intersection(l, r):
                             subtypes.extend((l, r))
@@ -50,9 +46,7 @@ class Subtypes:
                 while subtypes:
                     match subtypes.pop():
                         case Arrow(src1, tgt1):
-                            if self._check_subtype_rec(
-                                deque((src2,)), src1, substitutions
-                            ):
+                            if self._check_subtype_rec(deque((src2,)), src1, substitutions):
                                 casted_arr.append(tgt1)
                         case Intersection(l, r):
                             subtypes.extend((l, r))
@@ -79,7 +73,7 @@ class Subtypes:
                 return self._check_subtype_rec(
                     subtypes.copy(), l, substitutions
                 ) and self._check_subtype_rec(subtypes, r, substitutions)
-            case TVar(name):
+            case LVar(name):
                 while subtypes:
                     match subtypes.pop():
                         case Literal(value, group):

@@ -211,9 +211,7 @@ class Product(Type):
                 case _:
                     return other._str_prec(product_prec + 1)
 
-        result: str = (
-            f"{product_str_prec(self.left)} * {self.right._str_prec(product_prec + 1)}"
-        )
+        result: str = f"{product_str_prec(self.left)} * {self.right._str_prec(product_prec + 1)}"
         return Type._parens(result) if prec > product_prec else result
 
     def subst(self, substitution: dict[str, Literal]) -> Type:
@@ -317,17 +315,13 @@ class Intersection(Type):
                 case _:
                     return other._str_prec(intersection_prec + 1)
 
-        result: str = (
-            f"{intersection_str_prec(self.left)} & {intersection_str_prec(self.right)}"
-        )
+        result: str = f"{intersection_str_prec(self.left)} & {intersection_str_prec(self.right)}"
         return Type._parens(result) if prec > intersection_prec else result
 
     def subst(self, substitution: dict[str, Literal]) -> Type:
         if not any(var in substitution for var in self.free_vars):
             return self
-        return Intersection(
-            self.left.subst(substitution), self.right.subst(substitution)
-        )
+        return Intersection(self.left.subst(substitution), self.right.subst(substitution))
 
 
 @dataclass(frozen=True)
@@ -367,7 +361,7 @@ class Literal(Type):
 
 
 @dataclass(frozen=True)
-class TVar(Type):
+class LVar(Type):
     name: str
     is_omega: bool = field(init=False, compare=False)
     size: int = field(init=False, compare=False)

@@ -5,7 +5,7 @@ from clsp.dsl import DSL
 from clsp.enumeration import enumerate_terms, interpret_term
 from clsp.fcl import FiniteCombinatoryLogic
 
-from clsp.types import Constructor, Literal, Param, Product, TVar, Type
+from clsp.types import Constructor, Literal, Param, Product, LVar, Type
 
 
 def plus_one(a: str) -> Callable[[Mapping[str, Literal]], int]:
@@ -57,7 +57,7 @@ def main(SIZE: int = 10, output: bool = True) -> float:
     ] = lambda _, b, c, p: ((*p[0], (b, c)), f"{p[1]} => RIGHT({b}, {c})")
 
     pos: Callable[[str, str], Type] = lambda a, b: Constructor(
-        "pos", (Product(TVar(a), TVar(b)))
+        "pos", (Product(LVar(a), LVar(b)))
     )
 
     repo: Mapping[

@@ -5,7 +5,7 @@ from clsp.dsl import Requires, DSL
 from clsp.enumeration import enumerate_terms, interpret_term
 from clsp.fcl import FiniteCombinatoryLogic
 
-from clsp.types import Literal, Param, TVar, Type
+from clsp.types import Literal, Param, LVar, Type
 
 
 def main(SIZE: int = 10, output: bool = True) -> float:
@@ -25,8 +25,8 @@ def main(SIZE: int = 10, output: bool = True) -> float:
     L = lambda a, b, c, p, f: f"{p} => LEFT({a}, {c})"
     R = lambda a, b, c, p, f: f"{p} => RIGHT({b}, {c})"
 
-    free: Callable[[str, str], Type] = lambda a, b: "free" @ (TVar(a) * TVar(b))
-    pos: Callable[[str, str], Type] = lambda a, b: "pos" @ (TVar(a) * TVar(b))
+    free: Callable[[str, str], Type] = lambda a, b: "free" @ (LVar(a) * LVar(b))
+    pos: Callable[[str, str], Type] = lambda a, b: "pos" @ (LVar(a) * LVar(b))
 
     repo: dict[
         Callable[[Any, Any, Any, Any, Any], str] | Callable[[Any, Any], str] | str,

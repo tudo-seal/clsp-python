@@ -5,7 +5,7 @@ from typing import Any
 from clsp.enumeration import enumerate_terms, interpret_term
 from clsp.fcl import FiniteCombinatoryLogic
 
-from clsp.types import Arrow, Constructor, Literal, Param, Product, SetTo, TVar, Type
+from clsp.types import Arrow, Constructor, Literal, Param, Product, SetTo, LVar, Type
 
 
 def set_plus_one(b: str) -> SetTo:
@@ -65,10 +65,10 @@ def main(SIZE: int = 10, output: bool = True) -> float:
             print("")
 
     free: Callable[[str, str], Type] = lambda a, b: Constructor(
-        "free", Product(TVar(a), TVar(b))
+        "free", Product(LVar(a), LVar(b))
     )
     pos: Callable[[str, str], Type] = lambda a, b: Constructor(
-        "pos", Product(TVar(a), TVar(b))
+        "pos", Product(LVar(a), LVar(b))
     )
 
     FREE = lambda a, b: f"FREE({a}, {b})"
