@@ -13,7 +13,7 @@ code can access it. In case you *want* to install it, you can do this by either 
 
 in the cloned repository, or
 
-    pip install git+https://github.com/tudo-seal/picls-python
+    pip install git+https://github.com/tudo-seal/clsp-python
 
 without the need to clone it beforehand.
 
@@ -71,7 +71,7 @@ A query can only be specified by an intersection type, but a combinator can be s
 **Parameterized types** add quantifiers and predicates in front of an intersection type and allow for literal variables inside the intersection type.
 Usage is best explained in an example:
 
-    DSL().Use('x', 'int').Use('y', int).With(lambda x, y.x > y).In(LVar('x') ** LVar('y'))
+    DSL().Use('x', 'int').Use('y', int).With(lambda x, y: x > y).In(LVar('x') ** LVar('y'))
 
 This corresponds to each type in the form x → y where x and y are numbers and x > y.
 
