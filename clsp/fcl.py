@@ -9,7 +9,7 @@ from collections.abc import (
 )
 from dataclasses import dataclass
 from functools import reduce
-from itertools import chain, compress
+from itertools import chain, filterfalse
 from typing import Any, Callable, Generic, TypeAlias, TypeVar, Optional
 
 from .grammar import GVar, ParameterizedTreeGrammar, Predicate, RHSRule
@@ -70,7 +70,10 @@ class FiniteCombinatoryLogic(Generic[C]):
     @staticmethod
     def _function_types(
         p_or_ty: Param | Type, literals: Mapping[str, list[Any]]
-    ) -> tuple[list[InstantiationMeta], list[list[MultiArrow]],]:
+    ) -> tuple[
+        list[InstantiationMeta],
+        list[list[MultiArrow]],
+    ]:
         """Presents a type as a list of 0-ary, 1-ary, ..., n-ary function types."""
 
         def unary_function_types(ty: Type) -> Iterable[tuple[Type, Type]]:
@@ -110,7 +113,7 @@ class FiniteCombinatoryLogic(Generic[C]):
         literals: Mapping[str, list[Any]],
         params: Sequence[LitParamSpec | TermParamSpec],
     ) -> Iterable[InstantiationMeta]:
-        substitutions: deque[dict[str, Literal]] = deque([{}])
+        substitutions: Iterable[dict[str, Literal]] = deque([{}])
         args: deque[str | GVar] = deque()
         term_params: list[TermParamSpec] = []
 
@@ -120,19 +123,34 @@ class FiniteCombinatoryLogic(Generic[C]):
                     return []
                 else:
                     args.append(param.name)
-                    if isinstance(param.predicate, SetTo):
-                        filter_list = []
-                        for substitution in substitutions:
-                            value = param.predicate.compute(substitution)
-                            filter_list.append(value in literals[param.group])
-                            substitution[param.name] = Literal(value, param.group)
+                    normal_preds = list(
+                        filterfalse(lambda pred: isinstance(pred, SetTo), param.predicate)
+                    )
 
-                        substitutions = deque(compress(substitutions, filter_list))
-                    else:
+                    setto = False
+                    # Only the last setto takes effect
+                    for pred in param.predicate:
+                        if isinstance(pred, SetTo):
+                            setto = True
+                            substitutions = deque(
+                                filter(
+                                    lambda substs: all(
+                                        callable(npred) and npred(substs) for npred in normal_preds
+                                    ),
+                                    (
+                                        s | {param.name: Literal(pred.compute(s), param.group)}
+                                        for s in substitutions
+                                    ),
+                                )
+                            )
+
+                    # If we do not have at least one "setto", we need to enumerate all possible literals
+                    if not setto:
                         substitutions = deque(
                             filter(
-                                lambda substs: callable(param.predicate)
-                                and param.predicate(substs),
+                                lambda substs: all(
+                                    callable(npred) and npred(substs) for npred in normal_preds
+                                ),
                                 (
                                     s | {param.name: Literal(literal, param.group)}
                                     for s in substitutions
@@ -140,6 +158,8 @@ class FiniteCombinatoryLogic(Generic[C]):
                                 ),
                             )
                         )
+
+                    # substitutions = deque(compress(substitutions, filter_list))
             elif isinstance(param, TermParamSpec):
                 args.append(GVar(param.name))
                 term_params.append(param)
@@ -147,8 +167,8 @@ class FiniteCombinatoryLogic(Generic[C]):
         for substitution in substitutions:
             predicates = []
             for term_param in term_params:
-                predicates.append(
-                    Predicate(term_param.predicate, predicate_substs=substitution)
+                predicates.extend(
+                    Predicate(pred, predicate_substs=substitution) for pred in term_param.predicate
                 )
             instantiated_combinator_args: list[Literal | GVar] = [
                 substitution[arg] if not isinstance(arg, GVar) else arg for arg in args
@@ -167,21 +187,19 @@ class FiniteCombinatoryLogic(Generic[C]):
         substitutions: dict[str, Literal],
     ) -> Sequence[list[Type]]:
         # does the target of a multi-arrow contain a given type?
-        target_contains: Callable[
-            [MultiArrow, Type], bool
-        ] = lambda m, t: self.subtypes.check_subtype(m.target, t, substitutions)
+        target_contains: Callable[[MultiArrow, Type], bool] = (
+            lambda m, t: self.subtypes.check_subtype(m.target, t, substitutions)
+        )
         # cover target using targets of multi-arrows in nary_types
         covers = minimal_covers(nary_types, paths, target_contains)
         if len(covers) == 0:
             return []
         # intersect corresponding arguments of multi-arrows in each cover
-        intersect_args: Callable[
-            [Iterable[Type], Iterable[Type]], list[Type]
-        ] = lambda args1, args2: [Intersection(a, b) for a, b in zip(args1, args2)]
-
-        intersected_args = (
-            list(reduce(intersect_args, (m.args for m in ms))) for ms in covers
+        intersect_args: Callable[[Iterable[Type], Iterable[Type]], list[Type]] = (
+            lambda args1, args2: [Intersection(a, b) for a, b in zip(args1, args2)]
         )
+
+        intersected_args = (list(reduce(intersect_args, (m.args for m in ms))) for ms in covers)
         # consider only maximal argument vectors
         compare_args = lambda args1, args2: all(
             map(
@@ -226,15 +244,13 @@ class FiniteCombinatoryLogic(Generic[C]):
                                 continue
 
                             specific_params = {
-                                param.name: param.group.subst(substitutions)
-                                for param in params
+                                param.name: param.group.subst(substitutions) for param in params
                             }
 
                             type_targets.extend(specific_params.values())
 
                             for subquery in (
-                                [ty.subst(substitutions) for ty in query]
-                                for query in arguments
+                                [ty.subst(substitutions) for ty in query] for query in arguments
                             ):
                                 memo.add_rule(
                                     current_target,

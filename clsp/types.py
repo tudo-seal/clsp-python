@@ -6,9 +6,9 @@ from __future__ import annotations
 
 import itertools
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, MutableMapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 
 @dataclass(frozen=True)
@@ -405,14 +405,14 @@ class LVar(Type):
 class LitParamSpec:
     name: str
     group: str
-    predicate: Callable[[dict[str, Any]], bool] | SetTo
+    predicate: Sequence[Callable[[MutableMapping[str, Any]], bool] | SetTo]
 
 
 @dataclass
 class TermParamSpec:
     name: str
     group: Type
-    predicate: Callable[[dict[str, Any]], bool]
+    predicate: Sequence[Callable[[MutableMapping[str, Any]], bool]]
 
 
 @dataclass
@@ -425,16 +425,30 @@ class SetTo:
 class Param:
     name: str
     group: Type | str
-    predicate: Callable[[dict[str, Any]], bool] | SetTo
+    predicate: Sequence[Callable[[MutableMapping[str, Any]], bool] | SetTo] | Callable[
+        [dict[str, Any]], bool
+    ] | SetTo
     inner: Param | Type
 
     def get_spec(self) -> LitParamSpec | TermParamSpec:
+        predicates: Sequence[Callable[[MutableMapping[str, Any]], bool] | SetTo] = []
+        if isinstance(self.predicate, list):
+            predicates = self.predicate
+        elif not isinstance(self.predicate, list):
+            predicates = cast(
+                Sequence[Callable[[MutableMapping[str, Any]], bool] | SetTo], [self.predicate]
+            )  # :(
         if isinstance(self.group, Type):
-            if isinstance(self.predicate, SetTo):
-                raise RuntimeError("Term parameters cannot have SetTo")
-            return TermParamSpec(self.name, self.group, self.predicate)
+            for pred in predicates:
+                if isinstance(pred, SetTo):
+                    raise RuntimeError("Term parameters cannot have SetTo/As")
+
+            casted_predicates = cast(
+                Sequence[Callable[[MutableMapping[str, Any]], bool]], predicates
+            )
+            return TermParamSpec(self.name, self.group, casted_predicates)
         else:
-            return LitParamSpec(self.name, self.group, self.predicate)
+            return LitParamSpec(self.name, self.group, predicates)
 
     def __str__(self) -> str:
         return f"<{self.name}, {self.group}, {self.predicate}>.{self.inner}"

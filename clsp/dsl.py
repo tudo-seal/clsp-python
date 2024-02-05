@@ -95,7 +95,7 @@ class DSL:
         Initialize the DSL object
         """
         self._accumulator: list[
-            tuple[str, Any, Callable[[Mapping[str, Literal]], bool] | SetTo]
+            tuple[str, Any, list[Callable[[Mapping[str, Literal]], bool] | SetTo]]
         ] = []
 
     def Use(self, name: str, group: str | Type) -> DSL:
@@ -125,7 +125,7 @@ class DSL:
         :return: The DSL object. To concatenate multiple calls.
         :rtype: DSL
         """
-        self._accumulator.append((name, group, DSL.TRUE))
+        self._accumulator.append((name, group, [DSL.TRUE]))
         return self
 
     def As(self, set_to: Callable[..., Any]) -> DSL:
@@ -145,7 +145,7 @@ class DSL:
         self._accumulator[-1] = (
             last_element[0],
             last_element[1],
-            SetTo(DSL._unwrap_predicate(set_to)),
+            last_element[2] + [SetTo(DSL._unwrap_predicate(set_to))],
         )
         return self
 
@@ -167,7 +167,7 @@ class DSL:
         self._accumulator[-1] = (
             last_element[0],
             last_element[1],
-            SetTo(DSL._extracted_values(set_to)),
+            last_element[2] + [SetTo(DSL._extracted_values(set_to))],
         )
         return self
 
@@ -195,7 +195,7 @@ class DSL:
         self._accumulator[-1] = (
             last_element[0],
             last_element[1],
-            DSL._unwrap_predicate(predicate),
+            last_element[2] + [DSL._unwrap_predicate(predicate)],
         )
         return self
 
@@ -215,7 +215,7 @@ class DSL:
         self._accumulator[-1] = (
             last_element[0],
             last_element[1],
-            DSL._extracted_values(predicate),
+            last_element[2] + [DSL._extracted_values(predicate)],
         )
         return self
 

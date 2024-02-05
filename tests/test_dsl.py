@@ -26,14 +26,10 @@ class TestDSL(unittest.TestCase):
         self.c = Constructor("c")
 
     def test_arrow(self) -> None:
-        self.assertEqual(
-            self.a**self.b**self.c, Arrow(self.a, Arrow(self.b, self.c))
-        )
+        self.assertEqual(self.a**self.b**self.c, Arrow(self.a, Arrow(self.b, self.c)))
 
     def test_product(self) -> None:
-        self.assertEqual(
-            self.a * self.b * self.c, Product(Product(self.a, self.b), self.c)
-        )
+        self.assertEqual(self.a * self.b * self.c, Product(Product(self.a, self.b), self.c))
 
     def test_constructor(self) -> None:
         self.assertEqual("a" @ self.b, Constructor("a", self.b))
