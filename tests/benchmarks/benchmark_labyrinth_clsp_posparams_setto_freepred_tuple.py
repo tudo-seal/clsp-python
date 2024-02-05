@@ -24,10 +24,6 @@ def is_free(pos: tuple[int, int]) -> bool:
         return pow(11, (row + col + SEED) * (row + col + SEED) + col + 7, 1000003) % 5 > 0
 
 
-def weirdDebugthing(a, b):
-    return b == (a[0], a[1] - 1) and is_free(b)
-
-
 def main(SIZE: int = 10, output: bool = True) -> float:
     U: Callable[[int, int, str], str] = lambda _, b, p: f"{p} => UP({b})"
     D: Callable[[int, int, str], str] = lambda _, b, p: f"{p} => DOWN({b})"

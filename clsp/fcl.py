@@ -165,7 +165,7 @@ class FiniteCombinatoryLogic(Generic[C]):
                 term_params.append(param)
 
         for substitution in substitutions:
-            predicates = []
+            predicates: list[Predicate] = []
             for term_param in term_params:
                 predicates.extend(
                     Predicate(pred, predicate_substs=substitution) for pred in term_param.predicate
