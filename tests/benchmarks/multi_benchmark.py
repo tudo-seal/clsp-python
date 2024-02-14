@@ -25,6 +25,7 @@ from collections.abc import Callable, Iterable, Sequence
 from typing import Any, Optional
 from argparse import ArgumentParser
 from importlib import import_module
+import sys
 
 
 def run(
@@ -69,6 +70,7 @@ def runtests(modules: list[str], optionrange: Sequence[Any], timeout: int) -> No
     functions = [import_module(module).main for module in modules]
     skip: list[Callable[[int, bool], float]] = []
     print(f"n,{','.join(modules)}")
+    sys.stdout.flush()
     for n in optionrange:
         row: list[str] = [str(n)]
         results = run(functions, n, skip)
@@ -80,6 +82,7 @@ def runtests(modules: list[str], optionrange: Sequence[Any], timeout: int) -> No
             if timeout is not None and time is not None and time >= timeout:
                 skip.append(function)
         print(",".join(row))
+        sys.stdout.flush()
 
 
 if __name__ == "__main__":
