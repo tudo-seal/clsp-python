@@ -37,9 +37,7 @@ def tree_size(tree: Tree[T]) -> int:
     return result
 
 
-def bounded_union(
-    old_elements: set[S], new_elements: Iterable[S], max_count: int
-) -> set[S]:
+def bounded_union(old_elements: set[S], new_elements: Iterable[S], max_count: int) -> set[S]:
     """Return the union of old_elements and new_elements up to max_count elements as a new set."""
 
     result: set[S] = old_elements.copy()
@@ -51,9 +49,7 @@ def bounded_union(
     return result
 
 
-def new_terms(
-    rhs: Iterable[RHSRule[S, T]], existing_terms: dict[S, set[Tree[T]]]
-) -> set[Tree[T]]:
+def new_terms(rhs: Iterable[RHSRule[S, T]], existing_terms: dict[S, set[Tree[T]]]) -> set[Tree[T]]:
     output_set: set[Tree[T]] = set()
     for rule in rhs:
         list_of_params = list(rule.binder.keys())
@@ -65,9 +61,7 @@ def new_terms(
             if all((predicate.eval(params_dict) for predicate in rule.predicates)):
                 for args in itertools.product(
                     *(
-                        existing_terms[arg]
-                        if not isinstance(arg, Literal)
-                        else [(arg.value, ())]
+                        existing_terms[arg] if not isinstance(arg, Literal) else [(arg.value, ())]
                         for arg in rule.args
                     )
                 ):
@@ -176,9 +170,7 @@ def enumerate_terms_of_size(
     while terms_size < sum(len(ts) for ts in terms.values()):
         terms_size = sum(len(ts) for ts in terms.values())
 
-        new_terms: Callable[
-            [Iterable[tuple[T, list[S]]]], set[Tree[T]]
-        ] = lambda exprs: {
+        new_terms: Callable[[Iterable[tuple[T, list[S]]]], set[Tree[T]]] = lambda exprs: {
             (c, tuple(args))
             for (c, ms) in exprs
             for args in itertools.product(*(terms[m] for m in ms))
@@ -203,7 +195,7 @@ def enumerate_terms_of_size(
                 yield term
 
 
-def interpret_term(term: Tree[T]) -> Any:
+def interpret_term(term: Tree[T], interpretation: Optional[dict[T, Any]] = None) -> Any:
     """Recursively evaluate given term."""
 
     terms: deque[Tree[T]] = deque((term,))
@@ -219,16 +211,16 @@ def interpret_term(term: Tree[T]) -> Any:
     while combinators:
         (c, n) = combinators.pop()
         parameters_of_c: Sequence[Parameter] = []
-        current_combinator: partial[Any] | T | Callable[..., Any] = c
+        current_combinator: partial[Any] | T | Callable[..., Any] = (
+            c if interpretation is None else interpretation[c]
+        )
 
         if callable(current_combinator):
             try:
-                parameters_of_c = list(
-                    signature(current_combinator).parameters.values()
-                )
+                parameters_of_c = list(signature(current_combinator).parameters.values())
             except ValueError:
                 raise RuntimeError(
-                    f"Combinator {c} does not expose a signature. "
+                    f"Interpretation of combinator {c} does not expose a signature. "
                     "If it's a built-in, you can simply wrap it in another function."
                 )
 
@@ -240,23 +232,17 @@ def interpret_term(term: Tree[T]) -> Any:
         while arguments:
             if not callable(current_combinator):
                 raise RuntimeError(
-                    f"Combinator {c} is applied to {n} argument(s), "
+                    f"Interpretation of combinator {c} is applied to {n} argument(s), "
                     f"but can only be applied to {n - len(arguments)}"
                 )
 
             use_partial = False
 
-            simple_arity = len(
-                list(filter(lambda x: x.default == _empty, parameters_of_c))
-            )
-            default_arity = len(
-                list(filter(lambda x: x.default != _empty, parameters_of_c))
-            )
+            simple_arity = len(list(filter(lambda x: x.default == _empty, parameters_of_c)))
+            default_arity = len(list(filter(lambda x: x.default != _empty, parameters_of_c)))
 
             # if any parameter is marked as var_args, we need to use all available arguments
-            pop_all = any(
-                map(lambda x: x.kind == _ParameterKind.VAR_POSITIONAL, parameters_of_c)
-            )
+            pop_all = any(map(lambda x: x.kind == _ParameterKind.VAR_POSITIONAL, parameters_of_c))
 
             # If a var_args parameter is found, we need to subtract it from the normal parameters.
             # Note: python does only allow one parameter in the form of *arg
@@ -350,9 +336,7 @@ def test() -> None:
 
     start = timeit.default_timer()
 
-    for i, r in enumerate(
-        itertools.islice(enumerate_terms("X", d, max_count=100), 1000000)
-    ):
+    for i, r in enumerate(itertools.islice(enumerate_terms("X", d, max_count=100), 1000000)):
         print(i, (r))
 
     print("Time: ", timeit.default_timer() - start)
@@ -405,9 +389,7 @@ def test2() -> None:
 
     start = timeit.default_timer()
 
-    for i, r in enumerate(
-        itertools.islice(enumerate_terms("X", d, max_count=100), 1000000)
-    ):
+    for i, r in enumerate(itertools.islice(enumerate_terms("X", d, max_count=100), 1000000)):
         print(i, interpret_term(r))
 
     print("Time: ", timeit.default_timer() - start)
