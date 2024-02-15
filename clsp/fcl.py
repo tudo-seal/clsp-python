@@ -144,7 +144,8 @@ class FiniteCombinatoryLogic(Generic[C]):
                                 )
                             )
 
-                    # If we do not have at least one "setto", we need to enumerate all possible literals
+                    # If we do not have at least one "setto", we need to enumerate all possible
+                    # literals
                     if not setto:
                         substitutions = deque(
                             filter(

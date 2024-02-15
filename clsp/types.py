@@ -1,5 +1,5 @@
 """
-Definitions of `Type`, that can be 
+Definitions of `Type`, that can be
 """
 
 from __future__ import annotations
