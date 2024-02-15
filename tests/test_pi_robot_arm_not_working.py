@@ -68,9 +68,7 @@ class TestRobotArm(unittest.TestCase):
 
         literals = {"int": list(range(10))}
 
-        fcl: FiniteCombinatoryLogic[Part] = FiniteCombinatoryLogic(
-            repo, literals=literals
-        )
+        fcl: FiniteCombinatoryLogic[Part] = FiniteCombinatoryLogic(repo, literals=literals)
         query = Constructor("Base") & ("c" @ Literal(3, "int"))
         grammar = fcl.inhabit(query)
         self.terms = list(enumerate_terms(query, grammar))

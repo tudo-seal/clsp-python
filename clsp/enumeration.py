@@ -11,6 +11,9 @@ from inspect import Parameter, signature, _ParameterKind, _empty
 from collections import deque
 from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
 from typing import Any, Optional, TypeAlias, TypeVar
+from heapq import merge
+
+from clsp.sortedenum import sorted_product
 
 from .grammar import (
     GVar,
@@ -37,9 +40,117 @@ def tree_size(tree: Tree[T]) -> int:
     return result
 
 
-def bounded_union(
-    old_elements: set[S], new_elements: Iterable[S], max_count: int
-) -> set[S]:
+def takewhile_inclusive(pred: Callable[[T], bool], it: Iterable[T]) -> Iterable[T]:
+    """Like takewhile, but also returns the first element not satisfying `pred`"""
+    for elem in it:
+        yield elem
+        if not pred(elem):
+            return
+
+
+def enumerate_terms(
+    start: S,
+    grammar: ParameterizedTreeGrammar[S, T],
+    max_count: Optional[int] = 100,
+) -> Iterable[Tree[T]]:
+    return itertools.islice(enumerate_terms_iter(start, grammar), max_count)
+
+
+def new_terms_for_rhs(
+    rhs: deque[RHSRule[S, T]],
+    already_checked: dict[S, set[int]],
+    existing_terms: dict[S, list[Tree[T]]],
+) -> Iterable[Tree[T]]:
+    return []
+
+
+def validate_term(rule: RHSRule[S, T], term: Tree[T]) -> bool:
+    arguments = term[1]
+    substitution = {
+        param.name: subterm
+        for subterm, param in zip(arguments, rule.parameters)
+        if isinstance(param, GVar)
+    }
+    # return True
+    return all(predicate.eval(substitution) for predicate in rule.predicates)
+
+
+def sorted_product_print(rule, *args, **kwargs):
+    r = list(sorted_product(*args, **kwargs))
+    if len(r) > 0:
+        print(
+            f"{rule.terminal if isinstance(rule.terminal, str) else rule.terminal.__name__}: {args} => {[(hash(x), x) for x in r]}"
+        )
+    return r
+
+
+def enumerate_terms_iter(start: S, grammar: ParameterizedTreeGrammar[S, T]) -> Iterable[Tree[T]]:
+    """
+    Enumerate terms as an iterator
+    """
+    if start not in grammar.nonterminals():
+        return []
+
+    old_terms: dict[S, list[Tree[T]]] = {n: [] for n in grammar.nonterminals()}
+    already_checked: dict[S, set[int]] = {n: set() for n in grammar.nonterminals()}
+
+    terms_size: int = -1
+
+    generation = 0
+
+    repeat = True
+    while repeat or terms_size < sum(len(ts) for ts in old_terms.values()):
+        repeat = False
+        terms_size = sum(len(ts) for ts in old_terms.values())
+        generation = generation + 1
+        for t, r in old_terms.items():
+            if len(r) > 0:
+                print(f"#{generation} {t}: {r} - {[hash(rs) for rs in r ]}")
+
+        input()
+        #
+        for n, rhs in grammar.as_tuples():
+            out_iter, avoid_iter = itertools.tee(
+                # takewhile_inclusive(
+                #     lambda tree: tree_size(tree) <= generation,
+                merge(
+                    *(
+                        filter(
+                            lambda new_term: hash(new_term) not in already_checked[n]
+                            and validate_term(rule, new_term),
+                            sorted_product(
+                                *(
+                                    old_terms[m] if not isinstance(m, Literal) else [(m.value, ())]
+                                    for m in rule.all_args()
+                                ),
+                                key=tree_size,
+                                combine=partial(lambda c, args: (c, tuple(args)), rule.terminal),
+                            ),
+                        )
+                        # for c, ms in sorted(exprs, key=lambda expr: len(expr[1]))
+                        for rule in rhs
+                    ),
+                    key=tree_size,
+                    # ),
+                ),
+            )
+
+            if n == start:
+                for i in out_iter:
+                    if tree_size(i) <= generation:
+                        yield i
+                    else:
+                        repeat = True
+
+            for i in avoid_iter:
+                if tree_size(i) <= generation:
+                    already_checked[n].add(hash(i))
+                    old_terms[n].append(i)
+                else:
+                    repeat = True
+
+
+def bounded_union(old_elements: set[S], new_elements: Iterable[S], max_count: int) -> set[S]:
     """Return the union of old_elements and new_elements up to max_count elements as a new set."""
 
     result: set[S] = old_elements.copy()
@@ -51,9 +162,7 @@ def bounded_union(
     return result
 
 
-def new_terms(
-    rhs: Iterable[RHSRule[S, T]], existing_terms: dict[S, set[Tree[T]]]
-) -> set[Tree[T]]:
+def new_terms(rhs: Iterable[RHSRule[S, T]], existing_terms: dict[S, set[Tree[T]]]) -> set[Tree[T]]:
     output_set: set[Tree[T]] = set()
     for rule in rhs:
         list_of_params = list(rule.binder.keys())
@@ -65,9 +174,7 @@ def new_terms(
             if all((predicate.eval(params_dict) for predicate in rule.predicates)):
                 for args in itertools.product(
                     *(
-                        existing_terms[arg]
-                        if not isinstance(arg, Literal)
-                        else [(arg.value, ())]
+                        existing_terms[arg] if not isinstance(arg, Literal) else [(arg.value, ())]
                         for arg in rule.args
                     )
                 ):
@@ -92,7 +199,7 @@ def new_terms(
     return output_set
 
 
-def enumerate_terms(
+def enumerate_terms2(
     start: S,
     grammar: ParameterizedTreeGrammar[S, T],
     max_count: Optional[int] = 100,
@@ -176,9 +283,7 @@ def enumerate_terms_of_size(
     while terms_size < sum(len(ts) for ts in terms.values()):
         terms_size = sum(len(ts) for ts in terms.values())
 
-        new_terms: Callable[
-            [Iterable[tuple[T, list[S]]]], set[Tree[T]]
-        ] = lambda exprs: {
+        new_terms: Callable[[Iterable[tuple[T, list[S]]]], set[Tree[T]]] = lambda exprs: {
             (c, tuple(args))
             for (c, ms) in exprs
             for args in itertools.product(*(terms[m] for m in ms))
@@ -223,9 +328,7 @@ def interpret_term(term: Tree[T]) -> Any:
 
         if callable(current_combinator):
             try:
-                parameters_of_c = list(
-                    signature(current_combinator).parameters.values()
-                )
+                parameters_of_c = list(signature(current_combinator).parameters.values())
             except ValueError:
                 raise RuntimeError(
                     f"Combinator {c} does not expose a signature. "
@@ -246,17 +349,11 @@ def interpret_term(term: Tree[T]) -> Any:
 
             use_partial = False
 
-            simple_arity = len(
-                list(filter(lambda x: x.default == _empty, parameters_of_c))
-            )
-            default_arity = len(
-                list(filter(lambda x: x.default != _empty, parameters_of_c))
-            )
+            simple_arity = len(list(filter(lambda x: x.default == _empty, parameters_of_c)))
+            default_arity = len(list(filter(lambda x: x.default != _empty, parameters_of_c)))
 
             # if any parameter is marked as var_args, we need to use all available arguments
-            pop_all = any(
-                map(lambda x: x.kind == _ParameterKind.VAR_POSITIONAL, parameters_of_c)
-            )
+            pop_all = any(map(lambda x: x.kind == _ParameterKind.VAR_POSITIONAL, parameters_of_c))
 
             # If a var_args parameter is found, we need to subtract it from the normal parameters.
             # Note: python does only allow one parameter in the form of *arg
@@ -350,9 +447,7 @@ def test() -> None:
 
     start = timeit.default_timer()
 
-    for i, r in enumerate(
-        itertools.islice(enumerate_terms("X", d, max_count=100), 1000000)
-    ):
+    for i, r in enumerate(itertools.islice(enumerate_terms("X", d, max_count=100), 1000000)):
         print(i, (r))
 
     print("Time: ", timeit.default_timer() - start)
@@ -405,9 +500,7 @@ def test2() -> None:
 
     start = timeit.default_timer()
 
-    for i, r in enumerate(
-        itertools.islice(enumerate_terms("X", d, max_count=100), 1000000)
-    ):
+    for i, r in enumerate(itertools.islice(enumerate_terms("X", d, max_count=100), 1000000)):
         print(i, interpret_term(r))
 
     print("Time: ", timeit.default_timer() - start)
