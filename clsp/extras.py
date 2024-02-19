@@ -37,7 +37,7 @@ def configurable(
         return 4 % config
       ```
 
-      With annotated types A -> A and A respectively (where A is some constructor).
+      With annotated types A -> A -> A and A respectively (where A is some constructor).
 
       An interpreted term of type A is now a function, that takes a config (in this example simply
       an number) and applies the modulo operation at each of its levels.
