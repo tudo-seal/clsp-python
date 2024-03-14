@@ -24,19 +24,19 @@ def is_free(pos: tuple[int, int]) -> bool:
         return pow(11, (row + col + SEED) * (row + col + SEED) + col + 7, 1000003) % 5 > 0
 
 
-def U(_, b, p):
+def U(_: int, b: int, p: str) -> str:
     return f"{p} => Up({b})"
 
 
-def D(_, b, p):
+def D(_: int, b: int, p: str) -> str:
     return f"{p} => Down({b})"
 
 
-def L(_, b, p):
+def L(_: int, b: int, p: str) -> str:
     return f"{p} => Left({b})"
 
 
-def R(_, b, p):
+def R(_: int, b: int, p: str) -> str:
     return f"{p} => Right({b})"
 
 
