@@ -3,11 +3,11 @@ import unittest
 from clsp import (
     Type,
     Constructor,
-    Arrow,
 )
+from clsp.dsl import DSL
 from clsp.enumeration import enumerate_terms, interpret_term
 from clsp.fcl import FiniteCombinatoryLogic
-from clsp.types import Param, LVar
+from clsp.types import LVar, Literal
 
 
 class TestLiterals(unittest.TestCase):
@@ -18,23 +18,19 @@ class TestLiterals(unittest.TestCase):
     )
 
     def test_liteals(self) -> None:
-        # a: Type = Constructor("a")
-        # b: Type = Constructor("b")
         c: Type = Constructor("c")
-        # d: Type = Literal(3, int)
-
-        # X: str = "X"
         Y = lambda x, y: f"Y {x} {y}"
-        # F: Callable[[str], str] = lambda x: f"F({x})"
 
-        repository = dict({Y: Param("x", "int", lambda _: True, Arrow(LVar("x"), c))})
-        # for real_result in inhabit_and_interpret(repository, [Literal("3", int)]):
-        #     self.logger.info(real_result)
+        repository = {
+            Y: DSL().Use("x", "int").In(("d" @ LVar("x")) ** c),
+            "3": "d" @ Literal(3, "int"),
+        }
+
         result = FiniteCombinatoryLogic(repository, literals={"int": [3]}).inhabit(c)
         self.logger.info(result.show())
-        for term in enumerate_terms(c, result):
-            self.logger.info(interpret_term(term))
-            self.assertEqual("Y 3 3", interpret_term(term))
+        results = [interpret_term(term) for term in enumerate_terms(c, result)]
+        self.logger.info(results)
+        self.assertEqual(["Y 3 3"], results)
 
 
 if __name__ == "__main__":

@@ -128,7 +128,7 @@ class DSL:
         self._accumulator.append((name, group, [DSL.TRUE]))
         return self
 
-    def As(self, set_to: Callable[..., Any]) -> DSL:
+    def As(self, set_to: Callable[..., Any], override: bool = False) -> DSL:
         """
         Set the previous variable directly to the result of a computation.
 
@@ -138,6 +138,9 @@ class DSL:
             parameters to this function correspond directly to the names of the variables,
             previously introduced.
         :type set_to: Callable[..., Any]
+        :param override: Whether the result of the computation should be discarded, if it
+            is not in the literal set for the group. Default is False (discard).
+        :type override: bool
         :return: The DSL object. To concatenate multiple calls.
         :rtype: DSL
         """
@@ -145,11 +148,11 @@ class DSL:
         self._accumulator[-1] = (
             last_element[0],
             last_element[1],
-            last_element[2] + [SetTo(DSL._unwrap_predicate(set_to))],
+            last_element[2] + [SetTo(DSL._unwrap_predicate(set_to), override)],
         )
         return self
 
-    def AsRaw(self, set_to: Callable[[Mapping[str, Any]], Any]) -> DSL:
+    def AsRaw(self, set_to: Callable[[Mapping[str, Any]], Any], override: bool = False) -> DSL:
         """
         Set the previous variable directly to the result of a computation.
 
@@ -160,6 +163,9 @@ class DSL:
 
         :param set_to: The function computing the value for the variable.
         :type set_to: Callable[[Mapping[str, Any]], Any]
+        :param override: Whether the result of the computation should be discarded, if it
+            is not in the literal set for the group. Default is False (discard).
+        :type override: bool
         :return: The DSL object. To concatenate multiple calls.
         :rtype: DSL
         """

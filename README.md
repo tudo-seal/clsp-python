@@ -46,7 +46,7 @@ If it is not callable, the object in itself is returned. This is useful for cons
 
 ## Types
 
-To give combinators a specification and query for a result, we use an approach based in intersection type theory. 
+To give combinators a specification and query for a result, we use an approach based in intersection type theory.
 Intersection types can be one of the following:
 
   * A *function type* "A → B", signifying that a combinator transforms an A into a B. These can be chained e.g. "A → B → C", meaning a something that transforms an A and a B into a C, or even nested e.g "(A → B) → C → D", meaning something that takes something of type A → B and of type C, and constructs a D.

@@ -298,7 +298,7 @@ def enumerate_terms_of_size(
                 yield term
 
 
-def interpret_term(term: Tree[T]) -> Any:
+def interpret_term(term: Tree[T], interpretation: Optional[dict[T, Any]] = None) -> Any:
     """Recursively evaluate given term."""
 
     terms: deque[Tree[T]] = deque((term,))
@@ -314,14 +314,16 @@ def interpret_term(term: Tree[T]) -> Any:
     while combinators:
         (c, n) = combinators.pop()
         parameters_of_c: Sequence[Parameter] = []
-        current_combinator: partial[Any] | T | Callable[..., Any] = c
+        current_combinator: partial[Any] | T | Callable[..., Any] = (
+            c if interpretation is None else interpretation[c]
+        )
 
         if callable(current_combinator):
             try:
                 parameters_of_c = list(signature(current_combinator).parameters.values())
             except ValueError:
                 raise RuntimeError(
-                    f"Combinator {c} does not expose a signature. "
+                    f"Interpretation of combinator {c} does not expose a signature. "
                     "If it's a built-in, you can simply wrap it in another function."
                 )
 
@@ -333,7 +335,7 @@ def interpret_term(term: Tree[T]) -> Any:
         while arguments:
             if not callable(current_combinator):
                 raise RuntimeError(
-                    f"Combinator {c} is applied to {n} argument(s), "
+                    f"Interpretation of combinator {c} is applied to {n} argument(s), "
                     f"but can only be applied to {n - len(arguments)}"
                 )
 

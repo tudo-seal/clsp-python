@@ -1,5 +1,5 @@
 """
-Definitions of `Type`, that can be 
+Definitions of `Type`, that can be
 """
 
 from __future__ import annotations
@@ -418,6 +418,7 @@ class TermParamSpec:
 @dataclass
 class SetTo:
     compute: Callable[[dict[str, Any]], Any]
+    override: bool = field(default=False)
 
 
 # @dataclass(frozen=True)
