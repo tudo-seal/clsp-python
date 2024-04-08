@@ -418,6 +418,7 @@ class TermParamSpec:
 @dataclass
 class SetTo:
     compute: Callable[[dict[str, Any]], Any]
+    override: bool = field(default=False)
 
 
 # @dataclass(frozen=True)

@@ -109,11 +109,24 @@ class FiniteCombinatoryLogic(Generic[C]):
         return (instantiations, multiarrows)
 
     @staticmethod
+    def _add_set_to(
+        name: str,
+        set_to_pred: SetTo,
+        substitutions: deque[dict[str, Literal]],
+        group: str,
+        literals: Mapping[str, list[Any]],
+    ) -> Iterable[dict[str, Literal]]:
+        for s in substitutions:
+            value = set_to_pred.compute(s)
+            if set_to_pred.override or value in literals[group]:
+                yield s | {name: Literal(value, group)}
+
+    @staticmethod
     def _instantiate(
         literals: Mapping[str, list[Any]],
         params: Sequence[LitParamSpec | TermParamSpec],
     ) -> Iterable[InstantiationMeta]:
-        substitutions: Iterable[dict[str, Literal]] = deque([{}])
+        substitutions: deque[dict[str, Literal]] = deque([{}])
         args: deque[str | GVar] = deque()
         term_params: list[TermParamSpec] = []
 
@@ -137,9 +150,8 @@ class FiniteCombinatoryLogic(Generic[C]):
                                     lambda substs: all(
                                         callable(npred) and npred(substs) for npred in normal_preds
                                     ),
-                                    (
-                                        s | {param.name: Literal(pred.compute(s), param.group)}
-                                        for s in substitutions
+                                    FiniteCombinatoryLogic._add_set_to(
+                                        param.name, pred, substitutions, param.group, literals
                                     ),
                                 )
                             )
