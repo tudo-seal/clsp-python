@@ -63,7 +63,7 @@ class TestSample(unittest.TestCase):
             "4": Int,
             "5": Int,
         }
-        results = enumerate_terms(Int, FiniteCombinatoryLogic(exampleRepo).inhabit(Int))
+        results = enumerate_terms(Int, FiniteCombinatoryLogic(exampleRepo).inhabit(Int), 1000)
 
         for z in results:
             conf_interpretation = interpret_term(z)
