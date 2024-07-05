@@ -237,6 +237,7 @@ class FiniteCombinatoryLogic(Generic[C]):
             # target type was not seen before
             if current_target not in seen:
                 seen.add(current_target)
+                # TODO is this correct? consider current_target = Intersection(Literal("3", "int"), Literal("3", "int"))
                 if isinstance(current_target, Literal):
                     continue
                 # If the target is omega, then the result is junk

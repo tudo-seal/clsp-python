@@ -1,8 +1,13 @@
 from collections import deque
 from collections.abc import Mapping
+from dataclasses import dataclass
 
-from .types import Arrow, Constructor, Intersection, Literal, Product, LVar, Type
+from .types import Arrow, Constructor, Intersection, Literal, Product, LVar, Type, Omega
 
+@dataclass(frozen=True)
+class Ambiguous:
+    def __init__(self):
+        return
 
 class Subtypes:
     def __init__(self, environment: Mapping[str, set[str]]):
@@ -92,6 +97,64 @@ class Subtypes:
         """Decides whether subtype <= supertype."""
 
         return self._check_subtype_rec(deque((subtype,)), supertype, substitutions)
+
+    def infer_substitution(
+        self, subtype: Type, path: Type, groups: Mapping[str, str]
+    ) -> Mapping[str, Literal] | Ambiguous | None:
+        """Infers a unique substitution S such that S(subtype) <= path where path is closed. Returns None or Ambiguous is no solution exists or multiple solutions exist respectively."""
+        match subtype:
+            case Literal(value1, group1):
+                match path:
+                    case Literal(value2, group2):
+                        if value1 == value2 and group1 == group2:
+                            return dict()
+            case Constructor(name1, arg1):
+                match path:
+                    case Constructor(name2, arg2):
+                        if name2 == name1 or name2 in self.environment.get(name1, {}):
+                            return self.infer_substitution(arg1, arg2, groups)
+            case Arrow(src1, tgt1):
+                match path:
+                    case Arrow(src2, tgt2):
+                        substitution = self.infer_substitution(tgt1, tgt2, groups)
+                        match substitution:
+                            case Ambiguous():
+                                return Ambiguous()
+                            case None:
+                                return None
+                        if all(name in substitution for name in src1.free_vars):
+                            if self.check_subtype(src2, src1, substitution):
+                                return substitution
+                            else:
+                                return None
+                        else:
+                            return Ambiguous() # there are actual non-Ambiguous cases (relevant in practice?)
+            case Product(l2, r2):
+                return Ambiguous() # not implemented, I hate Products
+            case Intersection(l, r):
+                substitution1 = self.infer_substitution(l, path, groups)
+                substitution2 = self.infer_substitution(r, path, groups)
+                if substitution1 is None:
+                    return substitution2
+                if substitution2 is None:
+                    return substitution1
+                if substitution1 is Ambiguous() or substitution2 is Ambiguous():
+                    return Ambiguous()
+                if all((name in substitution2 and substitution2[name] == value for name, value in substitution1.items())):
+                    return substitution1 # substitution1 included in substitution2
+                if all((name in substitution1 and substitution1[name] == value for name, value in substitution2.items())):
+                    return substitution2 # substitution2 included in substitution1
+                return Ambiguous()
+            case LVar(name):
+                match path:
+                    case Literal(name2, group2):
+                        if groups[name] == group2:
+                            return dict([(name, path)])
+            case Omega():
+                return None
+            case _:
+                raise TypeError(f"Unsupported type in infer_substitution: {subtype}")
+        return None
 
     @staticmethod
     def _reflexive_closure(env: Mapping[str, set[str]]) -> dict[str, set[str]]:
