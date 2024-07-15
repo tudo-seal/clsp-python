@@ -4,14 +4,18 @@ from dataclasses import dataclass
 
 from .types import Arrow, Constructor, Intersection, Literal, Product, LVar, Type, Omega
 
+
 @dataclass(frozen=True)
 class Ambiguous:
     def __init__(self):
         return
 
+
 class Subtypes:
     def __init__(self, environment: Mapping[str, set[str]]):
-        self.environment = self._transitive_closure(self._reflexive_closure(environment))
+        self.environment = self._transitive_closure(
+            self._reflexive_closure(environment)
+        )
 
     def _check_subtype_rec(
         self,
@@ -39,7 +43,9 @@ class Subtypes:
                 while subtypes:
                     match subtypes.pop():
                         case Constructor(name1, arg1):
-                            if name2 == name1 or name2 in self.environment.get(name1, {}):
+                            if name2 == name1 or name2 in self.environment.get(
+                                name1, {}
+                            ):
                                 casted_constr.append(arg1)
                         case Intersection(l, r):
                             subtypes.extend((l, r))
@@ -51,7 +57,9 @@ class Subtypes:
                 while subtypes:
                     match subtypes.pop():
                         case Arrow(src1, tgt1):
-                            if self._check_subtype_rec(deque((src2,)), src1, substitutions):
+                            if self._check_subtype_rec(
+                                deque((src2,)), src1, substitutions
+                            ):
                                 casted_arr.append(tgt1)
                         case Intersection(l, r):
                             subtypes.extend((l, r))
@@ -112,6 +120,8 @@ class Subtypes:
                 match path:
                     case Constructor(name2, arg2):
                         if name2 == name1 or name2 in self.environment.get(name1, {}):
+                            if arg2.is_omega:
+                                return {}
                             return self.infer_substitution(arg1, arg2, groups)
             case Arrow(src1, tgt1):
                 match path:
@@ -128,9 +138,11 @@ class Subtypes:
                             else:
                                 return None
                         else:
-                            return Ambiguous() # there are actual non-Ambiguous cases (relevant in practice?)
+                            return (
+                                Ambiguous()
+                            )  # there are actual non-Ambiguous cases (relevant in practice?)
             case Product(l2, r2):
-                return Ambiguous() # not implemented, I hate Products
+                return Ambiguous()  # not implemented, I hate Products
             case Intersection(l, r):
                 substitution1 = self.infer_substitution(l, path, groups)
                 substitution2 = self.infer_substitution(r, path, groups)
@@ -140,10 +152,20 @@ class Subtypes:
                     return substitution1
                 if substitution1 is Ambiguous() or substitution2 is Ambiguous():
                     return Ambiguous()
-                if all((name in substitution2 and substitution2[name] == value for name, value in substitution1.items())):
-                    return substitution1 # substitution1 included in substitution2
-                if all((name in substitution1 and substitution1[name] == value for name, value in substitution2.items())):
-                    return substitution2 # substitution2 included in substitution1
+                if all(
+                    (
+                        name in substitution2 and substitution2[name] == value
+                        for name, value in substitution1.items()
+                    )
+                ):
+                    return substitution1  # substitution1 included in substitution2
+                if all(
+                    (
+                        name in substitution1 and substitution1[name] == value
+                        for name, value in substitution2.items()
+                    )
+                ):
+                    return substitution2  # substitution2 included in substitution1
                 return Ambiguous()
             case LVar(name):
                 match path:
