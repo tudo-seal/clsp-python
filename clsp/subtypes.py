@@ -6,8 +6,8 @@ from .types import Arrow, Constructor, Intersection, Literal, Product, LVar, Typ
 
 
 @dataclass(frozen=True)
-class Ambiguous:
-    def __init__(self):
+class Ambiguous:  # TODO how does this differ from the empy substitution?
+    def __init__(self) -> None:
         return
 
 
@@ -141,7 +141,7 @@ class Subtypes:
                             return (
                                 Ambiguous()
                             )  # there are actual non-Ambiguous cases (relevant in practice?)
-            case Product(l2, r2):
+            case Product(_, _):
                 return Ambiguous()  # not implemented, I hate Products
             case Intersection(l, r):
                 substitution1 = self.infer_substitution(l, path, groups)
@@ -150,7 +150,9 @@ class Subtypes:
                     return substitution2
                 if substitution2 is None:
                     return substitution1
-                if substitution1 is Ambiguous() or substitution2 is Ambiguous():
+                if isinstance(substitution1, Ambiguous) or isinstance(
+                    substitution2, Ambiguous
+                ):
                     return Ambiguous()
                 if all(
                     (

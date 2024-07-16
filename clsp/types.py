@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import itertools
 from abc import ABC, abstractmethod
-from collections.abc import Callable, MutableMapping, Sequence
+from collections.abc import Callable, MutableMapping, MutableSequence, Sequence
 from dataclasses import dataclass, field
 from typing import Any, cast
 
@@ -211,7 +211,9 @@ class Product(Type):
                 case _:
                     return other._str_prec(product_prec + 1)
 
-        result: str = f"{product_str_prec(self.left)} * {self.right._str_prec(product_prec + 1)}"
+        result: str = (
+            f"{product_str_prec(self.left)} * {self.right._str_prec(product_prec + 1)}"
+        )
         return Type._parens(result) if prec > product_prec else result
 
     def subst(self, substitution: dict[str, Literal]) -> Type:
@@ -315,13 +317,17 @@ class Intersection(Type):
                 case _:
                     return other._str_prec(intersection_prec + 1)
 
-        result: str = f"{intersection_str_prec(self.left)} & {intersection_str_prec(self.right)}"
+        result: str = (
+            f"{intersection_str_prec(self.left)} & {intersection_str_prec(self.right)}"
+        )
         return Type._parens(result) if prec > intersection_prec else result
 
     def subst(self, substitution: dict[str, Literal]) -> Type:
         if not any(var in substitution for var in self.free_vars):
             return self
-        return Intersection(self.left.subst(substitution), self.right.subst(substitution))
+        return Intersection(
+            self.left.subst(substitution), self.right.subst(substitution)
+        )
 
 
 @dataclass(frozen=True)
@@ -405,14 +411,14 @@ class LVar(Type):
 class LitParamSpec:
     name: str
     group: str
-    predicate: Sequence[Callable[[MutableMapping[str, Any]], bool] | SetTo]
+    predicate: MutableSequence[Callable[[MutableMapping[str, Any]], bool] | SetTo]
 
 
 @dataclass
 class TermParamSpec:
     name: str
     group: Type
-    predicate: Sequence[Callable[[MutableMapping[str, Any]], bool]]
+    predicate: MutableSequence[Callable[[MutableMapping[str, Any]], bool]]
 
 
 @dataclass
@@ -426,18 +432,23 @@ class SetTo:
 class Param:
     name: str
     group: Type | str
-    predicate: Sequence[Callable[[MutableMapping[str, Any]], bool] | SetTo] | Callable[
-        [dict[str, Any]], bool
-    ] | SetTo
+    predicate: (
+        Sequence[Callable[[MutableMapping[str, Any]], bool] | SetTo]
+        | Callable[[dict[str, Any]], bool]
+        | SetTo
+    )
     inner: Param | Type
 
     def get_spec(self) -> LitParamSpec | TermParamSpec:
-        predicates: Sequence[Callable[[MutableMapping[str, Any]], bool] | SetTo] = []
+        predicates: MutableSequence[
+            Callable[[MutableMapping[str, Any]], bool] | SetTo
+        ] = []
         if isinstance(self.predicate, list):
             predicates = self.predicate
         elif not isinstance(self.predicate, list):
             predicates = cast(
-                Sequence[Callable[[MutableMapping[str, Any]], bool] | SetTo], [self.predicate]
+                MutableSequence[Callable[[MutableMapping[str, Any]], bool] | SetTo],
+                [self.predicate],
             )  # :(
         if isinstance(self.group, Type):
             for pred in predicates:
@@ -445,7 +456,7 @@ class Param:
                     raise RuntimeError("Term parameters cannot have SetTo/As")
 
             casted_predicates = cast(
-                Sequence[Callable[[MutableMapping[str, Any]], bool]], predicates
+                MutableSequence[Callable[[MutableMapping[str, Any]], bool]], predicates
             )
             return TermParamSpec(self.name, self.group, casted_predicates)
         else:

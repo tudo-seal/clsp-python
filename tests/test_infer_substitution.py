@@ -1,15 +1,9 @@
 import logging
 import unittest
-from clsp.dsl import DSL, Requires
-from clsp.enumeration import enumerate_terms, interpret_term
-from clsp.fcl import FiniteCombinatoryLogic
 from clsp.types import (
     Arrow,
     Intersection,
-    Param,
-    SetTo,
     Constructor,
-    Product,
     Literal,
     LVar,
     Omega,
