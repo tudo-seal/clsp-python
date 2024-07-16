@@ -154,7 +154,6 @@ class FiniteCombinatoryLogic(Generic[C]):
         substitutions: deque[dict[str, Literal]],
         group: str,
         literals: Mapping[str, list[Any]],
-        initial_value: Optional[Literal] = None,
     ) -> Iterable[dict[str, Literal]]:
         for s in substitutions:
             values = {pred.compute(s) for pred in set_to_preds}
@@ -162,27 +161,8 @@ class FiniteCombinatoryLogic(Generic[C]):
                 continue
             value = tuple(values)[0]
 
-            # if initial_value is not None and value != initial_value.value:
-            #     continue
-
             if any(pred.override for pred in set_to_preds) or value in literals[group]:
                 yield s | {name: Literal(value, group)}
-            # value = (
-            #     {
-            #         result
-            #         for pred in set_to_preds
-            #         if (result := pred.compute(s)) in literals[group] or pred.override
-            #     }
-            #     | {initial_value.value}
-            #     if initial_value is not None
-            #     else {}
-            # )
-            # if len(value) != 1:
-            #     continue
-            #     # if initial_value is not None and value != initial_value.value:
-            #     #     continue
-            #     # if set_to_pred.override or value in literals[group]:
-            # yield s | {name: Literal(tuple(value)[0], group)}
 
     @staticmethod
     def _instantiate(
