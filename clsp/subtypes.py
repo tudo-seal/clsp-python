@@ -108,7 +108,7 @@ class Subtypes:
 
     def infer_substitution(
         self, subtype: Type, path: Type, groups: Mapping[str, str]
-    ) -> Mapping[str, Literal] | Ambiguous | None:
+    ) -> dict[str, Literal] | None:
         """Infers a unique substitution S such that S(subtype) <= path where path is closed. Returns None or Ambiguous is no solution exists or multiple solutions exist respectively."""
         match subtype:
             case Literal(value1, group1):
@@ -127,11 +127,8 @@ class Subtypes:
                 match path:
                     case Arrow(src2, tgt2):
                         substitution = self.infer_substitution(tgt1, tgt2, groups)
-                        match substitution:
-                            case Ambiguous():
-                                return Ambiguous()
-                            case None:
-                                return None
+                        if substitution is None:
+                            return None
                         if all(name in substitution for name in src1.free_vars):
                             if self.check_subtype(src2, src1, substitution):
                                 return substitution
@@ -139,10 +136,10 @@ class Subtypes:
                                 return None
                         else:
                             return (
-                                Ambiguous()
+                                {}
                             )  # there are actual non-Ambiguous cases (relevant in practice?)
             case Product(_, _):
-                return Ambiguous()  # not implemented, I hate Products
+                return {}  # not implemented, I hate Products
             case Intersection(l, r):
                 substitution1 = self.infer_substitution(l, path, groups)
                 substitution2 = self.infer_substitution(r, path, groups)
@@ -150,10 +147,6 @@ class Subtypes:
                     return substitution2
                 if substitution2 is None:
                     return substitution1
-                if isinstance(substitution1, Ambiguous) or isinstance(
-                    substitution2, Ambiguous
-                ):
-                    return Ambiguous()
                 if all(
                     (
                         name in substitution2 and substitution2[name] == value
@@ -168,7 +161,7 @@ class Subtypes:
                     )
                 ):
                     return substitution2  # substitution2 included in substitution1
-                return Ambiguous()
+                return {}
             case LVar(name):
                 match path:
                     case Literal(name2, group2):
