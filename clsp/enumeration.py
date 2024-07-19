@@ -228,7 +228,9 @@ def interpret_term(term: Tree[T], interpretation: Optional[dict[T, Any]] = None)
         (c, n) = combinators.pop()
         parameters_of_c: Sequence[Parameter] = []
         current_combinator: partial[Any] | T | Callable[..., Any] = (
-            c if interpretation is None else interpretation[c]
+            c
+            if interpretation is None or c not in interpretation
+            else interpretation[c]
         )
 
         if callable(current_combinator):
