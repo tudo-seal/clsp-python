@@ -7,9 +7,10 @@ from collections.abc import (
     Mapping,
     Sequence,
 )
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import reduce
 from itertools import chain, filterfalse
+from re import sub
 from typing import Any, Callable, Generic, TypeAlias, TypeVar, Optional
 
 from .grammar import GVar, ParameterizedTreeGrammar, Predicate, RHSRule
@@ -50,12 +51,40 @@ InstantiationMeta: TypeAlias = tuple[
 ]
 
 
+@dataclass(frozen=True)
+class TraceElement(Generic[C]):
+    argnum: int
+    combinator: C
+    via: Type
+
+
+@dataclass(frozen=True)
+class TraceBase(Generic[C]):
+    trace: list[TraceElement[C]]
+    seen: set[Type]
+
+
+@dataclass(frozen=True)
+class Trace(TraceBase[C]):
+    trace: list[TraceElement[C]]
+    seen: set[Type] = field(init=False)
+
+    def __post_init__(self) -> None:
+        super().__init__(self.trace, set(te.via for te in self.trace))
+
+    def add_to_trace(self, argnum: int, combinator: C, via: Type) -> Trace[C]:
+        nt = Trace(self.trace + [TraceElement(argnum, combinator, via)])
+        # print(nt)
+        return nt
+
+
 class FiniteCombinatoryLogic(Generic[C]):
     def __init__(
         self,
         repository: Mapping[C, Param | Type],
         subtypes: Subtypes = Subtypes({}),
         literals: Optional[Mapping[str, list[Any]]] = None,
+        global_predicate: Callable[[Trace], bool] = lambda _: True,
     ):
         self.literals: Mapping[str, list[Any]] = {} if literals is None else literals
         self.repository: Mapping[
@@ -66,6 +95,7 @@ class FiniteCombinatoryLogic(Generic[C]):
             for c, ty in repository.items()
         }
         self.subtypes = subtypes
+        self.global_predicate = global_predicate
 
     @staticmethod
     def _function_types(
@@ -137,7 +167,9 @@ class FiniteCombinatoryLogic(Generic[C]):
                 else:
                     args.append(param.name)
                     normal_preds = list(
-                        filterfalse(lambda pred: isinstance(pred, SetTo), param.predicate)
+                        filterfalse(
+                            lambda pred: isinstance(pred, SetTo), param.predicate
+                        )
                     )
 
                     setto = False
@@ -148,10 +180,15 @@ class FiniteCombinatoryLogic(Generic[C]):
                             substitutions = deque(
                                 filter(
                                     lambda substs: all(
-                                        callable(npred) and npred(substs) for npred in normal_preds
+                                        callable(npred) and npred(substs)
+                                        for npred in normal_preds
                                     ),
                                     FiniteCombinatoryLogic._add_set_to(
-                                        param.name, pred, substitutions, param.group, literals
+                                        param.name,
+                                        pred,
+                                        substitutions,
+                                        param.group,
+                                        literals,
                                     ),
                                 )
                             )
@@ -162,7 +199,8 @@ class FiniteCombinatoryLogic(Generic[C]):
                         substitutions = deque(
                             filter(
                                 lambda substs: all(
-                                    callable(npred) and npred(substs) for npred in normal_preds
+                                    callable(npred) and npred(substs)
+                                    for npred in normal_preds
                                 ),
                                 (
                                     s | {param.name: Literal(literal, param.group)}
@@ -181,7 +219,8 @@ class FiniteCombinatoryLogic(Generic[C]):
             predicates: list[Predicate] = []
             for term_param in term_params:
                 predicates.extend(
-                    Predicate(pred, predicate_substs=substitution) for pred in term_param.predicate
+                    Predicate(pred, predicate_substs=substitution)
+                    for pred in term_param.predicate
                 )
             instantiated_combinator_args: list[Literal | GVar] = [
                 substitution[arg] if not isinstance(arg, GVar) else arg for arg in args
@@ -212,7 +251,9 @@ class FiniteCombinatoryLogic(Generic[C]):
             lambda args1, args2: [Intersection(a, b) for a, b in zip(args1, args2)]
         )
 
-        intersected_args = (list(reduce(intersect_args, (m.args for m in ms))) for ms in covers)
+        intersected_args = (
+            list(reduce(intersect_args, (m.args for m in ms))) for ms in covers
+        )
         # consider only maximal argument vectors
         compare_args = lambda args1, args2: all(
             map(
@@ -224,19 +265,24 @@ class FiniteCombinatoryLogic(Generic[C]):
         return maximal_elements(intersected_args, compare_args)
 
     def inhabit(self, *targets: Type) -> ParameterizedTreeGrammar[Type, C]:
-        type_targets = deque(targets)
+        type_targets: deque[tuple[Type, Trace[C]]] = deque(
+            map(lambda t: (t, Trace([])), targets)
+        )
 
         # dictionary of type |-> sequence of combinatory expressions
         memo: ParameterizedTreeGrammar[Type, C] = ParameterizedTreeGrammar()
 
-        seen: set[Type] = set()
+        # seen: set[Type] = set()
 
         while type_targets:
-            current_target = type_targets.pop()
+            current_target, trace = type_targets.pop()
 
             # target type was not seen before
-            if current_target not in seen:
-                seen.add(current_target)
+            if current_target not in trace.seen:
+                if not self.global_predicate(trace):
+                    continue
+
+                # seen.add(current_target)
                 if isinstance(current_target, Literal):
                     continue
                 # If the target is omega, then the result is junk
@@ -247,24 +293,37 @@ class FiniteCombinatoryLogic(Generic[C]):
 
                 # try each combinator and arity
                 for combinator, (meta, combinator_type) in self.repository.items():
-                    for params, predicates, args, substitutions in meta:
+                    for params, predicates, args, substitution in meta:
                         for nary_types in combinator_type:
                             arguments: list[list[Type]] = list(
-                                self._subqueries(nary_types, paths, substitutions)
+                                self._subqueries(nary_types, paths, substitution)
                             )
 
                             if len(arguments) == 0:
                                 continue
 
                             specific_params = {
-                                param.name: param.group.subst(substitutions) for param in params
+                                param.name: param.group.subst(substitution)
+                                for param in params
                             }
 
-                            type_targets.extend(specific_params.values())
+                            type_targets.extend(
+                                (
+                                    p,
+                                    trace.add_to_trace(-1, combinator, current_target),
+                                )
+                                for p in specific_params.values()
+                            )
 
                             for subquery in (
-                                [ty.subst(substitutions) for ty in query] for query in arguments
+                                [ty.subst(substitution) for ty in query]
+                                for query in arguments
                             ):
+                                subquery_traces = [
+                                    trace.add_to_trace(i, combinator, current_target)
+                                    for i in range(len(subquery))
+                                ]
+
                                 memo.add_rule(
                                     current_target,
                                     RHSRule(
@@ -276,7 +335,7 @@ class FiniteCombinatoryLogic(Generic[C]):
                                     ),
                                 )
 
-                                type_targets.extendleft(subquery)
+                                type_targets.extend(zip(subquery, subquery_traces))
 
         # prune not inhabited types
         FiniteCombinatoryLogic._prune(memo)
