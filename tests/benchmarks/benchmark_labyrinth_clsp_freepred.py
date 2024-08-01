@@ -15,7 +15,7 @@ def plus_one(a: str) -> Callable[[Mapping[str, Literal]], int]:
     return _inner
 
 
-def main(SIZE: int = 10, output: bool = True) -> float:
+def main(SIZE: int = 30, output: bool = False) -> float:
     def is_free(col: int, row: int) -> bool:
         SEED = 0
         if row == col:
@@ -39,28 +39,28 @@ def main(SIZE: int = 10, output: bool = True) -> float:
         Callable[[int, int, int, str], str] | str | Any,
         Param | Type,
     ] = {
-        U: DSL()
+        U: DSL(cache=True, infer=False)
         .Use("a", "int")
         .Use("b", "int")
         .With(lambda a, b: b == a + 1)
         .Use("c", "int")
         .With(lambda c, a: is_free(c, a))
         .In(pos("c", "b") ** pos("c", "a")),
-        D: DSL()
+        D: DSL(cache=True, infer=False)
         .Use("a", "int")
         .Use("b", "int")
         .With(lambda a, b: b == a + 1)
         .Use("c", "int")
         .With(lambda c, b: is_free(c, b))
         .In(pos("c", "a") ** pos("c", "b")),
-        L: DSL()
+        L: DSL(cache=True, infer=False)
         .Use("a", "int")
         .Use("b", "int")
         .With(lambda a, b: b == a + 1)
         .Use("c", "int")
         .With(lambda a, c: is_free(a, c))
         .In(pos("b", "c") ** pos("a", "c")),
-        R: DSL()
+        R: DSL(cache=True, infer=False)
         .Use("a", "int")
         .Use("b", "int")
         .With(lambda a, b: b == a + 1)
@@ -83,9 +83,9 @@ def main(SIZE: int = 10, output: bool = True) -> float:
 
     fin = "pos" @ (Literal(SIZE - 1, "int") * Literal(SIZE - 1, "int"))
 
-    fcl: FiniteCombinatoryLogic[
-        Callable[[int, int, int, str], str] | str
-    ] = FiniteCombinatoryLogic(repo, literals=literals)
+    fcl: FiniteCombinatoryLogic[Callable[[int, int, int, str], str] | str] = (
+        FiniteCombinatoryLogic(repo, literals=literals)
+    )
 
     start = timeit.default_timer()
     grammar = fcl.inhabit(fin)

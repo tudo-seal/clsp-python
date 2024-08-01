@@ -116,9 +116,9 @@ def main(SIZE: int = 10, output: bool = True) -> float:
 
     fin = "pos" @ (Literal(SIZE - 1, "int") * Literal(SIZE - 1, "int"))
 
-    fcl: FiniteCombinatoryLogic[
-        Callable[[int, int, int, str], str] | str
-    ] = FiniteCombinatoryLogic(repo, literals=literals)
+    fcl: FiniteCombinatoryLogic[Callable[[int, int, int, str], str] | str] = (
+        FiniteCombinatoryLogic(repo, literals=literals)
+    )
 
     start = timeit.default_timer()
     grammar = fcl.inhabit(fin)

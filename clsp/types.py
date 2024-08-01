@@ -412,6 +412,8 @@ class LitParamSpec:
     name: str
     group: str
     predicate: MutableSequence[Callable[[MutableMapping[str, Any]], bool] | SetTo]
+    cache: bool
+    infer: bool
 
 
 @dataclass
@@ -438,6 +440,8 @@ class Param:
         | SetTo
     )
     inner: Param | Type
+    cache: bool = field(default=False)
+    infer: bool = field(default=True)
 
     def get_spec(self) -> LitParamSpec | TermParamSpec:
         predicates: MutableSequence[
@@ -460,7 +464,9 @@ class Param:
             )
             return TermParamSpec(self.name, self.group, casted_predicates)
         else:
-            return LitParamSpec(self.name, self.group, predicates)
+            return LitParamSpec(
+                self.name, self.group, predicates, self.cache, self.infer
+            )
 
     def __str__(self) -> str:
         return f"<{self.name}, {self.group}, {self.predicate}>.{self.inner}"

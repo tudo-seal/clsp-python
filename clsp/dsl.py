@@ -90,10 +90,12 @@ class DSL:
             {k: v.value if isinstance(v, Literal) else v for k, v in vars.items()}
         )
 
-    def __init__(self) -> None:
+    def __init__(self, /, cache: bool = False, infer: bool = True) -> None:
         """
         Initialize the DSL object
         """
+        self.cache = cache
+        self.infer = infer
         self._accumulator: list[
             tuple[str, Any, list[Callable[[Mapping[str, Literal]], bool] | SetTo]]
         ] = []
@@ -152,7 +154,9 @@ class DSL:
         )
         return self
 
-    def AsRaw(self, set_to: Callable[[Mapping[str, Any]], Any], override: bool = False) -> DSL:
+    def AsRaw(
+        self, set_to: Callable[[Mapping[str, Any]], Any], override: bool = False
+    ) -> DSL:
         """
         Set the previous variable directly to the result of a computation.
 
@@ -238,7 +242,9 @@ class DSL:
         """
         return_type: Param | Type = ty
         for spec in reversed(self._accumulator):
-            return_type = Param(*spec, return_type)
+            return_type = Param(
+                *spec, cache=self.cache, infer=self.infer, inner=return_type
+            )
         return return_type
 
 

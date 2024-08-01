@@ -21,7 +21,9 @@ def is_free(pos: tuple[int, int]) -> bool:
     if row == col:
         return True
     else:
-        return pow(11, (row + col + SEED) * (row + col + SEED) + col + 7, 1000003) % 5 > 0
+        return (
+            pow(11, (row + col + SEED) * (row + col + SEED) + col + 7, 1000003) % 5 > 0
+        )
 
 
 def getpath(
@@ -48,7 +50,7 @@ def main(solutions: int = 10000, output: bool = True) -> float:
         Callable[[int, int, str], str] | str,
         Param | Type,
     ] = {
-        U: DSL()
+        U: DSL(cache=True)
         .Use("a", "int2")
         .Use("b", "int2")
         .With(lambda b: is_free(b))
@@ -56,7 +58,7 @@ def main(solutions: int = 10000, output: bool = True) -> float:
         .Use("pos", pos("a"))
         .With(lambda b, pos: b not in getpath(pos))
         .In(pos("b")),
-        D: DSL()
+        D: DSL(cache=True)
         .Use("a", "int2")
         .Use("b", "int2")
         .With(lambda b: is_free(b))
@@ -64,7 +66,7 @@ def main(solutions: int = 10000, output: bool = True) -> float:
         .Use("pos", pos("a"))
         .With(lambda b, pos: b not in getpath(pos))
         .In(pos("b")),
-        L: DSL()
+        L: DSL(cache=True)
         .Use("a", "int2")
         .Use("b", "int2")
         .With(lambda b: is_free(b))
@@ -72,7 +74,7 @@ def main(solutions: int = 10000, output: bool = True) -> float:
         .Use("pos", pos("a"))
         .With(lambda b, pos: b not in getpath(pos))
         .In(pos("b")),
-        R: DSL()
+        R: DSL(cache=True)
         .Use("a", "int2")
         .Use("b", "int2")
         .With(lambda b: is_free(b))
@@ -97,8 +99,8 @@ def main(solutions: int = 10000, output: bool = True) -> float:
 
     fin = "pos" @ (Literal((SIZE - 1, SIZE - 1), "int2"))
 
-    fcl: FiniteCombinatoryLogic[Callable[[int, int, str], str] | str] = FiniteCombinatoryLogic(
-        repo, literals=literals
+    fcl: FiniteCombinatoryLogic[Callable[[int, int, str], str] | str] = (
+        FiniteCombinatoryLogic(repo, literals=literals)
     )
 
     start = timeit.default_timer()

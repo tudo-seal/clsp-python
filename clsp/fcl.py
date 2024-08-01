@@ -15,7 +15,6 @@ from typing import (
     Callable,
     Generic,
     MutableMapping,
-    TypeGuard,
     TypeVar,
     Optional,
     cast,
@@ -24,7 +23,7 @@ from typing import (
 from .grammar import GVar, ParameterizedTreeGrammar, Predicate, RHSRule
 
 from .combinatorics import maximal_elements, minimal_covers, partition
-from .subtypes import Ambiguous, Subtypes
+from .subtypes import Subtypes
 from .types import (
     Arrow,
     Intersection,
@@ -62,7 +61,31 @@ class ParamInfo:
     literal_params: list[LitParamSpec]
     term_params: list[TermParamSpec]
     lvar_to_group: dict[str, str]
-    params_order: list[LitParamSpec | TermParamSpec]
+    params_selector: list[bool]
+    cache: bool
+    infer: bool
+
+    @property
+    def params_order(self) -> Iterable[LitParamSpec | TermParamSpec]:
+        lit_iter = self.literal_params.__iter__()
+        term_iter = self.literal_params.__iter__()
+        for selector in self.params_selector:
+            if selector:
+                yield lit_iter.__next__()
+            else:
+                yield term_iter.__next__()
+
+    def intantiate(self, substitution: dict[str, Literal]) -> Iterable[Literal | GVar]:
+        lit_iter = self.literal_params.__iter__()
+        term_iter = self.term_params.__iter__()
+        for i, selector in enumerate(self.params_selector):
+            param: TermParamSpec | LitParamSpec
+            if selector:
+                param = lit_iter.__next__()
+                yield substitution[param.name]
+            else:
+                param = term_iter.__next__()
+                yield GVar(param.name)
 
 
 @dataclass
@@ -77,18 +100,16 @@ class FiniteCombinatoryLogic(Generic[C]):
         repository: Mapping[C, Param | Type],
         subtypes: Subtypes = Subtypes({}),
         literals: Optional[Mapping[str, list[Any]]] = None,
-        threshold: int = 0,
     ):
         self.literals: Mapping[str, list[Any]] = {} if literals is None else literals
         self.repository: MutableMapping[
             C,
-            tuple[ParamInfo, Optional[list[Instantiation]], list[list[MultiArrow]]],
+            tuple[ParamInfo, Optional[Iterable[Instantiation]], list[list[MultiArrow]]],
         ] = {
             c: FiniteCombinatoryLogic._function_types(ty, self.literals)
             for c, ty in repository.items()
         }
         self.subtypes = subtypes
-        self.threshold = threshold
 
     @staticmethod
     def _function_types(
@@ -119,13 +140,19 @@ class FiniteCombinatoryLogic(Generic[C]):
             return (params, ty)
 
         params, ty = split_params(p_or_ty)
-        parameters = ParamInfo([], [], {}, params)
+
+        parameters = ParamInfo([], [], {}, [], cache=False, infer=True)
         for param in params:
             if isinstance(param, LitParamSpec):
                 parameters.literal_params.append(param)
                 parameters.lvar_to_group[param.name] = param.group
+                parameters.params_selector.append(True)
             else:
+                parameters.params_selector.append(False)
                 parameters.term_params.append(param)
+
+        parameters.cache = all(lparam.cache for lparam in parameters.literal_params)
+        parameters.infer = all(lparam.infer for lparam in parameters.literal_params)
 
         # instantiations = FiniteCombinatoryLogic._instantiate(literals, parameters)
 
@@ -273,7 +300,7 @@ class FiniteCombinatoryLogic(Generic[C]):
         paths: list[Type],
         combinator_type: list[list[MultiArrow]],
         groups: dict[str, str],
-    ) -> tuple[list[list[MultiArrow]], dict[str, Literal] | None]:
+    ) -> dict[str, Literal] | None:
         """
         Computes a substitution that needs to be part of every substitution S such that
         S(combinator_type) <= paths.
@@ -283,23 +310,15 @@ class FiniteCombinatoryLogic(Generic[C]):
         If there is no unique smallest substitution, Ambiguous() is returned.
         """
 
-        def is_substitution(
-            infered_result: tuple[MultiArrow, Mapping[str, Literal] | None],
-        ) -> TypeGuard[tuple[MultiArrow, dict[str, Literal]]]:
-            return infered_result[1] is not None
-
-        all_multiarrows_and_substitutions: list[
-            list[list[tuple[MultiArrow, dict[str, Literal]]]]
-        ] = []
         return_subsitution: dict[str, Literal] = {}
-        gather_multiarrows: dict[int, list[MultiArrow]] = {}
+
         all_substitutions = []
         for path in paths:
             # Check all targets of the multiarrows
             candidates = [ty for nary_types in combinator_type for ty in nary_types]
 
             multiarrows_and_substitutions = [
-                (ty, substitution)
+                substitution
                 for ty in candidates
                 if (
                     substitution := self.subtypes.infer_substitution(
@@ -309,25 +328,16 @@ class FiniteCombinatoryLogic(Generic[C]):
                 is not None
             ]
 
-            # substitutions: list[tuple[MultiArrow, dict[str, Literal]]] = list(
-            #     filter(
-            #         is_substitution,
-            #         (
-            #             (ty, self.subtypes.infer_substitution(ty.target, path, groups))
-            #             for ty in candidates
-            #         ),
-            #     )
-            # )
             # if no substitution is applicable, this path cannot be covered
             if len(multiarrows_and_substitutions) == 0:
-                return [], None
+                return None
 
             # TODO this can be done better
             # if a path can be covered by multiple targets: Don't bother
             if len(multiarrows_and_substitutions) > 1:
-                return combinator_type, {}
+                return {}
 
-            multiarrow, substitution = multiarrows_and_substitutions[0]
+            substitution = multiarrows_and_substitutions[0]
 
             all_substitutions.append(substitution)
             # for k, v in substitution.items():
@@ -336,12 +346,6 @@ class FiniteCombinatoryLogic(Generic[C]):
             #             del return_subsitution[k]
             #         else:
             #             return_subsitution[k] = v
-
-            arity = len(multiarrow.args)
-            if arity in gather_multiarrows:
-                gather_multiarrows[arity].append(multiarrow)
-            else:
-                gather_multiarrows[arity] = [multiarrow]
 
         # Check substitutions for consistency.
         # If two substitutions substitute the same variable by diffent values => Intersection
@@ -353,11 +357,8 @@ class FiniteCombinatoryLogic(Generic[C]):
                         del return_subsitution[k]
                 else:
                     return_subsitution[k] = v
-        return_multiarrows = []
-        for _, v in gather_multiarrows.items():
-            return_multiarrows.append(v)
 
-        return return_multiarrows, return_subsitution
+        return return_subsitution
 
     def inhabit(self, *targets: Type) -> ParameterizedTreeGrammar[Type, C]:
         type_targets = deque(targets)
@@ -388,53 +389,46 @@ class FiniteCombinatoryLogic(Generic[C]):
                     instantiations,
                     combinator_type,
                 ) in self.repository.items():
-                    # Compute if there are forced substitutions
-                    relevant_combinator_type, substitution = self._forced_substitutions(
-                        paths, combinator_type, parameters.lvar_to_group
+                    selected_instantiations: Optional[Iterable[Instantiation]] = (
+                        instantiations
                     )
 
-                    # If no substitution can lead to a match, ignore this combinator
-                    if substitution is None:
-                        continue
+                    if parameters.infer and parameters.literal_params:
+                        # Compute if there are forced substitutions
+                        substitution = self._forced_substitutions(
+                            paths, combinator_type, parameters.lvar_to_group
+                        )
 
-                    # Enumeration of the "unforced" variables is expensive, at some point
-                    # filtering on existing substitutions is faster.
-                    open_literals = len(
-                        {
-                            lit.name
-                            for lit in parameters.literal_params
-                            if not any(
-                                isinstance(pred, SetTo) for pred in lit.predicate
-                            )
-                        }
-                        - set(substitution.keys()),
-                    )
+                        # If no substitution can lead to a match, ignore this combinator
+                        if substitution is None:
+                            continue
+                    else:
+                        substitution = {}
 
                     # If there is at most one possible substitution for each variable
                     # only consider these substitutions
-                    if substitution != {} and open_literals <= self.threshold:
+                    if substitution != {} and not parameters.cache:
                         # Keep the forced substitutions and enumerate the rest
-                        instantiations = self._instantiate(
+                        selected_instantiations = self._instantiate(
                             self.literals, parameters, substitution
                         )
-                        combinator_type = relevant_combinator_type
                     else:
                         # otherwise enumerate the whole substitution space.
                         # but do this only the first time... this is time consuming
                         # Update the repository with the enumerated substitutions.
-                        if instantiations is None:
-                            instantiations = self._instantiate(
+                        if selected_instantiations is None:
+                            selected_instantiations = self._instantiate(
                                 self.literals, parameters
                             )
                             self.repository[combinator] = (
                                 parameters,
-                                instantiations,
+                                selected_instantiations,
                                 combinator_type,
                             )
                         if substitution != {}:
-                            instantiations = (
+                            selected_instantiations = (
                                 i
-                                for i in instantiations
+                                for i in selected_instantiations
                                 if all(
                                     i.substitution[k] == v
                                     for k, v in substitution.items()
@@ -443,35 +437,36 @@ class FiniteCombinatoryLogic(Generic[C]):
 
                     # regardless of how the substitutions were constructed, carry on
                     # with inhabitation. Consider all possible substitutions,
-                    for instantiation in instantiations:
+                    for instantiation in selected_instantiations:
+                        specific_params = None
+                        parameter_arguments = None
+
                         # and every arity of the combinator type
                         for nary_types in combinator_type:
-                            parameter_arguments: list[Literal | GVar] = [
-                                (
-                                    instantiation.substitution[arg.name]
-                                    if not isinstance(arg, TermParamSpec)
-                                    else GVar(arg.name)
-                                )
-                                for arg in parameters.params_order
-                            ]
-
                             arguments: list[list[Type]] = list(
                                 self._subqueries(
                                     nary_types, paths, instantiation.substitution
                                 )
                             )
 
-                            if len(arguments) == 0:
+                            if not arguments:
                                 continue
 
-                            specific_params = {
-                                param.name: param.group.subst(
-                                    instantiation.substitution
-                                )
-                                for param in parameters.term_params
-                            }
+                            if (
+                                not specific_params
+                            ):  # Do this only once for each instantiation
+                                specific_params = {
+                                    param.name: param.group.subst(
+                                        instantiation.substitution
+                                    )
+                                    for param in parameters.term_params
+                                }
 
-                            type_targets.extend(specific_params.values())
+                                type_targets.extend(specific_params.values())
+                            if not parameter_arguments:
+                                parameter_arguments = list(
+                                    parameters.intantiate(instantiation.substitution)
+                                )
 
                             for subquery in (
                                 [ty.subst(instantiation.substitution) for ty in query]

@@ -32,30 +32,30 @@ def main(SIZE: int = 10, output: bool = True) -> float:
         Callable[[Any, Any, Any, Any, Any], str] | Callable[[Any, Any], str] | str,
         Param | Type,
     ] = {
-        FREE: DSL()
+        FREE: DSL(cache=True)
         .Use("a", "int")
         .Use("b", "int")
         .With(lambda a, b: is_free(b, a))
         .In(free("a", "b")),
-        U: DSL()
+        U: DSL(cache=True)
         .Use("a", "int")
         .Use("b", "int")
         .With(lambda a, b: a == b + 1)
         .Use("c", "int")
         .In(Requires(pos("c", "b"), free("c", "a")).Provides(pos("c", "a"))),
-        D: DSL()
+        D: DSL(cache=True)
         .Use("a", "int")
         .Use("b", "int")
         .With(lambda a, b: a == b + 1)
         .Use("c", "int")
         .In(pos("c", "a") ** free("c", "b") ** pos("c", "b")),
-        L: DSL()
+        L: DSL(cache=True)
         .Use("a", "int")
         .Use("b", "int")
         .With(lambda a, b: a == b + 1)
         .Use("c", "int")
         .In(pos("b", "c") ** free("a", "c") ** pos("a", "c")),
-        R: DSL()
+        R: DSL(cache=True)
         .Use("a", "int")
         .Use("b", "int")
         .With(lambda a, b: a == b + 1)

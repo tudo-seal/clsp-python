@@ -1,14 +1,7 @@
 from collections import deque
 from collections.abc import Mapping
-from dataclasses import dataclass
 
-from .types import Arrow, Constructor, Intersection, Literal, Product, LVar, Type, Omega
-
-
-@dataclass(frozen=True)
-class Ambiguous:  # TODO how does this differ from the empy substitution?
-    def __init__(self) -> None:
-        return
+from .types import Arrow, Constructor, Intersection, Literal, Product, LVar, Type
 
 
 class Subtypes:
@@ -110,6 +103,10 @@ class Subtypes:
         self, subtype: Type, path: Type, groups: Mapping[str, str]
     ) -> dict[str, Literal] | None:
         """Infers a unique substitution S such that S(subtype) <= path where path is closed. Returns None or Ambiguous is no solution exists or multiple solutions exist respectively."""
+
+        if subtype.is_omega:
+            return None
+
         match subtype:
             case Literal(value1, group1):
                 match path:
@@ -167,8 +164,6 @@ class Subtypes:
                     case Literal(name2, group2):
                         if groups[name] == group2:
                             return dict([(name, path)])
-            case Omega():
-                return None
             case _:
                 raise TypeError(f"Unsupported type in infer_substitution: {subtype}")
         return None

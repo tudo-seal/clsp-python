@@ -28,9 +28,9 @@ def main(SIZE: int = 10, output: bool = True) -> float:
     U: Callable[[int, int, int, str], str] = lambda a, _, c, p: f"{p} => UP({c}, {a})"
     D: Callable[[int, int, int, str], str] = lambda _, b, c, p: f"{p} => DOWN({c}, {b})"
     L: Callable[[int, int, int, str], str] = lambda a, _, c, p: f"{p} => LEFT({a}, {c})"
-    R: Callable[
-        [int, int, int, str], str
-    ] = lambda _, b, c, p: f"{p} => RIGHT({b}, {c})"
+    R: Callable[[int, int, int, str], str] = (
+        lambda _, b, c, p: f"{p} => RIGHT({b}, {c})"
+    )
 
     pos: Callable[[str, str], Type] = lambda a, b: Constructor(
         "pos", (Product(LVar(a), LVar(b)))
@@ -88,9 +88,9 @@ def main(SIZE: int = 10, output: bool = True) -> float:
 
     fin = "pos" @ (Literal(SIZE - 1, "int") * Literal(SIZE - 1, "int"))
 
-    fcl: FiniteCombinatoryLogic[
-        Callable[[int, int, int, str], str] | str
-    ] = FiniteCombinatoryLogic(repo, literals=literals)
+    fcl: FiniteCombinatoryLogic[Callable[[int, int, int, str], str] | str] = (
+        FiniteCombinatoryLogic(repo, literals=literals)
+    )
 
     start = timeit.default_timer()
     grammar = fcl.inhabit(fin)
