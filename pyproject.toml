@@ -19,4 +19,8 @@ venv = ".venv"
 
 [tool.ruff]
 line-length = 100
+[tool.ruff.lint]
 ignore = ["E731"]
+
+[tool.black]
+line-length = 100
