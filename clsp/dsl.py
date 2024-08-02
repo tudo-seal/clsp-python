@@ -40,6 +40,14 @@ class DSL:
                         )
                     )
                 )
+
+    The DSL object accepts the following configuration options at creation time:
+
+      - cache (Default=False): Safe and reuse the full substitution space for a type. Can be used
+            in some instances for performance gains. Should only be uses if a lot of literal
+            variables are neither inferred nor computed via `As`.
+      - infer (Default=True): Use a limited form of unification to infer the values for literal
+            variables in the output type. Should only be deactivated for debug purposes.
     """
 
     @staticmethod
