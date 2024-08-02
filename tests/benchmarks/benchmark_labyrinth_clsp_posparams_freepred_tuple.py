@@ -21,9 +21,7 @@ def is_free(pos: tuple[int, int]) -> bool:
     if row == col:
         return True
     else:
-        return (
-            pow(11, (row + col + SEED) * (row + col + SEED) + col + 7, 1000003) % 5 > 0
-        )
+        return pow(11, (row + col + SEED) * (row + col + SEED) + col + 7, 1000003) % 5 > 0
 
 
 def main(SIZE: int = 10, output: bool = True) -> float:
@@ -80,8 +78,8 @@ def main(SIZE: int = 10, output: bool = True) -> float:
 
     fin = "pos" @ (Literal((SIZE - 1, SIZE - 1), "int2"))
 
-    fcl: FiniteCombinatoryLogic[Callable[[int, int, str], str] | str] = (
-        FiniteCombinatoryLogic(repo, literals=literals)
+    fcl: FiniteCombinatoryLogic[Callable[[int, int, str], str] | str] = FiniteCombinatoryLogic(
+        repo, literals=literals
     )
 
     start = timeit.default_timer()

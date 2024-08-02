@@ -14,10 +14,7 @@ def main(SIZE: int = 10, output: bool = True) -> float:
         if row == col:
             return True
         else:
-            return (
-                pow(11, (row + col + SEED) * (row + col + SEED) + col + 7, 1000003) % 5
-                > 0
-            )
+            return pow(11, (row + col + SEED) * (row + col + SEED) + col + 7, 1000003) % 5 > 0
 
     FREE = lambda a, b: f"FREE({a}, {b})"
     U = lambda a, b, c, p, f: f"{p} => UP({c}, {a})"

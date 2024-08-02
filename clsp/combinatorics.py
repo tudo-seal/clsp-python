@@ -6,9 +6,7 @@ S = TypeVar("S")  # Type of Sets
 E = TypeVar("E")  # Type of Elements
 
 
-def partition(
-    predicate: Callable[[E], bool], elements: Iterable[E]
-) -> tuple[deque[E], deque[E]]:
+def partition(predicate: Callable[[E], bool], elements: Iterable[E]) -> tuple[deque[E], deque[E]]:
     """Partition elements of an Iterable according to a predicate.
 
     Returns: (elements not satisfying predicate, elements satisfying predicate)."""
@@ -22,9 +20,7 @@ def partition(
     return partitioning
 
 
-def maximal_elements(
-    elements: Iterable[E], compare: Callable[[E, E], bool]
-) -> Sequence[E]:
+def maximal_elements(elements: Iterable[E], compare: Callable[[E, E], bool]) -> Sequence[E]:
     """Enumerate maximal elements with respect to compare.
 
     `compare(e1, e2) == True` iff `e1` smaller or equal to `e2`.

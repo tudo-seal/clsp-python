@@ -21,9 +21,7 @@ def is_free(row: int, col: int) -> bool:
     if row == col:
         return True
     else:
-        return (
-            pow(11, (row + col + SEED) * (row + col + SEED) + col + 7, 1000003) % 5 > 0
-        )
+        return pow(11, (row + col + SEED) * (row + col + SEED) + col + 7, 1000003) % 5 > 0
 
 
 def int_to_type(x: int) -> Type:
@@ -64,12 +62,8 @@ def main(SIZE: int = 10, output: bool = True) -> float:
                     print("#", end="")
             print("")
 
-    free: Callable[[str, str], Type] = lambda a, b: Constructor(
-        "free", Product(LVar(a), LVar(b))
-    )
-    pos: Callable[[str, str], Type] = lambda a, b: Constructor(
-        "pos", Product(LVar(a), LVar(b))
-    )
+    free: Callable[[str, str], Type] = lambda a, b: Constructor("free", Product(LVar(a), LVar(b)))
+    pos: Callable[[str, str], Type] = lambda a, b: Constructor("pos", Product(LVar(a), LVar(b)))
 
     FREE = lambda a, b: f"FREE({a}, {b})"
     U = lambda a, b, c, p, f: f"{p} => UP({c}, {a})"
@@ -182,9 +176,7 @@ def main(SIZE: int = 10, output: bool = True) -> float:
     start = timeit.default_timer()
 
     literals = {"int": list(range(SIZE))}
-    target = Constructor(
-        "pos", Product(Literal(SIZE - 1, "int"), Literal(SIZE - 1, "int"))
-    )
+    target = Constructor("pos", Product(Literal(SIZE - 1, "int"), Literal(SIZE - 1, "int")))
 
     fcl = FiniteCombinatoryLogic(repo, literals=literals)
 

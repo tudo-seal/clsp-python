@@ -37,9 +37,7 @@ class TestConting(unittest.TestCase):
         }
         literals = {"int": list(range(20))}
 
-        fcl: FiniteCombinatoryLogic[X | str] = FiniteCombinatoryLogic(
-            repo, literals=literals
-        )
+        fcl: FiniteCombinatoryLogic[X | str] = FiniteCombinatoryLogic(repo, literals=literals)
         grammar = fcl.inhabit(c(Literal(5, "int")))
         # self.logger.info(grammar.show())
         for term in enumerate_terms(c(Literal(5, "int")), grammar):

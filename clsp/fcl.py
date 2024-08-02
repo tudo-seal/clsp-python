@@ -112,9 +112,7 @@ class FiniteCombinatoryLogic(Generic[C]):
         self.subtypes = subtypes
 
     @staticmethod
-    def _function_types(
-        p_or_ty: Param | Type, literals: Mapping[str, list[Any]]
-    ) -> tuple[
+    def _function_types(p_or_ty: Param | Type, literals: Mapping[str, list[Any]]) -> tuple[
         ParamInfo,
         None,
         list[list[MultiArrow]],
@@ -206,17 +204,14 @@ class FiniteCombinatoryLogic(Generic[C]):
 
                 if literal_parameter.name in initial_substitution:
                     set_to_preds.append(
-                        SetTo(
-                            lambda _: initial_substitution[literal_parameter.name].value
-                        )
+                        SetTo(lambda _: initial_substitution[literal_parameter.name].value)
                     )
 
                 if len(set_to_preds) > 0:
                     substitutions = deque(
                         filter(
                             lambda substs: all(
-                                callable(npred) and npred(substs)
-                                for npred in normal_preds
+                                callable(npred) and npred(substs) for npred in normal_preds
                             ),
                             FiniteCombinatoryLogic._add_set_to(
                                 literal_parameter.name,
@@ -231,8 +226,7 @@ class FiniteCombinatoryLogic(Generic[C]):
                     substitutions = deque(
                         filter(
                             lambda substs: all(
-                                callable(npred) and npred(substs)
-                                for npred in normal_preds
+                                callable(npred) and npred(substs) for npred in normal_preds
                             ),
                             (
                                 s
@@ -252,8 +246,7 @@ class FiniteCombinatoryLogic(Generic[C]):
             predicates: list[Predicate] = []
             for term_param in parameters.term_params:
                 predicates.extend(
-                    Predicate(pred, predicate_substs=substitution)
-                    for pred in term_param.predicate
+                    Predicate(pred, predicate_substs=substitution) for pred in term_param.predicate
                 )
             instantiations.append(
                 Instantiation(
@@ -282,9 +275,7 @@ class FiniteCombinatoryLogic(Generic[C]):
             lambda args1, args2: [Intersection(a, b) for a, b in zip(args1, args2)]
         )
 
-        intersected_args = (
-            list(reduce(intersect_args, (m.args for m in ms))) for ms in covers
-        )
+        intersected_args = (list(reduce(intersect_args, (m.args for m in ms))) for ms in covers)
         # consider only maximal argument vectors
         compare_args = lambda args1, args2: all(
             map(
@@ -320,11 +311,7 @@ class FiniteCombinatoryLogic(Generic[C]):
             multiarrows_and_substitutions = [
                 substitution
                 for ty in candidates
-                if (
-                    substitution := self.subtypes.infer_substitution(
-                        ty.target, path, groups
-                    )
-                )
+                if (substitution := self.subtypes.infer_substitution(ty.target, path, groups))
                 is not None
             ]
 
@@ -389,9 +376,7 @@ class FiniteCombinatoryLogic(Generic[C]):
                     instantiations,
                     combinator_type,
                 ) in self.repository.items():
-                    selected_instantiations: Optional[Iterable[Instantiation]] = (
-                        instantiations
-                    )
+                    selected_instantiations: Optional[Iterable[Instantiation]] = instantiations
 
                     if parameters.infer and parameters.literal_params:
                         # Compute if there are forced substitutions
@@ -417,9 +402,7 @@ class FiniteCombinatoryLogic(Generic[C]):
                         # but do this only the first time... this is time consuming
                         # Update the repository with the enumerated substitutions.
                         if selected_instantiations is None:
-                            selected_instantiations = self._instantiate(
-                                self.literals, parameters
-                            )
+                            selected_instantiations = self._instantiate(self.literals, parameters)
                             self.repository[combinator] = (
                                 parameters,
                                 selected_instantiations,
@@ -429,10 +412,7 @@ class FiniteCombinatoryLogic(Generic[C]):
                             selected_instantiations = (
                                 i
                                 for i in selected_instantiations
-                                if all(
-                                    i.substitution[k] == v
-                                    for k, v in substitution.items()
-                                )
+                                if all(i.substitution[k] == v for k, v in substitution.items())
                             )
 
                     # regardless of how the substitutions were constructed, carry on
@@ -444,21 +424,15 @@ class FiniteCombinatoryLogic(Generic[C]):
                         # and every arity of the combinator type
                         for nary_types in combinator_type:
                             arguments: list[list[Type]] = list(
-                                self._subqueries(
-                                    nary_types, paths, instantiation.substitution
-                                )
+                                self._subqueries(nary_types, paths, instantiation.substitution)
                             )
 
                             if not arguments:
                                 continue
 
-                            if (
-                                not specific_params
-                            ):  # Do this only once for each instantiation
+                            if not specific_params:  # Do this only once for each instantiation
                                 specific_params = {
-                                    param.name: param.group.subst(
-                                        instantiation.substitution
-                                    )
+                                    param.name: param.group.subst(instantiation.substitution)
                                     for param in parameters.term_params
                                 }
 

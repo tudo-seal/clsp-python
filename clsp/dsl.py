@@ -162,9 +162,7 @@ class DSL:
         )
         return self
 
-    def AsRaw(
-        self, set_to: Callable[[Mapping[str, Any]], Any], override: bool = False
-    ) -> DSL:
+    def AsRaw(self, set_to: Callable[[Mapping[str, Any]], Any], override: bool = False) -> DSL:
         """
         Set the previous variable directly to the result of a computation.
 
@@ -250,9 +248,7 @@ class DSL:
         """
         return_type: Param | Type = ty
         for spec in reversed(self._accumulator):
-            return_type = Param(
-                *spec, cache=self.cache, infer=self.infer, inner=return_type
-            )
+            return_type = Param(*spec, cache=self.cache, infer=self.infer, inner=return_type)
         return return_type
 
 

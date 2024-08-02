@@ -56,9 +56,7 @@ def main(SIZE: int = 10, output: bool = True) -> float:
         tuple[tuple[tuple[int, int], ...], str],
     ] = lambda _, b, c, p: ((*p[0], (b, c)), f"{p[1]} => RIGHT({b}, {c})")
 
-    pos: Callable[[str, str], Type] = lambda a, b: Constructor(
-        "pos", (Product(LVar(a), LVar(b)))
-    )
+    pos: Callable[[str, str], Type] = lambda a, b: Constructor("pos", (Product(LVar(a), LVar(b))))
 
     repo: Mapping[
         Callable[[int, int, int, Any], Any] | Any,
@@ -116,8 +114,8 @@ def main(SIZE: int = 10, output: bool = True) -> float:
 
     fin = "pos" @ (Literal(SIZE - 1, "int") * Literal(SIZE - 1, "int"))
 
-    fcl: FiniteCombinatoryLogic[Callable[[int, int, int, str], str] | str] = (
-        FiniteCombinatoryLogic(repo, literals=literals)
+    fcl: FiniteCombinatoryLogic[Callable[[int, int, int, str], str] | str] = FiniteCombinatoryLogic(
+        repo, literals=literals
     )
 
     start = timeit.default_timer()

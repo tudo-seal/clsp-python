@@ -10,6 +10,7 @@ To implement a combinator, fitting that type, you either have to use the *args c
 MultiArgsComponent) or default values (See DefaultArgComponent).
 
 """
+
 import logging
 from typing import Optional
 import unittest
@@ -22,9 +23,7 @@ from clsp import (
 
 
 def MultiArgsComponent(*arguments: str) -> str:
-    return (
-        f"MultiArgsComponent: I have {len(arguments)} argument(s), they are {arguments}"
-    )
+    return f"MultiArgsComponent: I have {len(arguments)} argument(s), they are {arguments}"
 
 
 def DefaultArgComponent(arg1: str, arg2: Optional[str] = None) -> str:
@@ -63,9 +62,7 @@ class Test(unittest.TestCase):
         self.assertEqual(4, len(self.results))
 
     def test_elements(self) -> None:
-        self.assertIn(
-            "DefaultArgComponent: I only got one argument, it is testarg1", self.results
-        )
+        self.assertIn("DefaultArgComponent: I only got one argument, it is testarg1", self.results)
         self.assertIn(
             "MultiArgsComponent: I have 1 argument(s), they are ('testarg1',)",
             self.results,

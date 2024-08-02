@@ -116,7 +116,7 @@ def sorted_product(
     try:
         smallest_value = sum(lst[0][0] for lst in grouped_lists)
     except IndexError:
-        return []
+        return
 
     # initialize the buckets, visited list and min-heap
     buckets[smallest_value] = [initial_index]

@@ -82,15 +82,9 @@ class TestK(unittest.TestCase):
         self.assertIn((K, (("X", ()), ("Y", ()))), self.enumerated_result[:2])
         self.assertIn((K2, (("X", ()), ("Y", ()))), self.enumerated_result[:2])
         self.assertIn((MAP, (("Y", ()), (K, (("X", ()),)))), self.enumerated_result[2:])
-        self.assertIn(
-            (MAP2, (("Y", ()), (K, (("X", ()),)))), self.enumerated_result[2:]
-        )
-        self.assertIn(
-            (MAP, (("Y", ()), (K2, (("X", ()),)))), self.enumerated_result[2:]
-        )
-        self.assertIn(
-            (MAP2, (("Y", ()), (K2, (("X", ()),)))), self.enumerated_result[2:]
-        )
+        self.assertIn((MAP2, (("Y", ()), (K, (("X", ()),)))), self.enumerated_result[2:])
+        self.assertIn((MAP, (("Y", ()), (K2, (("X", ()),)))), self.enumerated_result[2:])
+        self.assertIn((MAP2, (("Y", ()), (K2, (("X", ()),)))), self.enumerated_result[2:])
 
     def test_interpretations(self) -> None:
         for x in self.interpreted_terms:

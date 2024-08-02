@@ -10,6 +10,7 @@ from clsp.types import (
 )
 from clsp.subtypes import Subtypes
 
+
 class TestDSL(unittest.TestCase):
     logger = logging.getLogger(__name__)
     logging.basicConfig(
@@ -29,7 +30,7 @@ class TestDSL(unittest.TestCase):
 
         sub = Subtypes({})
 
-        groups = {"a" : "int", "b" : "str"}
+        groups = {"a": "int", "b": "str"}
         print(f"{ty} <= {path}")
         print(f"test1: {sub.infer_substitution(ty, path, groups)}")
 
@@ -40,7 +41,7 @@ class TestDSL(unittest.TestCase):
 
         sub = Subtypes({})
 
-        groups = {"a" : "int", "b" : "str"}
+        groups = {"a": "int", "b": "str"}
         print(f"{ty} <= {path}")
         print(f"test2: {sub.infer_substitution(ty, path, groups)}")
 
@@ -51,7 +52,7 @@ class TestDSL(unittest.TestCase):
 
         sub = Subtypes({})
 
-        groups = {"a" : "int", "a'" : "int", "b" : "str"}
+        groups = {"a": "int", "a'": "int", "b": "str"}
         print(f"{ty} <= {path}")
         print(f"test3: {sub.infer_substitution(ty, path, groups)}")
 
@@ -62,7 +63,7 @@ class TestDSL(unittest.TestCase):
 
         sub = Subtypes({})
 
-        groups = {"a" : "int", "a'" : "int", "b" : "str"}
+        groups = {"a": "int", "a'": "int", "b": "str"}
         print(f"{ty} <= {path}")
         print(f"test4: {sub.infer_substitution(ty, path, groups)}")
 
@@ -73,10 +74,9 @@ class TestDSL(unittest.TestCase):
 
         sub = Subtypes({})
 
-        groups = {"a" : "int", "a'" : "int", "b" : "str"}
+        groups = {"a": "int", "a'": "int", "b": "str"}
         print(f"{ty} <= {path}")
         print(f"test5: {sub.infer_substitution(ty, path, groups)}")
-
 
     def test6(self) -> None:
         ty = Arrow(LVar("b"), LVar("a"))
@@ -85,7 +85,7 @@ class TestDSL(unittest.TestCase):
 
         sub = Subtypes({})
 
-        groups = {"a" : "int", "a'" : "int", "b" : "str"}
+        groups = {"a": "int", "a'": "int", "b": "str"}
         print(f"{ty} <= {path}")
         print(f"test6: {sub.infer_substitution(ty, path, groups)}")
 
@@ -96,7 +96,7 @@ class TestDSL(unittest.TestCase):
 
         sub = Subtypes({})
 
-        groups = {"a" : "int", "a'" : "int", "b" : "str"}
+        groups = {"a": "int", "a'": "int", "b": "str"}
         print(f"{ty} <= {path}")
         print(f"test7: {sub.infer_substitution(ty, path, groups)}")
 
@@ -107,7 +107,7 @@ class TestDSL(unittest.TestCase):
 
         sub = Subtypes({})
 
-        groups = {"a" : "int", "a'" : "int", "b" : "str"}
+        groups = {"a": "int", "a'": "int", "b": "str"}
         print(f"{ty} <= {path}")
         print(f"test8: {sub.infer_substitution(ty, path, groups)}")
 
@@ -119,10 +119,13 @@ class TestDSL(unittest.TestCase):
 
         sub = Subtypes({})
 
-        groups = {"a" : "int", "b" : "int"}
+        groups = {"a": "int", "b": "int"}
         print(f"{ty} <= {path1}")
         print(f"{ty} <= {path2}")
-        print(f"test_for_real: {sub.infer_substitution(ty, path1, groups)} and {sub.infer_substitution(ty, path2, groups)}")
+        print(
+            f"test_for_real: {sub.infer_substitution(ty, path1, groups)} and {sub.infer_substitution(ty, path2, groups)}"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

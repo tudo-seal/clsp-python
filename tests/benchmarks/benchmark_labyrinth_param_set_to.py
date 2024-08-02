@@ -37,12 +37,8 @@ def main(_: int = 0, output: bool = True) -> float:
     L = lambda a, b, c, p, f: f"{p} => LEFT({a}, {c})"
     R = lambda a, b, c, p, f: f"{p} => RIGHT({b}, {c})"
 
-    free: Callable[[str, str], Type] = lambda a, b: Constructor(
-        "free", Product(LVar(a), LVar(b))
-    )
-    pos: Callable[[str, str], Type] = lambda a, b: Constructor(
-        "pos", Product(LVar(a), LVar(b))
-    )
+    free: Callable[[str, str], Type] = lambda a, b: Constructor("free", Product(LVar(a), LVar(b)))
+    pos: Callable[[str, str], Type] = lambda a, b: Constructor("pos", Product(LVar(a), LVar(b)))
 
     repo: dict[
         Callable[[Any, Any, Any, Any, Any], str] | Callable[[Any, Any], str] | str,

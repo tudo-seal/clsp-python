@@ -22,9 +22,7 @@ def is_free(row: int, col: int) -> bool:
     if row == col:
         return True
     else:
-        return (
-            pow(11, (row + col + SEED) * (row + col + SEED) + col + 7, 1000003) % 5 > 0
-        )
+        return pow(11, (row + col + SEED) * (row + col + SEED) + col + 7, 1000003) % 5 > 0
 
 
 def int_to_type(x: int) -> Type:

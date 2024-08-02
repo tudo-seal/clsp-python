@@ -49,37 +49,26 @@ class TestRobotArm(unittest.TestCase):
             .Use("current_motor_count", "int")
             .In(
                 Constructor("Motor") ** Constructor("Structural")
-                & (
-                    ("c" @ LVar("current_motor_count"))
-                    ** ("c" @ LVar("current_motor_count"))
-                )
+                & (("c" @ LVar("current_motor_count")) ** ("c" @ LVar("current_motor_count")))
             ),
             Part("ShortLink"): DSL()
             .Use("current_motor_count", "int")
             .In(
                 Constructor("Motor") ** Constructor("Structural")
-                & (
-                    ("c" @ LVar("current_motor_count"))
-                    ** ("c" @ LVar("current_motor_count"))
-                )
+                & (("c" @ LVar("current_motor_count")) ** ("c" @ LVar("current_motor_count")))
             ),
             Part("Effector"): Constructor("Structural") & ("c" @ Literal(0, "int")),
             Part("Base"): DSL()
             .Use("current_motor_count", "int")
             .In(
                 Constructor("Motor") ** Constructor("Base")
-                & (
-                    ("c" @ LVar("current_motor_count"))
-                    ** ("c" @ LVar("current_motor_count"))
-                )
+                & (("c" @ LVar("current_motor_count")) ** ("c" @ LVar("current_motor_count")))
             ),
         }
 
         literals = {"int": list(range(10))}
 
-        fcl: FiniteCombinatoryLogic[Part] = FiniteCombinatoryLogic(
-            repo, literals=literals
-        )
+        fcl: FiniteCombinatoryLogic[Part] = FiniteCombinatoryLogic(repo, literals=literals)
         query = Constructor("Base") & ("c" @ (Literal(3, "int")))
         grammar = fcl.inhabit(query)
         self.terms = list(enumerate_terms(query, grammar))
