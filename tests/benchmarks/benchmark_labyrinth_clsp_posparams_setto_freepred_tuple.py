@@ -2,7 +2,7 @@ from collections.abc import Callable, Mapping
 import timeit
 from itertools import product
 from clsp.dsl import DSL
-from clsp.enumeration import enumerate_terms, interpret_term
+from clsp.enumeration import enumerate_terms_iter, interpret_term
 from clsp.fcl import FiniteCombinatoryLogic
 
 from clsp.types import Constructor, Literal, Param, LVar, Type
@@ -26,11 +26,27 @@ def is_free(pos: tuple[int, int]) -> bool:
         )
 
 
+def U(_: int, b: int, p: str) -> str:
+    return f"{p} => Up({b})"
+
+
+def D(_: int, b: int, p: str) -> str:
+    return f"{p} => Down({b})"
+
+
+def L(_: int, b: int, p: str) -> str:
+    return f"{p} => Left({b})"
+
+
+def R(_: int, b: int, p: str) -> str:
+    return f"{p} => Right({b})"
+
+
 def main(SIZE: int = 10, output: bool = True) -> float:
-    U: Callable[[int, int, str], str] = lambda _, b, p: f"{p} => UP({b})"
-    D: Callable[[int, int, str], str] = lambda _, b, p: f"{p} => DOWN({b})"
-    L: Callable[[int, int, str], str] = lambda _, b, p: f"{p} => LEFT({b})"
-    R: Callable[[int, int, str], str] = lambda _, b, p: f"{p} => RIGHT({b})"
+    # U: Callable[[int, int, str], str] = lambda _, b, p: f"{p} => UP({b})"
+    # D: Callable[[int, int, str], str] = lambda _, b, p: f"{p} => DOWN({b})"
+    # L: Callable[[int, int, str], str] = lambda _, b, p: f"{p} => LEFT({b})"
+    # R: Callable[[int, int, str], str] = lambda _, b, p: f"{p} => RIGHT({b})"
 
     pos: Callable[[str], Type] = lambda ab: Constructor("pos", (LVar(ab)))
 
@@ -90,7 +106,7 @@ def main(SIZE: int = 10, output: bool = True) -> float:
     start = timeit.default_timer()
     grammar = fcl.inhabit(fin)
 
-    for term in enumerate_terms(fin, grammar, 3):
+    for term in enumerate_terms_iter(fin, grammar):
         t = interpret_term(term)
         if output:
             print(t)

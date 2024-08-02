@@ -11,6 +11,7 @@ from inspect import Parameter, signature, _ParameterKind, _empty
 from collections import deque
 from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
 from typing import Any, Optional, TypeAlias, TypeVar
+from heapq import merge
 
 from .grammar import (
     GVar,
@@ -19,6 +20,7 @@ from .grammar import (
     RHSRule,
 )
 from .types import Literal
+from .sortedenum import sorted_product
 
 S = TypeVar("S")  # non-terminals
 T = TypeVar("T", bound=Hashable)
@@ -35,6 +37,108 @@ def tree_size(tree: Tree[T]) -> int:
         result += 1
         trees.extendleft(trees.pop()[1])
     return result
+
+
+def takewhile_inclusive(pred: Callable[[T], bool], it: Iterable[T]) -> Iterable[T]:
+    """Like takewhile, but also returns the first element not satisfying `pred`"""
+    for elem in it:
+        yield elem
+        if not pred(elem):
+            return
+
+
+def enumerate_terms(
+    start: S,
+    grammar: ParameterizedTreeGrammar[S, T],
+    max_count: Optional[int] = None,
+) -> Iterable[Tree[T]]:
+    return itertools.islice(enumerate_terms_iter(start, grammar, max_count), max_count)
+
+
+def validate_term(rule: RHSRule[S, T], term: Tree[T]) -> bool:
+    arguments = term[1]
+    substitution = {
+        param.name: subterm
+        for subterm, param in zip(arguments, rule.parameters)
+        if isinstance(param, GVar)
+    }
+    return all(predicate.eval(substitution) for predicate in rule.predicates)
+
+
+def enumerate_terms_iter(
+    start: S, grammar: ParameterizedTreeGrammar[S, T], max_count: Optional[int] = None
+) -> Iterable[Tree[T]]:
+    """
+    Enumerate terms as an iterator in an ascending way.
+    """
+    if start not in grammar.nonterminals():
+        return []
+
+    if max_count is not None:
+        max_count += 1
+
+    old_terms: dict[S, list[Tree[T]]] = {n: [] for n in grammar.nonterminals()}
+    already_checked: dict[S, set[int]] = {n: set() for n in grammar.nonterminals()}
+
+    terms_size: int = -1
+
+    generation = 0
+
+    there_are_more_new_terms = True
+    while there_are_more_new_terms or terms_size < sum(
+        len(ts) for ts in old_terms.values()
+    ):
+        there_are_more_new_terms = False
+        terms_size = sum(len(ts) for ts in old_terms.values())
+        generation = generation + 1
+        for n, rhs in grammar.as_tuples():
+            out_iter, avoid_iter = itertools.tee(
+                merge(
+                    *(
+                        filter(
+                            lambda new_term: hash(new_term)
+                            not in already_checked[
+                                n
+                            ]  # Skip already generated terms for a specific symbol n
+                            and validate_term(rule, new_term),  # Check the predicates
+                            sorted_product(  # Build the new terms in a sorted iterator.
+                                *(
+                                    (
+                                        old_terms[m]
+                                        if not isinstance(m, Literal)
+                                        else [(m.value, ())]
+                                    )  # Build new terms from old terms and literals
+                                    for m in rule.all_args()
+                                ),
+                                key=tree_size,  # Sort them by size
+                                combine=partial(
+                                    lambda c, args: (c, tuple(args)), rule.terminal
+                                ),  # Construct a new term from the arguments
+                            ),
+                        )
+                        # for c, ms in sorted(exprs, key=lambda expr: len(expr[1]))
+                        for rule in rhs
+                    ),
+                    key=tree_size,
+                ),
+            )
+
+            if n == start:
+                for i in out_iter:
+                    if tree_size(i) <= generation:
+                        yield i
+                    else:
+                        there_are_more_new_terms = True
+                        break
+
+            for i in avoid_iter:
+                if tree_size(i) <= generation:
+                    already_checked[n].add(hash(i))
+                    if max_count is None or len(old_terms[n]) <= max_count:
+                        old_terms[n].append(i)
+                else:
+                    there_are_more_new_terms = True
+                    break
 
 
 def bounded_union(
@@ -94,7 +198,7 @@ def new_terms(
     return output_set
 
 
-def enumerate_terms(
+def enumerate_terms_old(
     start: S,
     grammar: ParameterizedTreeGrammar[S, T],
     max_count: Optional[int] = 100,

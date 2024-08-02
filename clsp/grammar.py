@@ -56,10 +56,19 @@ class RHSRule(Generic[NT, T]):
     parameters: list[Literal | GVar]
     args: list[NT]
 
+    def __len__(self) -> int:
+        return len(self.parameters) + len(self.args)
+
+    def all_args(self) -> Iterable[NT | Literal]:
+        for p in self.parameters:
+            if isinstance(p, Literal):
+                yield p
+            else:
+                yield self.binder[p.name]
+        yield from self.args
+
     def __str__(self) -> str:
-        forallstrings = "".join(
-            [f"∀({name}:{ty})." for name, ty in self.binder.items()]
-        )
+        forallstrings = "".join([f"∀({name}:{ty})." for name, ty in self.binder.items()])
         predicatestrings = "".join([str(predicate) for predicate in self.predicates])
         paramstring = "".join([f"({str(param)})" for param in self.parameters])
         argstring = "".join([f"({str(arg)})" for arg in self.args])
@@ -68,9 +77,7 @@ class RHSRule(Generic[NT, T]):
 
 @dataclass
 class ParameterizedTreeGrammar(Generic[NT, T]):
-    _rules: dict[NT, deque[RHSRule[NT, T]]] = field(
-        default_factory=lambda: defaultdict(deque)
-    )
+    _rules: dict[NT, deque[RHSRule[NT, T]]] = field(default_factory=lambda: defaultdict(deque))
 
     def get(self, nonterminal: NT) -> Optional[deque[RHSRule[NT, T]]]:
         return self._rules.get(nonterminal)
