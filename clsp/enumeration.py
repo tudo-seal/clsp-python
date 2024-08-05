@@ -12,6 +12,7 @@ from collections import deque
 from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
 from typing import Any, Optional, TypeAlias, TypeVar
 from heapq import merge
+from queue import PriorityQueue
 
 from .grammar import (
     GVar,
@@ -53,6 +54,52 @@ def enumerate_terms(
     max_count: Optional[int] = None,
 ) -> Iterable[Tree[T]]:
     return itertools.islice(enumerate_terms_iter(start, grammar, max_count), max_count)
+
+def enumerate_terms_fast(
+    start: S,
+    grammar: ParameterizedTreeGrammar[S, T],
+) -> Iterable[Tree[T]]:
+    """
+    Enumerate terms as an iterator efficiently - all terms are enumerated, no guaranteed term order.
+    """
+    if start not in grammar.nonterminals():
+        return
+    queue = PriorityQueue()
+    existing_terms = {n: set() for n in grammar.nonterminals()}
+    inverse_grammar = {n: deque() for n in grammar.nonterminals()}
+    for (n, exprs) in grammar.as_tuples():
+        for expr in exprs:
+            for param in expr.parameters:
+                if isinstance(param, GVar):
+                    inverse_grammar[expr.binder[param.name]].append((n, expr))
+            for arg in expr.args:
+                inverse_grammar[arg].append((n, expr))
+            for new_term in new_terms([expr], existing_terms):
+                queue.put((tree_size(new_term), (n, new_term)))
+    max_count = 1
+    max_size = 0
+    
+    while not queue.empty():
+        items = queue
+        queue = PriorityQueue()
+        while not items.empty():
+            (size, (n, term)) = items.get()
+            results = existing_terms[n]
+            if term in results:
+                continue
+            if n == start and (max_size == 0 or size <= max_size):
+                yield term
+                max_size = size
+            if (n == start and size <= max_size) or (n != start and len(results) < max_count):
+                results.add(term)
+                for m, expr in inverse_grammar[n]:
+                    for new_term in new_terms([expr], existing_terms):
+                        items.put((tree_size(new_term), (m, new_term)))
+            else:
+                queue.put((size, (n, term)))
+        max_count += 1
+        max_size = 0
+    return
 
 
 def validate_term(rule: RHSRule[S, T], term: Tree[T]) -> bool:
