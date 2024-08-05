@@ -54,7 +54,7 @@ def enumerate_terms(
     grammar: ParameterizedTreeGrammar[S, T],
     max_count: Optional[int] = None,
 ) -> Iterable[Tree[T]]:
-    return itertools.islice(enumerate_terms_fast(start, grammar), max_count)
+    return itertools.islice(enumerate_terms_fast(start, grammar, max_count), max_count)
 
 @dataclass(order=True)
 class PrioritizedItem:
@@ -64,10 +64,13 @@ class PrioritizedItem:
 def enumerate_terms_fast(
     start: S,
     grammar: ParameterizedTreeGrammar[S, T],
+    max_count: Optional[int] = 100,
+    max_bucket_size: Optional[int] = None,
 ) -> Iterable[Tree[T]]:
     """
     Enumerate terms as an iterator efficiently - all terms are enumerated, no guaranteed term order.
     """
+    max_bucket_size = max_count
     if start not in grammar.nonterminals():
         return
     queue = PriorityQueue()
@@ -82,9 +85,8 @@ def enumerate_terms_fast(
                 inverse_grammar[arg].append((n, expr))
             for new_term in new_terms([expr], existing_terms):
                 queue.put(PrioritizedItem(tree_size(new_term), (n, new_term)))
-    max_count = 1
-    max_size = 0
-    
+    current_bucket_size = 1
+    all_results_debug = set()
     while not queue.empty():
         items = queue
         queue = PriorityQueue()
@@ -94,18 +96,38 @@ def enumerate_terms_fast(
             results = existing_terms[n]
             if term in results:
                 continue
-            if n == start and (max_size == 0 or size <= max_size):
+            if n == start:
+                print(term)
                 yield term
-                max_size = size
-            if (n == start and size <= max_size) or (n != start and len(results) < max_count):
+                if max_count is not None:
+                    max_count -= 1
+                    if max_count <= 0:
+                        return
+            if n == start or (n != start and len(results) < current_bucket_size):
                 results.add(term)
                 for m, expr in inverse_grammar[n]:
-                    for new_term in new_terms([expr], existing_terms):
-                        items.put(PrioritizedItem(tree_size(new_term), (m, new_term)))
+                    if m == start:
+                        for new_term in new_terms_max_count(expr, existing_terms, max_count):
+                            
+                            new_size = tree_size(new_term)
+                            #if size < new_size:
+                            queue.put(PrioritizedItem(new_size, (m, new_term)))
+                            all_results_debug.add(new_term)
+                            print(len(all_results_debug))
+                            #else:
+                            #    items.put(PrioritizedItem(new_size, (m, new_term)))
+                    else:
+                        for new_term in new_terms_max_count(expr, existing_terms, max_bucket_size):
+                            new_size = tree_size(new_term)
+                            if len(existing_terms[m]) >= current_bucket_size:
+                                queue.put(PrioritizedItem(new_size, (m, new_term)))
+                            else:
+                                items.put(PrioritizedItem(new_size, (m, new_term)))
             else:
                 queue.put(PrioritizedItem(size, (n, term)))
-        max_count += 1
-        max_size = 0
+        current_bucket_size += 1
+        if max_bucket_size is not None and current_bucket_size > max_bucket_size:
+            break
     return
 
 
@@ -205,7 +227,44 @@ def bounded_union(old_elements: set[S], new_elements: Iterable[S], max_count: in
     return result
 
 
-def new_terms(rhs: Iterable[RHSRule[S, T]], existing_terms: dict[S, set[Tree[T]]]) -> set[Tree[T]]:
+def new_terms_max_count(rule: RHSRule[S, T], existing_terms: dict[S, set[Tree[T]]], max_count: Optional[int] = None) -> set[Tree[T]]:
+    output_set: set[Tree[T]] = set()
+    list_of_params = list(rule.binder.keys())
+
+    for params in itertools.product(
+        *(existing_terms[rule.binder[name]] for name in list_of_params)
+    ):
+        params_dict = {list_of_params[i]: param for i, param in enumerate(params)}
+        if all((predicate.eval(params_dict) for predicate in rule.predicates)):
+            for args in itertools.product(
+                *(
+                    (existing_terms[arg] if not isinstance(arg, Literal) else [(arg.value, ())])
+                    for arg in rule.args
+                )
+            ):
+                output_set.add(
+                    (
+                        rule.terminal,
+                        tuple(
+                            itertools.chain(
+                                (
+                                    (
+                                        (parameter.value, ())
+                                        if isinstance(parameter, Literal)
+                                        else params_dict[parameter.name]
+                                    )
+                                    for parameter in rule.parameters
+                                ),
+                                args,
+                            )
+                        ),
+                    )
+                )
+                if max_count is not None and len(output_set) >= max_count:
+                    return output_set
+    return output_set
+
+def new_terms(rhs: Iterable[RHSRule[S, T]], existing_terms: dict[S, set[Tree[T]]], max_count: Optional[int] = None) -> set[Tree[T]]:
     output_set: set[Tree[T]] = set()
     for rule in rhs:
         list_of_params = list(rule.binder.keys())
