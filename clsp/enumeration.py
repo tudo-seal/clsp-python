@@ -49,6 +49,57 @@ def takewhile_inclusive(pred: Callable[[T], bool], it: Iterable[T]) -> Iterable[
             return
 
 
+def really_new_terms_max_count(
+    rule: RHSRule[S, T],
+    nt: S,
+    old_term: Tree[T],
+    existing_terms: dict[S, set[Tree[T]]],
+    max_count: Optional[int] = None,
+) -> set[Tree[T]]:
+    output_set: set[Tree[T]] = set()
+    list_of_params = list(rule.binder.keys())
+
+    all_arguments = [
+        rule.binder[p.name] if isinstance(p, GVar) else p for p in rule.parameters
+    ] + rule.args
+    positions_of_nt = [i for i, e in enumerate(all_arguments) if e == nt]
+
+    for params in itertools.product(
+        *(existing_terms[rule.binder[name]] for name in list_of_params)
+    ):
+        params_dict = {list_of_params[i]: param for i, param in enumerate(params)}
+        if all((predicate.eval(params_dict) for predicate in rule.predicates)):
+            for args in itertools.product(
+                *(
+                    (existing_terms[arg] if not isinstance(arg, Literal) else [(arg.value, ())])
+                    for arg in rule.args
+                )
+            ):
+                new_term = (
+                    rule.terminal,
+                    tuple(
+                        itertools.chain(
+                            (
+                                (
+                                    (parameter.value, ())
+                                    if isinstance(parameter, Literal)
+                                    else params_dict[parameter.name]
+                                )
+                                for parameter in rule.parameters
+                            ),
+                            args,
+                        )
+                    ),
+                )
+
+                # Only add a term if, at least one position of nt evaluates to old_term
+                if any(new_term[1][p] == old_term for p in positions_of_nt):
+                    output_set.add(new_term)
+                if max_count is not None and len(output_set) >= max_count:
+                    return output_set
+    return output_set
+
+
 def enumerate_terms(
     start: S,
     grammar: ParameterizedTreeGrammar[S, T],
