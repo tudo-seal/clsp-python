@@ -13,6 +13,7 @@ from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
 from typing import Any, Optional, TypeAlias, TypeVar
 from heapq import merge
 from queue import PriorityQueue
+from dataclasses import dataclass, field
 
 from .grammar import (
     GVar,
@@ -53,7 +54,12 @@ def enumerate_terms(
     grammar: ParameterizedTreeGrammar[S, T],
     max_count: Optional[int] = None,
 ) -> Iterable[Tree[T]]:
-    return itertools.islice(enumerate_terms_iter(start, grammar, max_count), max_count)
+    return itertools.islice(enumerate_terms_fast(start, grammar), max_count)
+
+@dataclass(order=True)
+class PrioritizedItem:
+    priority: int
+    item: Any=field(compare=False)
 
 def enumerate_terms_fast(
     start: S,
@@ -75,7 +81,7 @@ def enumerate_terms_fast(
             for arg in expr.args:
                 inverse_grammar[arg].append((n, expr))
             for new_term in new_terms([expr], existing_terms):
-                queue.put((tree_size(new_term), (n, new_term)))
+                queue.put(PrioritizedItem(tree_size(new_term), (n, new_term)))
     max_count = 1
     max_size = 0
     
@@ -83,7 +89,8 @@ def enumerate_terms_fast(
         items = queue
         queue = PriorityQueue()
         while not items.empty():
-            (size, (n, term)) = items.get()
+            item = items.get()
+            size, (n, term) = item.priority, item.item
             results = existing_terms[n]
             if term in results:
                 continue
@@ -94,9 +101,9 @@ def enumerate_terms_fast(
                 results.add(term)
                 for m, expr in inverse_grammar[n]:
                     for new_term in new_terms([expr], existing_terms):
-                        items.put((tree_size(new_term), (m, new_term)))
+                        items.put(PrioritizedItem(tree_size(new_term), (m, new_term)))
             else:
-                queue.put((size, (n, term)))
+                queue.put(PrioritizedItem(size, (n, term)))
         max_count += 1
         max_size = 0
     return
