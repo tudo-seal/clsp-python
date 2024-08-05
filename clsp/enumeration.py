@@ -70,9 +70,9 @@ def enumerate_terms_fast(
     """
     Enumerate terms as an iterator efficiently - all terms are enumerated, no guaranteed term order.
     """
-    max_bucket_size = max_count
     if start not in grammar.nonterminals():
         return
+    
     queue = PriorityQueue()
     existing_terms = {n: set() for n in grammar.nonterminals()}
     inverse_grammar = {n: deque() for n in grammar.nonterminals()}
@@ -85,8 +85,14 @@ def enumerate_terms_fast(
                 inverse_grammar[arg].append((n, expr))
             for new_term in new_terms([expr], existing_terms):
                 queue.put(PrioritizedItem(tree_size(new_term), (n, new_term)))
+                if n == start and new_term not in existing_terms[start]:
+                    if max_count is not None and len(existing_terms[start]) >= max_count:
+                        return
+                    yield new_term
+                    existing_terms[start].add(new_term)
+
     current_bucket_size = 1
-    all_results_debug = set()
+
     while not queue.empty():
         items = queue
         queue = PriorityQueue()
@@ -94,28 +100,20 @@ def enumerate_terms_fast(
             item = items.get()
             size, (n, term) = item.priority, item.item
             results = existing_terms[n]
-            if term in results:
+            if n != start and term in results:
                 continue
-            if n == start:
-                print(term)
-                yield term
-                if max_count is not None:
-                    max_count -= 1
-                    if max_count <= 0:
-                        return
             if n == start or (n != start and len(results) < current_bucket_size):
                 results.add(term)
                 for m, expr in inverse_grammar[n]:
                     if m == start:
                         for new_term in new_terms_max_count(expr, existing_terms, max_count):
-                            
-                            new_size = tree_size(new_term)
-                            #if size < new_size:
-                            queue.put(PrioritizedItem(new_size, (m, new_term)))
-                            all_results_debug.add(new_term)
-                            print(len(all_results_debug))
-                            #else:
-                            #    items.put(PrioritizedItem(new_size, (m, new_term)))
+                            if new_term not in results:
+                                if max_count is not None and len(existing_terms[start]) >= max_count:
+                                    return
+                                yield new_term
+                                #print(new_term)
+                                existing_terms[start].add(new_term)
+                                queue.put(PrioritizedItem(tree_size(new_term), (m, new_term)))
                     else:
                         for new_term in new_terms_max_count(expr, existing_terms, max_bucket_size):
                             new_size = tree_size(new_term)
