@@ -149,9 +149,10 @@ def enumerate_terms(
     grammar: ParameterizedTreeGrammar[S, T],
     max_count: Optional[int] = None,
     max_bucket_size: Optional[int] = None,
+    hash_function: Optional[Callable[[Tree[T]], int]] = None,
 ) -> Iterable[Tree[T]]:
     return itertools.islice(
-        enumerate_terms_fast(start, grammar, max_count, max_bucket_size), max_count
+        enumerate_terms_fast(start, grammar, max_count, max_bucket_size, hash_function), max_count
     )
 
 
