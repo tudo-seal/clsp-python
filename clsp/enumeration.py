@@ -10,7 +10,7 @@ import itertools
 from inspect import Parameter, signature, _ParameterKind, _empty
 from collections import deque
 from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
-from typing import Any, Optional, TypeAlias, TypeVar, cast
+from typing import Any, Generic, Optional, TypeAlias, TypeVar, cast
 from heapq import merge
 from queue import PriorityQueue
 from dataclasses import dataclass, field
@@ -60,7 +60,6 @@ def really_new_terms_max_count(
     # the term `old_term` should be a subterm of all resulting terms, at a position, that corresponds to `nt`
 
     output_set: set[Tree[T]] = set()
-    list_of_term_params = list(rule.binder.keys())
     number_of_parameters = len(rule.parameters)
 
     # Get all possible positions of a term, that is build by nt in the output term
@@ -69,105 +68,60 @@ def really_new_terms_max_count(
     ] + rule.args
     positions_of_nt = [i for i, e in enumerate(all_arguments) if e == nt]
 
-    # Iterate over these positions, and enumerate the rest (and reject terms, that do not meet the predicates).
+    cached_complete_parameter_parts: Optional[list[tuple[Tree[T], ...]]] = None
+    cached_complete_argument_parts: Optional[list[tuple[Tree[T], ...]]] = None
 
     for pos in positions_of_nt:
-        if pos < number_of_parameters:
-            variable_name = cast(GVar, rule.parameters[pos]).name
-            position_in_list_of_term_params = list_of_term_params.index(variable_name)
-            for params_with_one_hole in itertools.product(
+        pos_in_parameters = pos < number_of_parameters
+        all_parameter_parts: Iterable[tuple[Tree[T], ...]] = []
+
+        if pos_in_parameters or cached_complete_parameter_parts is None:
+            for parameter_part in itertools.product(
                 *(
-                    existing_terms[rule.binder[name]]
-                    for name in list_of_term_params
-                    if name != variable_name  # Skip enumeration for pos
+                    (
+                        (existing_terms[rule.binder[param.name]] if i != pos else [old_term])
+                        if isinstance(param, GVar)
+                        else [(param.value, ())]
+                    )
+                    for i, param in enumerate(rule.parameters)
                 )
             ):
-                params = (
-                    params_with_one_hole[:position_in_list_of_term_params]
-                    + (old_term,)
-                    + params_with_one_hole[position_in_list_of_term_params:]
-                )  # Inject old_term at pos
-
-                params_dict = {list_of_term_params[i]: param for i, param in enumerate(params)}
-
+                params_dict = {
+                    param.name: term
+                    for term, param in zip(parameter_part, rule.parameters)
+                    if isinstance(param, GVar)
+                }
                 if all((predicate.eval(params_dict) for predicate in rule.predicates)):
-                    for args in itertools.product(
-                        *(
-                            (
-                                existing_terms[arg]
-                                if not isinstance(arg, Literal)
-                                else [(arg.value, ())]
-                            )
-                            for arg in rule.args
-                        )
-                    ):
-                        new_term = (
-                            rule.terminal,
-                            tuple(
-                                itertools.chain(
-                                    (
-                                        (
-                                            (parameter.value, ())
-                                            if isinstance(parameter, Literal)
-                                            else params_dict[parameter.name]
-                                        )
-                                        for parameter in rule.parameters
-                                    ),
-                                    args,
-                                )
-                            ),
-                        )
-                        output_set.add(new_term)
-                        if max_count is not None and len(output_set) >= max_count:
-                            return output_set
-
+                    all_parameter_parts.append(parameter_part)
+            if not pos_in_parameters:
+                cached_complete_parameter_parts = all_parameter_parts
         else:
-            for params in itertools.product(
-                *(existing_terms[rule.binder[name]] for name in list_of_term_params)
-            ):
-                params_dict = {list_of_term_params[i]: param for i, param in enumerate(params)}
-                if all((predicate.eval(params_dict) for predicate in rule.predicates)):
-                    pos_in_args = pos - number_of_parameters
+            all_parameter_parts = cached_complete_parameter_parts
 
-                    for args_with_one_hole in itertools.product(
-                        *(
-                            (
-                                existing_terms[arg]
-                                if not isinstance(arg, Literal)
-                                else [(arg.value, ())]
-                            )
-                            for i, arg in enumerate(rule.args)
-                            if i != pos_in_args  # Skip enumeration for pos
-                        )
-                    ):
-                        args = (
-                            args_with_one_hole[:pos_in_args]
-                            + (old_term,)
-                            + args_with_one_hole[pos_in_args:]
-                        )  # Inject old_term at pos
+        if not pos_in_parameters or cached_complete_argument_parts is None:
+            all_argument_parts = list(
+                itertools.product(
+                    *(
+                        (existing_terms[arg] if i + number_of_parameters != pos else [old_term])
+                        for i, arg in enumerate(rule.args)
+                    )
+                )
+            )
+            if pos_in_parameters:
+                cached_complete_argument_parts = all_argument_parts
+        else:
+            all_argument_parts = cached_complete_argument_parts
 
-                        new_term = (
-                            rule.terminal,
-                            tuple(
-                                itertools.chain(
-                                    (
-                                        (
-                                            (parameter.value, ())
-                                            if isinstance(parameter, Literal)
-                                            else params_dict[parameter.name]
-                                        )
-                                        for parameter in rule.parameters
-                                    ),
-                                    args,
-                                )
-                            ),
-                        )
+        new_terms = (
+            (rule.terminal, param_part + arg_part)
+            for param_part, arg_part in itertools.product(all_parameter_parts, all_argument_parts)
+        )
 
-                        # Only add a term if, at least one position of nt evaluates to old_term
-                        if any(new_term[1][p] == old_term for p in positions_of_nt):
-                            output_set.add(new_term)
-                        if max_count is not None and len(output_set) >= max_count:
-                            return output_set
+        # Add new terms to the output set and check max_count
+        output_set.update(new_terms)
+        if max_count is not None and len(output_set) >= max_count:
+            return set(itertools.islice(output_set, max_count))
+
     return output_set
 
 
@@ -175,14 +129,19 @@ def enumerate_terms(
     start: S,
     grammar: ParameterizedTreeGrammar[S, T],
     max_count: Optional[int] = None,
+    max_bucket_size: Optional[int] = None,
 ) -> Iterable[Tree[T]]:
-    return itertools.islice(enumerate_terms_fast(start, grammar, max_count), max_count)
+    return itertools.islice(
+        enumerate_terms_fast(start, grammar, max_count, max_bucket_size), max_count
+    )
+
 
 @dataclass(order=True)
-class PrioritizedItem:
+class PrioritizedItem(Generic[S, T]):
     priority: int
     non_terminal: S = field(compare=False)
     term: Tree[T] = field(compare=False)
+
 
 def enumerate_terms_fast(
     start: S,
@@ -195,7 +154,6 @@ def enumerate_terms_fast(
     """
     if start not in grammar.nonterminals():
         return
-    #max_bucket_size = max_count
 
     queue = PriorityQueue()
     existing_terms = {n: set() for n in grammar.nonterminals()}
@@ -204,7 +162,9 @@ def enumerate_terms_fast(
 
     for n, exprs in grammar.as_tuples():
         for expr in exprs:
-            non_terminals = {expr.binder[param.name] for param in expr.parameters if isinstance(param, GVar)}
+            non_terminals = {
+                expr.binder[param.name] for param in expr.parameters if isinstance(param, GVar)
+            }
             non_terminals.update(expr.args)
             for m in non_terminals:
                 inverse_grammar[m].append((n, expr))
@@ -366,7 +326,9 @@ def bounded_union(old_elements: set[S], new_elements: Iterable[S], max_count: in
     return result
 
 
-def new_terms_max_count(rule: RHSRule[S, T], existing_terms: dict[S, set[Tree[T]]], max_count: Optional[int] = None) -> set[Tree[T]]:
+def new_terms_max_count(
+    rule: RHSRule[S, T], existing_terms: dict[S, set[Tree[T]]], max_count: Optional[int] = None
+) -> set[Tree[T]]:
     output_set: set[Tree[T]] = set()
     list_of_params = list(rule.binder.keys())
 
@@ -403,7 +365,12 @@ def new_terms_max_count(rule: RHSRule[S, T], existing_terms: dict[S, set[Tree[T]
                     return output_set
     return output_set
 
-def new_terms(rhs: Iterable[RHSRule[S, T]], existing_terms: dict[S, set[Tree[T]]], max_count: Optional[int] = None) -> set[Tree[T]]:
+
+def new_terms(
+    rhs: Iterable[RHSRule[S, T]],
+    existing_terms: dict[S, set[Tree[T]]],
+    max_count: Optional[int] = None,
+) -> set[Tree[T]]:
     output_set: set[Tree[T]] = set()
     for rule in rhs:
         list_of_params = list(rule.binder.keys())

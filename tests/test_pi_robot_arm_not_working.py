@@ -71,7 +71,7 @@ class TestRobotArm(unittest.TestCase):
         fcl: FiniteCombinatoryLogic[Part] = FiniteCombinatoryLogic(repo, literals=literals)
         query = Constructor("Base") & ("c" @ Literal(3, "int"))
         grammar = fcl.inhabit(query)
-        self.terms = list(enumerate_terms(query, grammar, 5))
+        self.terms = list(enumerate_terms(query, grammar, 5, 10))
         # self.logger.info(grammar.show())
 
     def test_count(self) -> None:

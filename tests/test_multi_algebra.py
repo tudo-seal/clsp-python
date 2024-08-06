@@ -36,7 +36,7 @@ class TestList(unittest.TestCase):
 
     def setUp(self) -> None:
         exampleRepo = {add: Int**Int**Int, mul: Int**Int**Int, 3: Int, 4: Int, 5: Int}
-        self.results = enumerate_terms(Int, FiniteCombinatoryLogic(exampleRepo).inhabit(Int), 100)
+        self.results = enumerate_terms(Int, FiniteCombinatoryLogic(exampleRepo).inhabit(Int), 1_000)
 
     def test_print(self) -> None:
         str_algebra = {add: str_add, mul: str_mul, 3: "3", 4: "4", 5: "5"}
