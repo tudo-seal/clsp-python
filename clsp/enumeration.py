@@ -203,11 +203,14 @@ def enumerate_terms_fast(
 
     for n, exprs in grammar.as_tuples():
         for expr in exprs:
+            non_terminals = set()
             for param in expr.parameters:
                 if isinstance(param, GVar):
-                    inverse_grammar[expr.binder[param.name]].append((n, expr))
+                    non_terminals.add(expr.binder[param.name])
             for arg in expr.args:
-                inverse_grammar[arg].append((n, expr))
+                non_terminals.add(arg)
+            for m in non_terminals:
+                inverse_grammar[m].append((n, expr))
             for new_term in new_terms_max_count(expr, existing_terms):
                 queue.put(PrioritizedItem(tree_size(new_term), (n, new_term)))
                 if n == start and new_term not in additional_results:
