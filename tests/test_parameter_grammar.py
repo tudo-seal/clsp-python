@@ -1,6 +1,6 @@
 import logging
 import unittest
-from clsp.enumeration import enumerate_terms
+from clsp.enumeration import Tree, enumerate_terms
 from clsp.grammar import GVar, ParameterizedTreeGrammar, Predicate, RHSRule
 from clsp.types import Literal
 
@@ -36,7 +36,7 @@ class TestParamGrammar(unittest.TestCase):
 
         for t in enumeration:
             self.logger.info(t)
-            self.assertEqual(("x", (("y1", ((3, ()),)), ("y1", ((3, ()),)))), t)
+            self.assertEqual(Tree("x", (Tree("y1", (Tree(3, ()),)), Tree("y1", (Tree(3, ()),)))), t)
 
 
 if __name__ == "__main__":
