@@ -48,6 +48,15 @@ def takewhile_inclusive(pred: Callable[[T], bool], it: Iterable[T]) -> Iterable[
         if not pred(elem):
             return
 
+#TODO move?
+def test_predicates(rule: RHSRule[S, T], parameters: Iterable[Tree[T]]) -> bool:
+    """Test if all predicates of a rule are satisfied by the parameters."""
+    substitution = {
+        param.name: subterm
+        for subterm, param in zip(parameters, rule.parameters)
+        if isinstance(param, GVar)
+    }
+    return all(predicate.eval(substitution) for predicate in rule.predicates)
 
 def really_new_terms_max_count(
     rule: RHSRule[S, T],
@@ -86,12 +95,7 @@ def really_new_terms_max_count(
                     for i, param in enumerate(rule.parameters)
                 )
             ):
-                params_dict = {
-                    param.name: term
-                    for term, param in zip(parameter_part, rule.parameters)
-                    if isinstance(param, GVar)
-                }
-                if all((predicate.eval(params_dict) for predicate in rule.predicates)):
+                if (test_predicates(rule, parameter_part)):
                     all_parameter_parts.append(parameter_part)
             if not pos_in_parameters:
                 cached_complete_parameter_parts = all_parameter_parts
@@ -137,13 +141,78 @@ def enumerate_terms(
 
 
 @dataclass(order=True)
-class PrioritizedItem(Generic[S, T]):
+class PrioritizedItemOld(Generic[S, T]):
     priority: int
     non_terminal: S = field(compare=False)
     term: Tree[T] = field(compare=False)
 
 
 def enumerate_terms_fast(
+    start: S,
+    grammar: ParameterizedTreeGrammar[S, T],
+    max_count: Optional[int] = 100,
+    max_bucket_size: Optional[int] = None,
+) -> Iterable[Tree[T]]:
+    """
+    Enumerate terms as an iterator efficiently - all terms are enumerated, no guaranteed term order.
+    """
+    if start not in grammar.nonterminals():
+        return
+
+    queues = {n: PriorityQueue() for n in grammar.nonterminals()}
+    existing_terms = {n: set() for n in grammar.nonterminals()}
+    inverse_grammar = {n: deque() for n in grammar.nonterminals()}
+    all_results = set()
+
+    for n, exprs in grammar.as_tuples():
+        for expr in exprs:
+            non_terminals = {
+                expr.binder[param.name] for param in expr.parameters if isinstance(param, GVar)
+            }
+            non_terminals.update(expr.args)
+            for m in non_terminals:
+                inverse_grammar[m].append((n, expr))
+            for new_term in new_terms_max_count(expr, existing_terms):
+                queues[n].put(PrioritizedItem(tree_size(new_term), n, new_term))
+                if n == start and new_term not in all_results:
+                    if max_count is not None and len(all_results) >= max_count:
+                        return
+                    yield new_term
+                    all_results.add(new_term)
+
+    current_bucket_size = 1
+
+    while max_bucket_size is None or current_bucket_size <= max_bucket_size:
+        for n in grammar.nonterminals():
+            results = existing_terms[n]
+            while len(results) < current_bucket_size and not queues[n].empty():
+                item = queues[n].get()
+                term = item.term
+                if term in results:
+                    continue
+                results.add(term)
+                for m, expr in inverse_grammar[n]:
+                    if m == start:
+                        for new_term in really_new_terms_max_count(
+                            expr, n, term, existing_terms, max_count
+                        ):
+                            if new_term not in all_results:
+                                if max_count is not None and len(all_results) >= max_count:
+                                    return
+                                yield new_term
+                                all_results.add(new_term)
+                                queues[start].put(PrioritizedItem(tree_size(new_term), start, new_term))
+                    else:
+                        for new_term in really_new_terms_max_count(
+                            expr, n, term, existing_terms, max_bucket_size
+                        ):
+                            queues[m].put(PrioritizedItem(tree_size(new_term), m, new_term))
+        current_bucket_size += 1
+        if all(queue.empty() for queue in queues.values()):
+            break
+    return
+
+def enumerate_terms_fast_veryslow(
     start: S,
     grammar: ParameterizedTreeGrammar[S, T],
     max_count: Optional[int] = 100,
