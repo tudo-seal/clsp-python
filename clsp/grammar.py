@@ -54,6 +54,7 @@ class RHSRule(Generic[NT, T]):
 
     terminal: T
     parameters: list[Literal | GVar]
+    variable_names: list[str]
     args: list[NT]
 
     def __len__(self) -> int:

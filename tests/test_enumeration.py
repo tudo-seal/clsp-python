@@ -1,8 +1,8 @@
 import logging
-from typing import TypeVar, Any
+from typing import Any
 import unittest
 from clsp import FiniteCombinatoryLogic, enumerate_terms, DSL, Subtypes
-from clsp.enumeration import interpret_term
+from clsp.enumeration import Tree
 from clsp.types import Constructor
 
 A = Constructor("A")
@@ -21,7 +21,7 @@ class TestList(unittest.TestCase):
             "steps": [2],
         }
 
-        def test_input(step, input) -> bool:
+        def test_input(step: int, input: Tree[str]) -> bool:
             return True
 
         exampleRepo = {

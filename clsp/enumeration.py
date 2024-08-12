@@ -10,7 +10,8 @@ import itertools
 from inspect import Parameter, signature, _ParameterKind, _empty
 from collections import deque
 from collections.abc import Callable, Hashable, Iterable, Sequence
-from typing import Any, Generic, Optional, TypeVar
+from typing import Any, Generic, Optional, TypeVar, overload
+import typing
 from queue import PriorityQueue
 from dataclasses import dataclass, field
 
@@ -23,7 +24,7 @@ from .grammar import (
 )
 
 S = TypeVar("S")  # non-terminals
-T = TypeVar("T", bound=Hashable)
+T = TypeVar("T", covariant=True, bound=Hashable)
 
 
 # Tree: TypeAlias = tuple[T, tuple["Tree[T]", ...]]
@@ -31,6 +32,7 @@ T = TypeVar("T", bound=Hashable)
 class Tree(Generic[T]):
     root: T
     children: tuple["Tree[T]", ...] = field(default=())
+    variable_names: list[str] = field(default=[])
     hashing_function: Optional[Callable[["Tree[T]"], int]] = field(
         default=None, compare=False, hash=False, repr=False
     )
@@ -44,14 +46,30 @@ class Tree(Generic[T]):
         else:
             self._hash = hash((self.root, self.children))
 
-    def __getitem__(self, i: int) -> T | tuple["Tree[T]", ...]:
+    @property
+    def parameters(self) -> dict[str, "Tree[T]"]:
+        return {name: self.children[i] for i, name in enumerate(self.variable_names)}
+
+    @property
+    def arguments(self) -> tuple["Tree[T]", ...]:
+        return tuple(self.children[len(self.variable_names) :])
+
+    @overload
+    def __getitem__(self, i: typing.Literal[0]) -> T: ...
+    @overload
+    def __getitem__(self, i: typing.Literal[1]) -> tuple["Tree[T]", ...]: ...
+
+    def __getitem__(self, i: typing.Literal[0] | typing.Literal[1]) -> T | tuple["Tree[T]", ...]:
         match i:
             case 0:
                 return self.root
             case 1:
                 return self.children
-            case _:
-                raise IndexError()
+        raise IndexError()
+
+    # def __iter__(self) -> Iterator[tuple[T, tuple["Tree[T]", ...]]]:
+    #     x = iter((self.root, self.children))
+    #     return x
 
     def __hash__(self) -> int:
         return self._hash
@@ -210,10 +228,12 @@ def enumerate_terms_fast(
     if start not in grammar.nonterminals():
         return
 
-    queues = {n: PriorityQueue() for n in grammar.nonterminals()}
-    existing_terms = {n: set() for n in grammar.nonterminals()}
-    inverse_grammar = {n: deque() for n in grammar.nonterminals()}
-    all_results = set()
+    queues: dict[S, PriorityQueue[Tree[T]]] = {n: PriorityQueue() for n in grammar.nonterminals()}
+    existing_terms: dict[S, set[Tree[T]]] = {n: set() for n in grammar.nonterminals()}
+    inverse_grammar: dict[S, deque[tuple[S, RHSRule[S, T]]]] = {
+        n: deque() for n in grammar.nonterminals()
+    }
+    all_results: set[Tree[T]] = set()
 
     for n, exprs in grammar.as_tuples():
         for expr in exprs:
@@ -671,8 +691,8 @@ def test() -> None:
         {
             "X": deque(
                 [
-                    RHSRule({}, [], "a", [], []),
-                    RHSRule({"x": "X", "y": "Y"}, [], "b", [GVar("x"), GVar("y")], []),
+                    RHSRule({}, [], "a", [], [], []),
+                    RHSRule({"x": "X", "y": "Y"}, [], "b", [GVar("x"), GVar("y")], ["x", "y"], []),
                 ]
             )
         }
@@ -681,8 +701,8 @@ def test() -> None:
         {
             "Y": deque(
                 [
-                    RHSRule({}, [], "c", [], []),
-                    RHSRule({"x": "X", "y": "Y"}, [], "d", [GVar("y"), GVar("x")], []),
+                    RHSRule({}, [], "c", [], [], []),
+                    RHSRule({"x": "X", "y": "Y"}, [], "d", [GVar("y"), GVar("x")], ["x", "y"], []),
                 ]
             )
         }
@@ -743,8 +763,8 @@ def test2() -> None:
         {
             "X": deque(
                 [
-                    RHSRule({}, [], A(), [], []),
-                    RHSRule({"x": "X", "y": "Y"}, [], B(), [GVar("x"), GVar("y")], []),
+                    RHSRule({}, [], A(), [], [], []),
+                    RHSRule({"x": "X", "y": "Y"}, [], B(), [GVar("x"), GVar("y")], ["x", "y"], []),
                 ]
             )
         }
@@ -753,8 +773,8 @@ def test2() -> None:
         {
             "Y": deque(
                 [
-                    RHSRule({}, [], "Z", [], []),
-                    RHSRule({"x": "Y", "y": "Y"}, [], D(), [GVar("y"), GVar("x")], []),
+                    RHSRule({}, [], "Z", [], [], []),
+                    RHSRule({"x": "Y", "y": "Y"}, [], D(), [GVar("y"), GVar("x")], ["y", "x"], []),
                 ]
             )
         }
@@ -776,9 +796,9 @@ def test2() -> None:
 
 def test3() -> None:
     grammar: ParameterizedTreeGrammar[str, str] = ParameterizedTreeGrammar()
-    grammar.add_rule("X", RHSRule({"y": "Y"}, [], "y", [], []))
-    grammar.add_rule("Y", RHSRule({}, [Predicate(lambda _: True)], "y1", [], []))
-    grammar.add_rule("Y", RHSRule({}, [Predicate(lambda _: False)], "y2", [], []))
+    grammar.add_rule("X", RHSRule({"y": "Y"}, [], "y", [], [], []))
+    grammar.add_rule("Y", RHSRule({}, [Predicate(lambda _: True)], "y1", [], [], []))
+    grammar.add_rule("Y", RHSRule({}, [Predicate(lambda _: False)], "y2", [], [], []))
     print(grammar.show())
 
 

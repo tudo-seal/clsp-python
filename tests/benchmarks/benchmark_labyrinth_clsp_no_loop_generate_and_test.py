@@ -27,12 +27,11 @@ def is_free(pos: tuple[int, int]) -> bool:
 def getpath(
     path: Tree[Callable[[int, int, str], str] | tuple[int, int] | str],
 ) -> Iterable[tuple[int, int]]:
-    c, args = path
-    while c != "START":
-        position_arg = args[0][0]
+    while path.root != "START":
+        position_arg = path.parameters["a"].root
         if isinstance(position_arg, tuple):
             yield position_arg
-        c, args = args[2]
+        path = path.parameters["pos"]
 
 
 def main(solutions: int = 10000, output: bool = True) -> float:

@@ -62,6 +62,7 @@ class ParamInfo:
     term_params: list[TermParamSpec]
     lvar_to_group: dict[str, str]
     params_selector: list[bool]
+    variable_names: list[str]
     cache: bool
     infer: bool
 
@@ -139,8 +140,9 @@ class FiniteCombinatoryLogic(Generic[C]):
 
         params, ty = split_params(p_or_ty)
 
-        parameters = ParamInfo([], [], {}, [], cache=False, infer=True)
+        parameters = ParamInfo([], [], {}, [], [], cache=False, infer=True)
         for param in params:
+            parameters.variable_names.append(param.name)
             if isinstance(param, LitParamSpec):
                 parameters.literal_params.append(param)
                 parameters.lvar_to_group[param.name] = param.group
@@ -450,6 +452,7 @@ class FiniteCombinatoryLogic(Generic[C]):
                                         instantiation.substituted_term_predicates,
                                         combinator,
                                         parameter_arguments,
+                                        parameters.variable_names,
                                         subquery,
                                     ),
                                 )

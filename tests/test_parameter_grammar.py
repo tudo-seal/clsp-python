@@ -16,13 +16,13 @@ class TestParamGrammar(unittest.TestCase):
         self.grammar: ParameterizedTreeGrammar[str, str] = ParameterizedTreeGrammar()
         self.grammar.add_rule(
             "X",
-            RHSRule({"y": "Y"}, [], "x", [GVar("y"), GVar("y")], []),
+            RHSRule({"y": "Y"}, [], "x", [GVar("y"), GVar("y")], ["y", "y"], []),
         )
         self.grammar.add_rule(
             "Y",
-            RHSRule({}, [Predicate(lambda _: True, "⊤")], "y1", [Literal(3, "int")], []),
+            RHSRule({}, [Predicate(lambda _: True, "⊤")], "y1", [Literal(3, "int")], ["n"], []),
         )
-        self.grammar.add_rule("Y", RHSRule({}, [Predicate(lambda _: False, "⊥")], "y2", [], []))
+        self.grammar.add_rule("Y", RHSRule({}, [Predicate(lambda _: False, "⊥")], "y2", [], [], []))
 
     def test_grammar(self) -> None:
         self.logger.info(self.grammar.show())
