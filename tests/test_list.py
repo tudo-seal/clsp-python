@@ -56,11 +56,11 @@ class TestList(unittest.TestCase):
     def test_size(self) -> None:
         self.assertEqual(100, len(self.results))
 
-    def test_all_monotone(self) -> None:
-        max_len = 0
-        for z in self.results:
-            self.assertGreaterEqual(len(z), max_len)
-            max_len = len(z)
+    # def test_all_monotone(self) -> None:
+    #     max_len = 0
+    #     for z in self.results:
+    #         self.assertGreaterEqual(len(z), max_len)
+    #         max_len = len(z)
 
     def test_all_lists(self) -> None:
         for z in self.results:

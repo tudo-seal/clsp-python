@@ -2,7 +2,7 @@ from collections.abc import Callable, Mapping
 import timeit
 from itertools import product
 from clsp.dsl import DSL
-from clsp.enumeration import enumerate_terms_iter, interpret_term
+from clsp.enumeration import enumerate_terms, interpret_term
 from clsp.fcl import FiniteCombinatoryLogic
 
 from clsp.types import Constructor, Literal, Param, LVar, Type
@@ -104,7 +104,7 @@ def main(SIZE: int = 10, output: bool = True) -> float:
     start = timeit.default_timer()
     grammar = fcl.inhabit(fin)
 
-    for term in enumerate_terms_iter(fin, grammar):
+    for term in enumerate_terms(fin, grammar, max_count=100):
         t = interpret_term(term)
         if output:
             print(t)

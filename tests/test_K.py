@@ -9,7 +9,7 @@ from clsp import (
     enumerate_terms,
     Subtypes,
 )
-from clsp.enumeration import interpret_term
+from clsp.enumeration import Tree, interpret_term
 
 X: str = "X"
 Y: str = "Y"
@@ -79,12 +79,20 @@ class TestK(unittest.TestCase):
         self.assertEqual(6, len(self.enumerated_result))
 
     def test_terms(self) -> None:
-        self.assertIn((K, (("X", ()), ("Y", ()))), self.enumerated_result[:2])
-        self.assertIn((K2, (("X", ()), ("Y", ()))), self.enumerated_result[:2])
-        self.assertIn((MAP, (("Y", ()), (K, (("X", ()),)))), self.enumerated_result[2:])
-        self.assertIn((MAP2, (("Y", ()), (K, (("X", ()),)))), self.enumerated_result[2:])
-        self.assertIn((MAP, (("Y", ()), (K2, (("X", ()),)))), self.enumerated_result[2:])
-        self.assertIn((MAP2, (("Y", ()), (K2, (("X", ()),)))), self.enumerated_result[2:])
+        self.assertIn(Tree(K, (Tree("X", ()), Tree("Y", ()))), self.enumerated_result[:2])
+        self.assertIn(Tree(K2, (Tree("X", ()), Tree("Y", ()))), self.enumerated_result[:2])
+        self.assertIn(
+            Tree(MAP, (Tree("Y", ()), Tree(K, (Tree("X", ()),)))), self.enumerated_result[2:]
+        )
+        self.assertIn(
+            Tree(MAP2, (Tree("Y", ()), Tree(K, (Tree("X", ()),)))), self.enumerated_result[2:]
+        )
+        self.assertIn(
+            Tree(MAP, (Tree("Y", ()), Tree(K2, (Tree("X", ()),)))), self.enumerated_result[2:]
+        )
+        self.assertIn(
+            Tree(MAP2, (Tree("Y", ()), Tree(K2, (Tree("X", ()),)))), self.enumerated_result[2:]
+        )
 
     def test_interpretations(self) -> None:
         for x in self.interpreted_terms:

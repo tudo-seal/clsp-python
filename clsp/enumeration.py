@@ -6,17 +6,14 @@
 # Uniqueness is guaranteed by python's set (instead of list) data structure.
 
 from functools import partial
-from heapq import merge
 import itertools
 from inspect import Parameter, signature, _ParameterKind, _empty
 from collections import deque
 from collections.abc import Callable, Hashable, Iterable, Sequence
-from typing import Any, Generic, Optional, TypeAlias, TypeVar
+from typing import Any, Generic, Optional, TypeVar
 from queue import PriorityQueue
 from dataclasses import dataclass, field
 
-from clsp.sortedenum import sorted_product
-from clsp.types import Literal
 
 from .grammar import (
     GVar,
@@ -24,8 +21,6 @@ from .grammar import (
     Predicate,
     RHSRule,
 )
-from .types import Literal
-from .sortedenum import sorted_product
 
 S = TypeVar("S")  # non-terminals
 T = TypeVar("T", bound=Hashable)
@@ -42,14 +37,14 @@ class Tree(Generic[T]):
     size: int = field(init=False, compare=True, repr=False)
     _hash: int = field(init=False, compare=False, repr=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.size = 1 + sum(child.size for child in self.children)
         if self.hashing_function is not None:
             self._hash = self.hashing_function(self)
         else:
             self._hash = hash((self.root, self.children))
 
-    def __getitem__(self, i):
+    def __getitem__(self, i: int) -> T | tuple["Tree[T]", ...]:
         match i:
             case 0:
                 return self.root
@@ -61,7 +56,12 @@ class Tree(Generic[T]):
     def __hash__(self) -> int:
         return self._hash
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, Tree):
+            return False
+
+        if self.hashing_function is None:
+            return self.root == other.root and self.children == other.children
         return hash(self) == hash(other)
 
     def __lt__(self, other: "Tree[T]") -> bool:
@@ -86,7 +86,8 @@ def tree_size(tree: Tree[T]) -> int:
 #         if not pred(elem):
 #             return
 
-#TODO move?
+
+# TODO move?
 def test_predicates(rule: RHSRule[S, T], parameters: Iterable[Tree[T]]) -> bool:
     """Test if all predicates of a rule are satisfied by the parameters."""
     substitution = {
@@ -96,7 +97,8 @@ def test_predicates(rule: RHSRule[S, T], parameters: Iterable[Tree[T]]) -> bool:
     }
     return all(predicate.eval(substitution) for predicate in rule.predicates)
 
-def really_new_terms_max_count(
+
+def generate_new_terms(
     rule: RHSRule[S, T],
     existing_terms: dict[S, set[Tree[T]]],
     max_count: Optional[int] = None,
@@ -127,7 +129,7 @@ def really_new_terms_max_count(
 
     for pos in positions_of_nt:
         pos_in_parameters = pos < number_of_parameters
-        all_parameter_parts: Iterable[tuple[Tree[T], ...]] = []
+        all_parameter_parts: list[tuple[Tree[T], ...]] = []
 
         if 0 < pos < number_of_parameters or cached_complete_parameter_parts is None:
             for parameter_part in itertools.product(
@@ -144,7 +146,7 @@ def really_new_terms_max_count(
                     for i, param in enumerate(rule.parameters)
                 )
             ):
-                if (test_predicates(rule, parameter_part)):
+                if test_predicates(rule, parameter_part):
                     all_parameter_parts.append(parameter_part)
             if not pos_in_parameters:
                 cached_complete_parameter_parts = all_parameter_parts
@@ -195,13 +197,6 @@ def enumerate_terms(
     )
 
 
-def enumerate_terms_with_iter(
-    start: S,
-    grammar: ParameterizedTreeGrammar[S, T],
-    max_count: Optional[int] = None,
-) -> Iterable[Tree[T]]:
-    return itertools.islice(enumerate_terms_iter(start, grammar, max_count), max_count)
-
 def enumerate_terms_fast(
     start: S,
     grammar: ParameterizedTreeGrammar[S, T],
@@ -228,7 +223,9 @@ def enumerate_terms_fast(
             non_terminals.update(expr.args)
             for m in non_terminals:
                 inverse_grammar[m].append((n, expr))
-            for new_term in really_new_terms_max_count(expr, existing_terms, hashing_function=hashing_function):
+            for new_term in generate_new_terms(
+                expr, existing_terms, hashing_function=hashing_function
+            ):
                 queues[n].put(new_term)
                 if n == start and new_term not in all_results:
                     if max_count is not None and len(all_results) >= max_count:
@@ -238,7 +235,9 @@ def enumerate_terms_fast(
 
     current_bucket_size = 1
 
-    while (max_bucket_size is None or current_bucket_size <= max_bucket_size) and any(not queue.empty() for queue in queues.values()):
+    while (max_bucket_size is None or current_bucket_size <= max_bucket_size) and any(
+        not queue.empty() for queue in queues.values()
+    ):
         non_terminals = {n for n in grammar.nonterminals() if not queues[n].empty()}
 
         while non_terminals:
@@ -253,7 +252,7 @@ def enumerate_terms_fast(
                     if len(existing_terms[m]) < current_bucket_size:
                         non_terminals.add(m)
                     if m == start:
-                        for new_term in really_new_terms_max_count(
+                        for new_term in generate_new_terms(
                             expr, existing_terms, max_count, (n, term), hashing_function
                         ):
                             if new_term not in all_results:
@@ -263,7 +262,7 @@ def enumerate_terms_fast(
                                 all_results.add(new_term)
                                 queues[start].put(new_term)
                     else:
-                        for new_term in really_new_terms_max_count(
+                        for new_term in generate_new_terms(
                             expr, existing_terms, max_count, (n, term), hashing_function
                         ):
                             queues[m].put(new_term)
@@ -271,90 +270,96 @@ def enumerate_terms_fast(
     return
 
 
-def validate_term(rule: RHSRule[S, T], term: Tree[T]) -> bool:
-    arguments = term.children
-    substitution = {
-        param.name: subterm
-        for subterm, param in zip(arguments, rule.parameters)
-        if isinstance(param, GVar)
-    }
-    return all(predicate.eval(substitution) for predicate in rule.predicates)
+# def validate_term(rule: RHSRule[S, T], term: Tree[T]) -> bool:
+#     arguments = term.children
+#     substitution = {
+#         param.name: subterm
+#         for subterm, param in zip(arguments, rule.parameters)
+#         if isinstance(param, GVar)
+#     }
+#     return all(predicate.eval(substitution) for predicate in rule.predicates)
 
 
-def enumerate_terms_iter(
-    start: S, grammar: ParameterizedTreeGrammar[S, T], max_count: Optional[int] = None
-) -> Iterable[Tree[T]]:
-    """
-    Enumerate terms as an iterator in an ascending way.
-    """
-    if start not in grammar.nonterminals():
-        return
+# def enumerate_terms_iter(
+#     start: S, grammar: ParameterizedTreeGrammar[S, T], max_count: Optional[int] = None
+# ) -> Iterable[Tree[T]]:
+#     """
+#     Enumerate terms as an iterator in an ascending way.
+#     """
+#     if start not in grammar.nonterminals():
+#         return
+#
+#     if max_count is not None:
+#         max_count += 1
+#
+#     old_terms: dict[S, list[Tree[T]]] = {n: [] for n in grammar.nonterminals()}
+#     already_checked: dict[S, set[int]] = {n: set() for n in grammar.nonterminals()}
+#
+#     terms_size: int = -1
+#
+#     generation = 0
+#
+#     there_are_more_new_terms = True
+#     while there_are_more_new_terms or terms_size < sum(len(ts) for ts in old_terms.values()):
+#         there_are_more_new_terms = False
+#         terms_size = sum(len(ts) for ts in old_terms.values())
+#         generation = generation + 1
+#         for n, rhs in grammar.as_tuples():
+#             out_iter, avoid_iter = itertools.tee(
+#                 merge(
+#                     *(
+#                         filter(
+#                             lambda new_term: hash(new_term)
+#                             not in already_checked[
+#                                 n
+#                             ]  # Skip already generated terms for a specific symbol n
+#                             and validate_term(rule, new_term),  # Check the predicates
+#                             sorted_product(  # Build the new terms in a sorted iterator.
+#                                 *(
+#                                     (
+#                                         old_terms[m]
+#                                         if not isinstance(m, Literal)
+#                                         else [Tree(m.value, ())]
+#                                     )  # Build new terms from old terms and literals
+#                                     for m in rule.all_args()
+#                                 ),
+#                                 key=tree_size,  # Sort them by size
+#                                 combine=partial(
+#                                     lambda c, args: Tree(c, tuple(args)), rule.terminal
+#                                 ),  # Construct a new term from the arguments
+#                             ),
+#                         )
+#                         # for c, ms in sorted(exprs, key=lambda expr: len(expr[1]))
+#                         for rule in rhs
+#                     ),
+#                     key=tree_size,
+#                 ),
+#             )
+#
+#             if n == start:
+#                 for i in out_iter:
+#                     if tree_size(i) <= generation:
+#                         yield i
+#                     else:
+#                         there_are_more_new_terms = True
+#                         break
+#
+#             for i in avoid_iter:
+#                 if tree_size(i) <= generation:
+#                     already_checked[n].add(hash(i))
+#                     if max_count is None or len(old_terms[n]) <= max_count:
+#                         old_terms[n].append(i)
+#                 else:
+#                     there_are_more_new_terms = True
+#                     break
 
-    if max_count is not None:
-        max_count += 1
 
-    old_terms: dict[S, list[Tree[T]]] = {n: [] for n in grammar.nonterminals()}
-    already_checked: dict[S, set[int]] = {n: set() for n in grammar.nonterminals()}
-
-    terms_size: int = -1
-
-    generation = 0
-
-    there_are_more_new_terms = True
-    while there_are_more_new_terms or terms_size < sum(len(ts) for ts in old_terms.values()):
-        there_are_more_new_terms = False
-        terms_size = sum(len(ts) for ts in old_terms.values())
-        generation = generation + 1
-        for n, rhs in grammar.as_tuples():
-            out_iter, avoid_iter = itertools.tee(
-                merge(
-                    *(
-                        filter(
-                            lambda new_term: hash(new_term)
-                            not in already_checked[
-                                n
-                            ]  # Skip already generated terms for a specific symbol n
-                            and validate_term(rule, new_term),  # Check the predicates
-                            sorted_product(  # Build the new terms in a sorted iterator.
-                                *(
-                                    (
-                                        old_terms[m]
-                                        if not isinstance(m, Literal)
-                                        else [Tree(m.value, ())]
-                                    )  # Build new terms from old terms and literals
-                                    for m in rule.all_args()
-                                ),
-                                key=tree_size,  # Sort them by size
-                                combine=partial(
-                                    lambda c, args: Tree(c, tuple(args)), rule.terminal
-                                ),  # Construct a new term from the arguments
-                            ),
-                        )
-                        # for c, ms in sorted(exprs, key=lambda expr: len(expr[1]))
-                        for rule in rhs
-                    ),
-                    key=tree_size,
-                ),
-            )
-
-            if n == start:
-                for i in out_iter:
-                    if tree_size(i) <= generation:
-                        yield i
-                    else:
-                        there_are_more_new_terms = True
-                        break
-
-            for i in avoid_iter:
-                if tree_size(i) <= generation:
-                    already_checked[n].add(hash(i))
-                    if max_count is None or len(old_terms[n]) <= max_count:
-                        old_terms[n].append(i)
-                else:
-                    there_are_more_new_terms = True
-                    break
-
-
+# def enumerate_terms_with_iter(
+#     start: S,
+#     grammar: ParameterizedTreeGrammar[S, T],
+#     max_count: Optional[int] = None,
+# ) -> Iterable[Tree[T]]:
+#     return itertools.islice(enumerate_terms_iter(start, grammar, max_count), max_count)
 #
 #
 # def bounded_union(old_elements: set[S], new_elements: Iterable[S], max_count: int) -> set[S]:
@@ -760,11 +765,11 @@ def test2() -> None:
     start = timeit.default_timer()
 
     for i, r in enumerate(
-        enumerate_terms("X", d, max_count=100_000, hashing_function=lambda t: t.size)
+        enumerate_terms("X", d, max_count=10_000, hashing_function=lambda t: t.size)
     ):
-        print(i)
-        # pass
-        # print(i, interpret_term(r))
+        # print(i)
+        pass
+        # print(i, interpret_term(r), r.size)
 
     print("Time: ", timeit.default_timer() - start)
 
