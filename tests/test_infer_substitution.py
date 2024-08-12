@@ -31,8 +31,8 @@ class TestDSL(unittest.TestCase):
         sub = Subtypes({})
 
         groups = {"a": "int", "b": "str"}
-        print(f"{ty} <= {path}")
-        print(f"test1: {sub.infer_substitution(ty, path, groups)}")
+        self.logger.info(f"{ty} <= {path}")
+        self.logger.info(f"test1: {sub.infer_substitution(ty, path, groups)}")
 
     def test2(self) -> None:
         ty = Intersection(LVar("a"), Literal(3, "int"))
@@ -42,8 +42,8 @@ class TestDSL(unittest.TestCase):
         sub = Subtypes({})
 
         groups = {"a": "int", "b": "str"}
-        print(f"{ty} <= {path}")
-        print(f"test2: {sub.infer_substitution(ty, path, groups)}")
+        self.logger.info(f"{ty} <= {path}")
+        self.logger.info(f"test2: {sub.infer_substitution(ty, path, groups)}")
 
     def test3(self) -> None:
         ty = Intersection(LVar("a"), LVar("a'"))
@@ -53,8 +53,8 @@ class TestDSL(unittest.TestCase):
         sub = Subtypes({})
 
         groups = {"a": "int", "a'": "int", "b": "str"}
-        print(f"{ty} <= {path}")
-        print(f"test3: {sub.infer_substitution(ty, path, groups)}")
+        self.logger.info(f"{ty} <= {path}")
+        self.logger.info(f"test3: {sub.infer_substitution(ty, path, groups)}")
 
     def test4(self) -> None:
         ty = Intersection(LVar("a"), LVar("a'"))
@@ -64,8 +64,8 @@ class TestDSL(unittest.TestCase):
         sub = Subtypes({})
 
         groups = {"a": "int", "a'": "int", "b": "str"}
-        print(f"{ty} <= {path}")
-        print(f"test4: {sub.infer_substitution(ty, path, groups)}")
+        self.logger.info(f"{ty} <= {path}")
+        self.logger.info(f"test4: {sub.infer_substitution(ty, path, groups)}")
 
     def test5(self) -> None:
         ty = Arrow(LVar("a"), LVar("a"))
@@ -75,8 +75,8 @@ class TestDSL(unittest.TestCase):
         sub = Subtypes({})
 
         groups = {"a": "int", "a'": "int", "b": "str"}
-        print(f"{ty} <= {path}")
-        print(f"test5: {sub.infer_substitution(ty, path, groups)}")
+        self.logger.info(f"{ty} <= {path}")
+        self.logger.info(f"test5: {sub.infer_substitution(ty, path, groups)}")
 
     def test6(self) -> None:
         ty = Arrow(LVar("b"), LVar("a"))
@@ -86,8 +86,8 @@ class TestDSL(unittest.TestCase):
         sub = Subtypes({})
 
         groups = {"a": "int", "a'": "int", "b": "str"}
-        print(f"{ty} <= {path}")
-        print(f"test6: {sub.infer_substitution(ty, path, groups)}")
+        self.logger.info(f"{ty} <= {path}")
+        self.logger.info(f"test6: {sub.infer_substitution(ty, path, groups)}")
 
     def test7(self) -> None:
         ty = Arrow(Omega(), LVar("a"))
@@ -97,8 +97,8 @@ class TestDSL(unittest.TestCase):
         sub = Subtypes({})
 
         groups = {"a": "int", "a'": "int", "b": "str"}
-        print(f"{ty} <= {path}")
-        print(f"test7: {sub.infer_substitution(ty, path, groups)}")
+        self.logger.info(f"{ty} <= {path}")
+        self.logger.info(f"test7: {sub.infer_substitution(ty, path, groups)}")
 
     def test8(self) -> None:
         ty = Arrow(Literal(4, "int"), LVar("a"))
@@ -108,8 +108,8 @@ class TestDSL(unittest.TestCase):
         sub = Subtypes({})
 
         groups = {"a": "int", "a'": "int", "b": "str"}
-        print(f"{ty} <= {path}")
-        print(f"test8: {sub.infer_substitution(ty, path, groups)}")
+        self.logger.info(f"{ty} <= {path}")
+        self.logger.info(f"test8: {sub.infer_substitution(ty, path, groups)}")
 
     def test_for_real(self) -> None:
         ty = Intersection(Constructor("In", LVar("a")), Constructor("Out", LVar("b")))
@@ -120,9 +120,9 @@ class TestDSL(unittest.TestCase):
         sub = Subtypes({})
 
         groups = {"a": "int", "b": "int"}
-        print(f"{ty} <= {path1}")
-        print(f"{ty} <= {path2}")
-        print(
+        self.logger.info(f"{ty} <= {path1}")
+        self.logger.info(f"{ty} <= {path2}")
+        self.logger.info(
             f"test_for_real: {sub.infer_substitution(ty, path1, groups)} and {sub.infer_substitution(ty, path2, groups)}"
         )
 

@@ -35,6 +35,8 @@ class TestSample(unittest.TestCase):
 
     def test_completely_random_sample(self) -> None:
         """
+        Randomly reject terms in enumeration.
+
         Each usage of `str_add` and `str_mul` can be randomly withheld in enumeration
         based on its size.
 
@@ -71,6 +73,8 @@ class TestSample(unittest.TestCase):
 
     def test_non_ideal_but_better_random_sample(self) -> None:
         """
+        Randomly reject terms in enumeration, but based on term length.
+
         Each usage of `str_add` and `str_mul` can be randomly withheld in enumeration
         based on the number of terms already enumerated of that size.
 
