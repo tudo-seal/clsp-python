@@ -32,7 +32,7 @@ T = TypeVar("T", covariant=True, bound=Hashable)
 class Tree(Generic[T]):
     root: T
     children: tuple["Tree[T]", ...] = field(default=())
-    variable_names: list[str] = field(default=[])
+    variable_names: list[str] = field(default_factory=list)
     hashing_function: Optional[Callable[["Tree[T]"], int]] = field(
         default=None, compare=False, hash=False, repr=False
     )
