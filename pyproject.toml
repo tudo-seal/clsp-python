@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "clsp"
-version = "0.0.1"
+version = "0.0.2"
 description = "Type based synthesis framework using inhabitation in FCLP"
 authors = ["Andrej Dudenhefner <andrej.dudenhefner@cs.tu-dortmund.de>", "Christoph Stahl <christoph.stahl@tu-dortmund.de>", "Jan Bessai <jan.bessai@tu-dortmund.de>"]
 license = "Apache-2.0"
