@@ -85,6 +85,22 @@ class Tree(Generic[T]):
     def __lt__(self, other: "Tree[T]") -> bool:
         return self.size < other.size
 
+    def __rec_to_str__(self, outermost: bool) -> str:
+        str_root = [f"{str(self.root)}"]
+        str_params = [
+            f"{{{name}={subtree.__rec_to_str__(True)}}})"
+            for name, subtree in self.parameters.items()
+        ]
+        str_args = [f"{subtree.__rec_to_str__(False)}" for subtree in self.arguments]
+
+        strings = str_root + str_params + str_args
+        if not outermost and len(strings) > 1:
+            return f"({' '.join(strings)})"
+        return " ".join(strings)
+
+    def __str__(self) -> str:
+        return self.__rec_to_str__(True)
+
 
 def tree_size(tree: Tree[T]) -> int:
     """The number of nodes in a tree."""
