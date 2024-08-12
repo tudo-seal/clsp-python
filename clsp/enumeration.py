@@ -105,17 +105,6 @@ def tree_size(tree: Tree[T]) -> int:
 #             return
 
 
-# TODO move?
-def test_predicates(rule: RHSRule[S, T], parameters: Iterable[Tree[T]]) -> bool:
-    """Test if all predicates of a rule are satisfied by the parameters."""
-    substitution = {
-        param.name: subterm
-        for subterm, param in zip(parameters, rule.parameters)
-        if isinstance(param, GVar)
-    }
-    return all(predicate.eval(substitution) for predicate in rule.predicates)
-
-
 def generate_new_terms(
     rule: RHSRule[S, T],
     existing_terms: dict[S, set[Tree[T]]],
@@ -164,7 +153,7 @@ def generate_new_terms(
                     for i, param in enumerate(rule.parameters)
                 )
             ):
-                if test_predicates(rule, parameter_part):
+                if rule.check(parameter_part):
                     all_parameter_parts.append(parameter_part)
             if not pos_in_parameters:
                 cached_complete_parameter_parts = all_parameter_parts

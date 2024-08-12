@@ -68,6 +68,15 @@ class RHSRule(Generic[NT, T]):
                 yield self.binder[p.name]
         yield from self.args
 
+    def check(self, parameters: Iterable[Any]) -> bool:
+        """Test if all predicates of a rule are satisfied by the parameters."""
+        substitution = {
+            param.name: subterm
+            for subterm, param in zip(parameters, self.parameters)
+            if isinstance(param, GVar)
+        }
+        return all(predicate.eval(substitution) for predicate in self.predicates)
+
     def __str__(self) -> str:
         forallstrings = "".join([f"∀({name}:{ty})." for name, ty in self.binder.items()])
         predicatestrings = "".join([str(predicate) for predicate in self.predicates])
