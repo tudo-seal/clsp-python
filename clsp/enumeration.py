@@ -179,7 +179,12 @@ def generate_new_terms(
             all_argument_parts = cached_complete_argument_parts
 
         new_terms = (
-            Tree(rule.terminal, param_part + arg_part, hashing_function=hashing_function)
+            Tree(
+                rule.terminal,
+                param_part + arg_part,
+                variable_names=rule.variable_names,
+                hashing_function=hashing_function,
+            )
             for param_part, arg_part in itertools.product(all_parameter_parts, all_argument_parts)
         )
 
