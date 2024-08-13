@@ -217,10 +217,9 @@ def enumerate_terms(
     grammar: ParameterizedTreeGrammar[S, T],
     max_count: Optional[int] = None,
     max_bucket_size: Optional[int] = None,
-    hashing_function: Optional[Callable[[Tree[T]], int]] = None,
 ) -> Iterable[Tree[T]]:
     return itertools.islice(
-        enumerate_terms_fast(start, grammar, max_count, max_bucket_size, hashing_function),
+        enumerate_terms_fast(start, grammar, max_count, max_bucket_size),
         max_count,
     )
 
@@ -795,7 +794,10 @@ def test2() -> None:
     start = timeit.default_timer()
 
     for i, r in enumerate(
-        enumerate_terms("X", d, max_count=10_000, hashing_function=lambda t: t.size)
+        itertools.islice(
+            enumerate_terms_fast("X", d, max_count=10_000, hashing_function=lambda t: t.size),
+            10_000,
+        )
     ):
         # print(i)
         pass
