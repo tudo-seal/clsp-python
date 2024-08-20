@@ -88,7 +88,7 @@ class Tree(Generic[T]):
     def __rec_to_str__(self, outermost: bool) -> str:
         str_root = [f"{str(self.root)}"]
         str_params = [
-            f"{{{name}={subtree.__rec_to_str__(True)}}})"
+            f"{{{name}={subtree.__rec_to_str__(True)}}}"
             for name, subtree in self.parameters.items()
         ]
         str_args = [f"{subtree.__rec_to_str__(False)}" for subtree in self.arguments]
@@ -796,11 +796,11 @@ def test2() -> None:
     for i, r in enumerate(
         itertools.islice(
             enumerate_terms_fast("X", d, max_count=10_000, hashing_function=lambda t: t.size),
-            10_000,
+            10,
         )
     ):
-        # print(i)
-        pass
+        print(r)
+        # pass
         # print(i, interpret_term(r), r.size)
 
     print("Time: ", timeit.default_timer() - start)
