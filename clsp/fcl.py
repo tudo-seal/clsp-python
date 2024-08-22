@@ -463,12 +463,12 @@ class FiniteCombinatoryLogic(Generic[C]):
         return FiniteCombinatoryLogic._prune(memo)
 
     @staticmethod
-    def _prune(memo: ParameterizedTreeGrammar[Type, C]) -> None:
+    def _prune(memo: ParameterizedTreeGrammar[Type, C]) -> ParameterizedTreeGrammar[Type, C]:
         """Keep only productive grammar rules."""
 
         ground_types: set[Type] = set()
         queue: set[Type] = set()
-        inverse_grammar: dict[Type, set[tuple[Type, set[Type]]]] = defaultdict(set)
+        inverse_grammar: dict[Type, set[tuple[Type, frozenset[Type]]]] = defaultdict(set)
 
         for n, exprs in memo.as_tuples():
             for expr in exprs:
