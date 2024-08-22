@@ -9,7 +9,6 @@ from collections.abc import (
 )
 from dataclasses import dataclass
 from functools import reduce
-from itertools import chain
 from typing import (
     Any,
     Callable,
