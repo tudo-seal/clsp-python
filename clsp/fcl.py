@@ -486,11 +486,13 @@ class FiniteCombinatoryLogic(Generic[C]):
                     if m not in ground_types and all(t in ground_types for t in non_terminals):
                         queue.add(m)
 
-        return ParameterizedTreeGrammar({
-            target: deque(
-                possibility
-                for possibility in memo[target]
-                if all(t in ground_types for t in possibility.non_terminals())
-            )
-            for target in ground_types
-        })
+        return ParameterizedTreeGrammar(
+            {
+                target: deque(
+                    possibility
+                    for possibility in memo[target]
+                    if all(t in ground_types for t in possibility.non_terminals())
+                )
+                for target in ground_types
+            }
+        )
