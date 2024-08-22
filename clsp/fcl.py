@@ -1,7 +1,7 @@
 # Propositional Finite Combinatory Logic
 
 from __future__ import annotations
-from collections import deque
+from collections import deque, defaultdict
 from collections.abc import (
     Iterable,
     Mapping,
@@ -460,53 +460,37 @@ class FiniteCombinatoryLogic(Generic[C]):
                                 type_targets.extendleft(subquery)
 
         # prune not inhabited types
-        FiniteCombinatoryLogic._prune(memo)
-
-        return memo
+        return FiniteCombinatoryLogic._prune(memo)
 
     @staticmethod
     def _prune(memo: ParameterizedTreeGrammar[Type, C]) -> None:
         """Keep only productive grammar rules."""
 
-        def is_ground(
-            binder: dict[str, Type],
-            parameters: Sequence[Literal | GVar],
-            args: Sequence[Type],
-            ground_types: set[Type],
-        ) -> bool:
-            return all(
-                isinstance(parameter, Literal) or binder[parameter.name] in ground_types
-                for parameter in parameters
-            ) and all(isinstance(arg, Literal) or arg in ground_types for arg in args)
-
         ground_types: set[Type] = set()
-        candidates, new_ground_types = partition(
-            lambda ty: any(
-                is_ground(rule.binder, rule.parameters, rule.args, ground_types)
-                for rule in memo[ty]
-            ),
-            memo.nonterminals(),
-        )
-        while new_ground_types:
-            ground_types.update(new_ground_types)
-            candidates, new_ground_types = partition(
-                lambda ty: any(
-                    is_ground(rule.binder, rule.parameters, rule.args, ground_types)
-                    for rule in memo[ty]
-                ),
-                candidates,
-            )
+        queue: set[Type] = set()
+        inverse_grammar: dict[Type, set[tuple[Type, set[Type]]]] = defaultdict(set)
 
-        non_ground_types = set(memo.nonterminals()).difference(ground_types)
-        for target in non_ground_types:
-            del memo._rules[target]
+        for n, exprs in memo.as_tuples():
+            for expr in exprs:
+                non_terminals = expr.non_terminals()
+                for m in non_terminals:
+                    inverse_grammar[m].add((n, non_terminals))
+                if not non_terminals:
+                    queue.add(n)
 
-        for target in ground_types:
-            memo[target] = deque(
+        while queue:
+            n = queue.pop()
+            if n not in ground_types:
+                ground_types.add(n)
+                for m, non_terminals in inverse_grammar[n]:
+                    if m not in ground_types and all(t in ground_types for t in non_terminals):
+                        queue.add(m)
+
+        return ParameterizedTreeGrammar({
+            target: deque(
                 possibility
                 for possibility in memo[target]
-                if all(
-                    ty in ground_types
-                    for ty in chain(possibility.binder.values(), possibility.args)
-                )
+                if all(t in ground_types for t in possibility.non_terminals())
             )
+            for target in ground_types
+        })

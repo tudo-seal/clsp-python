@@ -3,6 +3,7 @@ from collections import defaultdict, deque
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from typing import Generic, TypeVar, Any, Optional
+from itertools import chain
 
 from .types import Literal
 
@@ -76,6 +77,10 @@ class RHSRule(Generic[NT, T]):
             if isinstance(param, GVar)
         }
         return all(predicate.eval(substitution) for predicate in self.predicates)
+
+    def non_terminals(self) -> frozenset[NT]:
+        """Set of non-terminals occurring in the body of the rule."""
+        return frozenset(chain(self.binder.values(), self.args))
 
     def __str__(self) -> str:
         forallstrings = "".join([f"∀({name}:{ty})." for name, ty in self.binder.items()])

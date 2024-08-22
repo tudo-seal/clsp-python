@@ -246,11 +246,7 @@ def enumerate_terms_fast(
 
     for n, exprs in grammar.as_tuples():
         for expr in exprs:
-            non_terminals = {
-                expr.binder[param.name] for param in expr.parameters if isinstance(param, GVar)
-            }
-            non_terminals.update(expr.args)
-            for m in non_terminals:
+            for m in expr.non_terminals():
                 inverse_grammar[m].append((n, expr))
             for new_term in generate_new_terms(
                 expr, existing_terms, hashing_function=hashing_function
@@ -292,7 +288,7 @@ def enumerate_terms_fast(
                                 queues[start].put(new_term)
                     else:
                         for new_term in generate_new_terms(
-                            expr, existing_terms, max_count, (n, term), hashing_function
+                            expr, existing_terms, max_bucket_size, (n, term), hashing_function
                         ):
                             queues[m].put(new_term)
         current_bucket_size += 1
