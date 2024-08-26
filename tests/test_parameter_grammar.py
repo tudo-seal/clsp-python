@@ -20,23 +20,28 @@ class TestParamGrammar(unittest.TestCase):
         )
         self.grammar.add_rule(
             "Y",
-            RHSRule({}, [Predicate(lambda _: True, "⊤")], "y1", [Literal(3, "int")], ["n"], []),
+            RHSRule({}, [Predicate(lambda _: True, "⊤")], "y1", [Literal(1, "int")], ["n"], []),
         )
-        self.grammar.add_rule("Y", RHSRule({}, [Predicate(lambda _: False, "⊥")], "y2", [], [], []))
+        self.grammar.add_rule(
+            "Y",
+            RHSRule({}, [], "y2", [], [], []),
+        )
+        self.grammar.add_rule("Y", RHSRule({}, [Predicate(lambda _: False, "⊥")], "y3", [], [], []))
 
     def test_grammar(self) -> None:
         self.logger.info(self.grammar.show())
         self.assertEqual(
-            "X ~> ∀(y:Y).x(<y>)(<y>)\nY ~> ⊤ ⇛ y1([3, int]) | ⊥ ⇛ y2",
+            "X ~> ∀(y:Y).x(<y>)(<y>)\nY ~> ⊤ ⇛ y1([1, int]) | y2 | ⊥ ⇛ y3",
             self.grammar.show(),
         )
 
     def test_enum(self) -> None:
         enumeration = enumerate_terms("X", self.grammar)
-
-        for t in enumeration:
-            self.logger.info(t)
-            self.assertEqual(Tree("x", (Tree("y1", (Tree(3, ()),)), Tree("y1", (Tree(3, ()),)))), t)
+        expected_results = [
+            Tree("x", (Tree("y1", (Tree(1, ()),), ["n"]), Tree("y1", (Tree(1, ()),), ["n"])), ["y", "y"],),
+            Tree("x", (Tree("y2", ()), Tree("y2", ())), ["y", "y"]),
+        ]
+        self.assertCountEqual(enumeration, expected_results)
 
 
 if __name__ == "__main__":
