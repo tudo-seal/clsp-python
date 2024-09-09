@@ -68,7 +68,7 @@ class MazePoints(MazeSig[list[tuple[int, int]]]):
     ) -> list[tuple[int, int]]:
         return p + [b]
 
-    def start(self):
+    def start(self) -> list[tuple[int, int]]:
         return [(0, 0)]
 
 
