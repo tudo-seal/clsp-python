@@ -99,9 +99,9 @@ class FiniteCombinatoryLogic(Generic[C]):
         self,
         repository: Mapping[C, Param | Type],
         subtypes: Subtypes = Subtypes({}),
-        literals: Optional[Mapping[str, list[Any]]] = None,
+        literals: Optional[Mapping[str, Sequence[Any]]] = None,
     ):
-        self.literals: Mapping[str, list[Any]] = {} if literals is None else literals
+        self.literals: Mapping[str, Sequence[Any]] = {} if literals is None else literals
         self.repository: MutableMapping[
             C,
             tuple[ParamInfo, Optional[Iterable[Instantiation]], list[list[MultiArrow]]],
@@ -112,7 +112,9 @@ class FiniteCombinatoryLogic(Generic[C]):
         self.subtypes = subtypes
 
     @staticmethod
-    def _function_types(p_or_ty: Param | Type, literals: Mapping[str, list[Any]]) -> tuple[
+    def _function_types(
+        p_or_ty: Param | Type, literals: Mapping[str, Sequence[Any]]
+    ) -> tuple[
         ParamInfo,
         None,
         list[list[MultiArrow]],
@@ -173,7 +175,7 @@ class FiniteCombinatoryLogic(Generic[C]):
         set_to_preds: list[SetTo],
         substitutions: deque[dict[str, Literal]],
         group: str,
-        literals: Mapping[str, list[Any]],
+        literals: Mapping[str, Sequence[Any]],
     ) -> Iterable[dict[str, Literal]]:
         for s in substitutions:
             values = {pred.compute(s) for pred in set_to_preds}
@@ -186,7 +188,7 @@ class FiniteCombinatoryLogic(Generic[C]):
 
     @staticmethod
     def _instantiate(
-        literals: Mapping[str, list[Any]],
+        literals: Mapping[str, Sequence[Any]],
         parameters: ParamInfo,
         initial_substitution: Optional[dict[str, Literal]] = None,
         prior_instantiations: Optional[list[Instantiation]] = None,
