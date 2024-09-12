@@ -112,9 +112,7 @@ class FiniteCombinatoryLogic(Generic[C]):
         self.subtypes = subtypes
 
     @staticmethod
-    def _function_types(
-        p_or_ty: Param | Type, literals: Mapping[str, Sequence[Any]]
-    ) -> tuple[
+    def _function_types(p_or_ty: Param | Type, literals: Mapping[str, Sequence[Any]]) -> tuple[
         ParamInfo,
         None,
         list[list[MultiArrow]],
@@ -178,13 +176,18 @@ class FiniteCombinatoryLogic(Generic[C]):
         literals: Mapping[str, Sequence[Any]],
     ) -> Iterable[dict[str, Literal]]:
         for s in substitutions:
-            values = {pred.compute(s) for pred in set_to_preds}
-            if len(values) != 1:
+            all_values = {
+                frozenset(pred.compute(s)) if pred.multi_value else frozenset({pred.compute(s)})
+                for pred in set_to_preds
+            }
+            values = reduce(lambda acc, v: acc & v, all_values)
+            if len(values) == 0:
                 continue
-            value = tuple(values)[0]
+            # value = tuple(values)[0]
 
-            if any(pred.override for pred in set_to_preds) or value in literals[group]:
-                yield s | {name: Literal(value, group)}
+            for value in values:
+                if any(pred.override for pred in set_to_preds) or value in literals[group]:
+                    yield s | {name: Literal(value, group)}
 
     @staticmethod
     def _instantiate(

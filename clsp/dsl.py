@@ -7,10 +7,11 @@ which is a builder for arrow types.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from functools import reduce
-from typing import Any
+from typing import Any, overload
 from inspect import signature
+import typing
 
 from .types import Arrow, Literal, Param, SetTo, Type
 
@@ -138,7 +139,54 @@ class DSL:
         self._accumulator.append((name, group, [DSL.TRUE]))
         return self
 
-    def As(self, set_to: Callable[..., Any], override: bool = False) -> DSL:
+    @overload
+    def As(
+        self,
+        set_to: Callable[..., Any],
+        /,
+        raw: typing.Literal[False] = ...,
+        multi_value: typing.Literal[False] = ...,
+        override: bool = False,
+    ) -> DSL: ...
+
+    @overload
+    def As(
+        self,
+        set_to: Callable[[Mapping[str, Any]], Iterable[Any]],
+        /,
+        raw: typing.Literal[True] = ...,
+        multi_value: typing.Literal[True] = ...,
+        override: bool = False,
+    ) -> DSL: ...
+
+    @overload
+    def As(
+        self,
+        set_to: Callable[[Mapping[str, Any]], Any],
+        /,
+        raw: typing.Literal[True] = ...,
+        multi_value: typing.Literal[False] = ...,
+        override: bool = False,
+    ) -> DSL: ...
+
+    @overload
+    def As(
+        self,
+        set_to: Callable[..., Iterable[Any]],
+        /,
+        raw: typing.Literal[False] = ...,
+        multi_value: typing.Literal[True] = ...,
+        override: bool = False,
+    ) -> DSL: ...
+
+    def As(
+        self,
+        set_to: Callable[..., Any],
+        /,
+        raw: bool = False,
+        multi_value: bool = False,
+        override: bool = False,
+    ) -> DSL:
         """
         Set the previous variable directly to the result of a computation.
 
@@ -151,43 +199,67 @@ class DSL:
         :param override: Whether the result of the computation should be discarded, if it
             is not in the literal set for the group. Default is False (discard).
         :type override: bool
+        :param raw: If True, `set_to` will be called with a dictionary, mapping variable names
+            to values, instead of each variable as a parameter.
+        :param multi_value: If `multi_value` is True, the function `set_to` needs to return an
+            `Iterable`. Potential values for the variable range over those computed elements.
+        :type multi_value: bool
         :return: The DSL object. To concatenate multiple calls.
         :rtype: DSL
         """
+
+        unwrapper = DSL._unwrap_predicate if not raw else DSL._extracted_values
         last_element = self._accumulator[-1]
         self._accumulator[-1] = (
             last_element[0],
             last_element[1],
-            last_element[2] + [SetTo(DSL._unwrap_predicate(set_to), override)],
+            last_element[2] + [SetTo(unwrapper(set_to), override, multi_value)],
         )
         return self
 
-    def AsRaw(self, set_to: Callable[[Mapping[str, Any]], Any], override: bool = False) -> DSL:
+    @overload
+    def AsRaw(
+        self,
+        set_to: Callable[[Mapping[str, Any]], Any],
+        /,
+        override: bool = False,
+        multi_value: typing.Literal[False] = False,
+    ) -> DSL: ...
+
+    @overload
+    def AsRaw(
+        self,
+        set_to: Callable[[Mapping[str, Any]], Iterable[Any]],
+        /,
+        override: bool = False,
+        multi_value: typing.Literal[True] = True,
+    ) -> DSL: ...
+
+    def AsRaw(
+        self,
+        set_to: Callable[[Mapping[str, Any]], Any],
+        /,
+        override: bool = False,
+        multi_value: bool = False,
+    ) -> DSL:
         """
-        Set the previous variable directly to the result of a computation.
-
-        Similar to `As`, but the `set_to` function gets a dictionary, mapping the variable names
-        to their values instead.
-
-        Only available to `Literal` variables. And can only access `Literal` variables.
-
-        :param set_to: The function computing the value for the variable.
-        :type set_to: Callable[[Mapping[str, Any]], Any]
-        :param override: Whether the result of the computation should be discarded, if it
-            is not in the literal set for the group. Default is False (discard).
-        :type override: bool
-        :return: The DSL object. To concatenate multiple calls.
-        :rtype: DSL
+        Deprecated, use As(... , raw = True) instead
         """
-        last_element = self._accumulator[-1]
-        self._accumulator[-1] = (
-            last_element[0],
-            last_element[1],
-            last_element[2] + [SetTo(DSL._extracted_values(set_to))],
-        )
+        if multi_value:  # This is for typing reasons
+            self.As(set_to, override=override, raw=True, multi_value=True)
+        else:
+            self.As(set_to, override=override, raw=True, multi_value=False)
         return self
 
-    def With(self, predicate: Callable[..., Any]) -> DSL:
+    @overload
+    def With(
+        self, predicate: Callable[[Mapping[str, Any]], Any], /, raw: typing.Literal[True] = True
+    ) -> DSL: ...
+
+    @overload
+    def With(self, predicate: Callable[..., Any], /, raw: typing.Literal[False] = False) -> DSL: ...
+
+    def With(self, predicate: Callable[..., Any], /, raw: bool = False) -> DSL:
         """
         Filter on the previously definied variables.
 
@@ -207,32 +279,21 @@ class DSL:
         :return: The DSL object.
         :rtype: DSL
         """
+        unwrapper = DSL._unwrap_predicate if not raw else DSL._extracted_values
+
         last_element = self._accumulator[-1]
         self._accumulator[-1] = (
             last_element[0],
             last_element[1],
-            last_element[2] + [DSL._unwrap_predicate(predicate)],
+            last_element[2] + [unwrapper(predicate)],
         )
         return self
 
     def WithRaw(self, predicate: Callable[[Mapping[str, Any]], Any]) -> DSL:
         """
-        Filter on the previously definied variables.
-
-        Similar to `With`, but the `pred` function gets a dictionary, mapping the variable names
-        to their values instead.
-
-        :param predicate: A predicate deciding, if the currently chosen values are valid.
-        :type predicate: Callable[[Mapping[str, Any]], bool]
-        :return: The DSL object.
-        :rtype: DSL
+        Deprecated, use As(... , raw = True) instead
         """
-        last_element = self._accumulator[-1]
-        self._accumulator[-1] = (
-            last_element[0],
-            last_element[1],
-            last_element[2] + [DSL._extracted_values(predicate)],
-        )
+        self.With(predicate, raw=True)
         return self
 
     def In(self, ty: Type) -> Param | Type:
