@@ -9,7 +9,7 @@ from functools import partial
 import itertools
 from inspect import Parameter, signature, _ParameterKind, _empty
 from collections import deque
-from collections.abc import Callable, Hashable, Iterable, Sequence
+from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
 from typing import Any, Generic, Optional, TypeVar, overload
 import typing
 from queue import PriorityQueue
@@ -27,6 +27,7 @@ from .types import Literal
 
 S = TypeVar("S")  # non-terminals
 T = TypeVar("T", covariant=True, bound=Hashable)
+
 
 # Tree: TypeAlias = tuple[T, tuple["Tree[T]", ...]]
 @dataclass(slots=True)
@@ -110,22 +111,25 @@ def tree_size(tree: Tree[T]) -> int:
 
 
 def enumerate_term_vectors(
-    non_terminals: tuple[S] | list[S],
-    existing_terms: dict[S, set[Tree[T]]],
+    non_terminals: Sequence[S],
+    existing_terms: Mapping[S, set[Tree[T]]],
     nt_term: Optional[tuple[S, Tree[T]]] = None,
 ) -> Iterable[tuple[Tree[T], ...]]:
     """Enumerate possible term vectors for a given list of non-terminals and existing terms. Use nt_term at least once (if given)."""
     if nt_term is None:
         yield from itertools.product(*(existing_terms[n] for n in non_terminals))
     else:
-        nt, term = nt_term         
+        nt, term = nt_term
         for i, n in enumerate(non_terminals):
             if n == nt:
-                yield from itertools.product(*([term] if i == j else existing_terms[m] for j, m in enumerate(non_terminals)))
+                yield from itertools.product(
+                    *([term] if i == j else existing_terms[m] for j, m in enumerate(non_terminals))
+                )
+
 
 def generate_new_terms(
     rule: RHSRule[S, T],
-    existing_terms: dict[S, set[Tree[T]]],
+    existing_terms: Mapping[S, set[Tree[T]]],
     max_count: Optional[int] = None,
     nt_old_term: Optional[tuple[S, Tree[T]]] = None,
 ) -> set[Tree[T]]:
@@ -135,11 +139,22 @@ def generate_new_terms(
     output_set: set[Tree[T]] = set()
     if max_count == 0:
         return output_set
-    
+
+    names: tuple[str, ...]
+    param_nts: tuple[S, ...]
+
     names, param_nts = zip(*rule.binder.items()) if len(rule.binder) > 0 else ((), ())
-    literals: list[Tree[T] | str] = [Tree(p.value) if isinstance(p, Literal) else p.name for p in rule.parameters]
-    interleave: Callable[[dict[str, Tree[T]]], tuple[Tree[T], ...]] = lambda substitution: tuple(substitution[t] if isinstance(t, str) else t for t in literals)
-    new_term: Callable[[tuple[Tree[T], ...]], Tree[T]] = lambda params_args: Tree(rule.terminal, params_args, variable_names=rule.variable_names,)
+    literals: list[Tree[T] | str] = [
+        Tree(p.value) if isinstance(p, Literal) else p.name for p in rule.parameters
+    ]
+    interleave: Callable[[Mapping[str, Tree[T]]], tuple[Tree[T], ...]] = lambda substitution: tuple(
+        substitution[t] if isinstance(t, str) else t for t in literals
+    )
+    new_term: Callable[[tuple[Tree[T], ...]], Tree[T]] = lambda params_args: Tree(
+        rule.terminal,
+        params_args,
+        variable_names=rule.variable_names,
+    )
 
     if nt_old_term is None:
         all_args = list(enumerate_term_vectors(rule.args, existing_terms, None))
@@ -148,7 +163,7 @@ def generate_new_terms(
             for param_terms in enumerate_term_vectors(param_nts, existing_terms, None)
             for substitution in (dict(zip(names, param_terms)),)
             if all(predicate.eval(substitution) for predicate in rule.predicates)
-    ]
+        ]
         for params in all_params:
             for args in all_args:
                 output_set.add(new_term(params + args))
@@ -161,26 +176,34 @@ def generate_new_terms(
             for param_terms in enumerate_term_vectors(param_nts, existing_terms, (nt, old_term)):
                 substitution = dict(zip(names, param_terms))
                 if all(predicate.eval(substitution) for predicate in rule.predicates):
-                    cached_all_args = list(enumerate_term_vectors(rule.args, existing_terms, None)) if cached_all_args is None else cached_all_args
+                    cached_all_args = (
+                        list(enumerate_term_vectors(rule.args, existing_terms, None))
+                        if cached_all_args is None
+                        else cached_all_args
+                    )
                     for args in cached_all_args:
                         output_set.add(new_term(interleave(substitution) + args))
                         if max_count is not None and len(output_set) >= max_count:
                             return output_set
-                        
+
         if nt in rule.args:
             cached_all_params = None
             for args in enumerate_term_vectors(rule.args, existing_terms, (nt, old_term)):
-                cached_all_params = [
-                    interleave(substitution)
-                    for param_terms in enumerate_term_vectors(param_nts, existing_terms, None)
-                    for substitution in (dict(zip(names, param_terms)),)
-                    if all(predicate.eval(substitution) for predicate in rule.predicates)
-                ] if cached_all_params is None else cached_all_params
+                cached_all_params = (
+                    [
+                        interleave(substitution)
+                        for param_terms in enumerate_term_vectors(param_nts, existing_terms, None)
+                        for substitution in (dict(zip(names, param_terms)),)
+                        if all(predicate.eval(substitution) for predicate in rule.predicates)
+                    ]
+                    if cached_all_params is None
+                    else cached_all_params
+                )
                 for params in cached_all_params:
                     output_set.add(new_term(params + args))
                     if max_count is not None and len(output_set) >= max_count:
                         return output_set
-                    
+
     return output_set
 
 
