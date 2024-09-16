@@ -1,13 +1,29 @@
 from collections import deque
 from collections.abc import Callable, Iterable, Sequence
-from typing import TypeVar
+from typing import Generic, TypeGuard, TypeVar, cast
 
 S = TypeVar("S")  # Type of Sets
 E = TypeVar("E")  # Type of Elements
+E1 = TypeVar("E1")
+E2 = TypeVar("E2")
+
+
+class typed_partitioner(Generic[E1, E2]):
+    def __init__(self, predicate: Callable[[E1 | E2], TypeGuard[E2]]) -> None:
+        self.predicate = predicate
+
+    def partition(self, elements: Iterable[E1 | E2]) -> tuple[deque[E1], deque[E2]]:
+        partitioning: tuple[deque[E1], deque[E2]] = (deque(), deque())
+        for element in elements:
+            if self.predicate(element):
+                partitioning[1].append(element)
+            else:
+                partitioning[0].append(cast(E1, element))
+        return partitioning
 
 
 def partition(predicate: Callable[[E], bool], elements: Iterable[E]) -> tuple[deque[E], deque[E]]:
-    """Partition elements of an Iterable according to a predicate.
+    """Partition elements of an Iterable according to a predicate. Narrowing types.
 
     Returns: (elements not satisfying predicate, elements satisfying predicate)."""
 

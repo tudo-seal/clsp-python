@@ -1,8 +1,10 @@
+from collections.abc import Iterator, Sequence
 import logging
+from typing import overload
 import unittest
 from clsp.dsl import DSL
 from clsp.enumeration import enumerate_terms, interpret_term
-from clsp.fcl import FiniteCombinatoryLogic
+from clsp.fcl import Contains, FiniteCombinatoryLogic
 from clsp.types import Type, Constructor, LVar, Literal
 
 
@@ -111,6 +113,40 @@ class TestDSLAs(unittest.TestCase):
         self.assertSetEqual(
             set(interpret_term(x) for x in enumerate_terms(target, result)), {"X 0 -1", "X 0 1"}
         )
+
+    def _check_infinite_literals(self, cache: bool) -> None:
+        class Nat:
+            def __contains__(self, value: object) -> bool:
+                return isinstance(value, int) and value >= 0
+
+        def X(x: int, y: int, b: str) -> str:
+            return f"X {x}"
+
+        literals = {"nat": Nat()}
+        target = "c" @ Literal(7, "nat")
+
+        gamma = {
+            X: DSL(cache=cache)
+            .Use("a", "nat")
+            .Use("b", "nat")
+            .As(lambda a: a - 1)
+            .In(("c" @ LVar("b")) ** ("c" @ LVar("a"))),
+            "ZERO": "c" @ Literal(0, "nat"),
+        }
+
+        fcl = FiniteCombinatoryLogic(gamma, literals=literals)
+        if cache:
+            self.assertRaises(RuntimeError, fcl.inhabit, target)
+            return
+        grammar = fcl.inhabit(target)
+
+        self.assertEqual(["X 7"], [interpret_term(x) for x in enumerate_terms(target, grammar)])
+
+    def test_infinite_literal_groups_cache(self) -> None:
+        self._check_infinite_literals(cache=True)
+
+    def test_infinite_literal_groups_no_cache(self) -> None:
+        self._check_infinite_literals(cache=False)
 
 
 if __name__ == "__main__":

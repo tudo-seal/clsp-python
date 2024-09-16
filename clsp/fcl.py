@@ -14,14 +14,19 @@ from typing import (
     Callable,
     Generic,
     MutableMapping,
+    Protocol,
+    TypeGuard,
     TypeVar,
     Optional,
-    cast,
 )
 
 from .grammar import GVar, ParameterizedTreeGrammar, Predicate, RHSRule
 
-from .combinatorics import maximal_elements, minimal_covers, partition
+from .combinatorics import (
+    maximal_elements,
+    minimal_covers,
+    typed_partitioner,
+)
 from .subtypes import Subtypes
 from .types import (
     Arrow,
@@ -35,6 +40,21 @@ from .types import (
 )
 
 C = TypeVar("C")
+
+
+class Contains(Protocol):
+    def __contains__(self, value: object) -> bool: ...
+
+
+LiteralRepo = Mapping[str, Sequence[Any] | Contains]
+
+
+def isiterable(literal_group: Sequence[C] | Contains) -> TypeGuard[Sequence[C]]:
+    return hasattr(literal_group, "__iter__")
+
+
+def isSetTo(pred: Callable[[MutableMapping[str, Any]], bool] | SetTo) -> TypeGuard[SetTo]:
+    return isinstance(pred, SetTo)
 
 
 @dataclass(frozen=True)
@@ -99,20 +119,19 @@ class FiniteCombinatoryLogic(Generic[C]):
         self,
         repository: Mapping[C, Param | Type],
         subtypes: Subtypes = Subtypes({}),
-        literals: Optional[Mapping[str, Sequence[Any]]] = None,
+        literals: Optional[LiteralRepo] = None,
     ):
-        self.literals: Mapping[str, Sequence[Any]] = {} if literals is None else literals
+        self.literals: LiteralRepo = {} if literals is None else literals
         self.repository: MutableMapping[
             C,
             tuple[ParamInfo, Optional[Iterable[Instantiation]], list[list[MultiArrow]]],
-        ] = {
-            c: FiniteCombinatoryLogic._function_types(ty, self.literals)
-            for c, ty in repository.items()
-        }
+        ] = {c: FiniteCombinatoryLogic._function_types(ty) for c, ty in repository.items()}
         self.subtypes = subtypes
 
     @staticmethod
-    def _function_types(p_or_ty: Param | Type, literals: Mapping[str, Sequence[Any]]) -> tuple[
+    def _function_types(
+        p_or_ty: Param | Type,
+    ) -> tuple[
         ParamInfo,
         None,
         list[list[MultiArrow]],
@@ -170,10 +189,10 @@ class FiniteCombinatoryLogic(Generic[C]):
     @staticmethod
     def _add_set_to(
         name: str,
-        set_to_preds: list[SetTo],
+        set_to_preds: Sequence[SetTo],
         substitutions: deque[dict[str, Literal]],
         group: str,
-        literals: Mapping[str, Sequence[Any]],
+        literals: LiteralRepo,
     ) -> Iterable[dict[str, Literal]]:
         for s in substitutions:
             all_values = {
@@ -190,11 +209,22 @@ class FiniteCombinatoryLogic(Generic[C]):
                     yield s | {name: Literal(value, group)}
 
     @staticmethod
+    def _add_normal_literals(
+        literal_parameter: LitParamSpec,
+        substitutions: Iterable[dict[str, Literal]],
+        group: Iterable[Any],
+    ) -> Iterable[dict[str, Literal]]:
+        return (
+            s | {literal_parameter.name: Literal(literal, literal_parameter.group)}
+            for s in substitutions
+            for literal in group
+        )
+
+    @staticmethod
     def _instantiate(
-        literals: Mapping[str, Sequence[Any]],
+        literals: LiteralRepo,
         parameters: ParamInfo,
         initial_substitution: Optional[dict[str, Literal]] = None,
-        prior_instantiations: Optional[list[Instantiation]] = None,
     ) -> list[Instantiation]:
         if initial_substitution is None:
             initial_substitution = {}
@@ -204,8 +234,11 @@ class FiniteCombinatoryLogic(Generic[C]):
             if literal_parameter.group not in literals:
                 return []
             else:
-                normal_preds, set_to_preds = partition(
-                    lambda pred: isinstance(pred, SetTo), literal_parameter.predicate
+                set_to_partitioner: typed_partitioner[
+                    Callable[[MutableMapping[str, Any]], bool], SetTo
+                ] = typed_partitioner(isSetTo)
+                normal_preds, set_to_preds = set_to_partitioner.partition(
+                    literal_parameter.predicate
                 )
 
                 if literal_parameter.name in initial_substitution:
@@ -213,15 +246,17 @@ class FiniteCombinatoryLogic(Generic[C]):
                         SetTo(lambda _: initial_substitution[literal_parameter.name].value)
                     )
 
+                filter_function: Callable[[MutableMapping[str, Literal]], bool] = (
+                    lambda substs: all(npred(substs) for npred in normal_preds)
+                )
+
                 if len(set_to_preds) > 0:
                     substitutions = deque(
                         filter(
-                            lambda substs: all(
-                                callable(npred) and npred(substs) for npred in normal_preds
-                            ),
+                            filter_function,
                             FiniteCombinatoryLogic._add_set_to(
                                 literal_parameter.name,
-                                cast(list[SetTo], set_to_preds),
+                                set_to_preds,
                                 substitutions,
                                 literal_parameter.group,
                                 literals,
@@ -229,23 +264,20 @@ class FiniteCombinatoryLogic(Generic[C]):
                         )
                     )
                 else:
-                    substitutions = deque(
-                        filter(
-                            lambda substs: all(
-                                callable(npred) and npred(substs) for npred in normal_preds
-                            ),
-                            (
-                                s
-                                | {
-                                    literal_parameter.name: Literal(
-                                        literal, literal_parameter.group
-                                    )
-                                }
-                                for s in substitutions
-                                for literal in (literals[literal_parameter.group])
-                            ),
+                    group: Sequence[Any] | Contains = literals[literal_parameter.group]
+                    if isiterable(group):
+                        substitutions = deque(
+                            filter(
+                                filter_function,
+                                FiniteCombinatoryLogic._add_normal_literals(
+                                    literal_parameter, substitutions, group
+                                ),
+                            )
                         )
-                    )
+                    else:
+                        raise RuntimeError(
+                            f"Group {literal_parameter.group} ({group.__class__}) is not Iterable, but is enumerated at some point."
+                        )
 
         instantiations: list[Instantiation] = []
         for substitution in substitutions:
