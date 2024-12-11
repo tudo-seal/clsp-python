@@ -1,6 +1,4 @@
-from collections.abc import Iterator, Sequence
 import logging
-from typing import overload
 import unittest
 from clsp.dsl import DSL
 from clsp.enumeration import enumerate_terms, interpret_term
@@ -115,7 +113,7 @@ class TestDSLAs(unittest.TestCase):
         )
 
     def _check_infinite_literals(self, cache: bool) -> None:
-        class Nat:
+        class Nat(Contains):
             def __contains__(self, value: object) -> bool:
                 return isinstance(value, int) and value >= 0
 
