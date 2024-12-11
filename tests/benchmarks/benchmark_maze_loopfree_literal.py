@@ -1,12 +1,12 @@
 import timeit
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Mapping
 from functools import partial
 from itertools import chain, combinations, product
 from typing import Any, cast
 
 from clsp.dsl import DSL
 from clsp.enumeration import Tree, enumerate_terms, interpret_term
-from clsp.fcl import FiniteCombinatoryLogic
+from clsp.fcl import FiniteCombinatoryLogic, LiteralRepo
 from clsp.types import Constructor, Literal, LVar, Param, Type
 
 
@@ -120,7 +120,7 @@ def main(SIZE: int = 10, output: bool = True) -> float:
             print("")
     positions = list(filter(partial(is_free, SIZE), product(range(SIZE), range(SIZE))))
     power_positions = powerset(positions)
-    literals = {"int2": positions, "power_int2": power_positions}
+    literals: LiteralRepo = {"int2": positions, "power_int2": power_positions}
 
     fin = ("pos" @ (Literal((SIZE - 1, SIZE - 1), "int2"))) & (
         "vis" @ Literal(frozenset(), "power_int2")
