@@ -46,10 +46,10 @@ class Contains(Protocol):
     def __contains__(self, value: object) -> bool: ...
 
 
-LiteralRepo = Mapping[str, Sequence[Any] | Contains]
+LiteralRepo = Mapping[str, Iterable[Any] | Contains]
 
 
-def isiterable(literal_group: Sequence[C] | Contains) -> TypeGuard[Sequence[C]]:
+def isiterable(literal_group: Iterable[C] | Contains) -> TypeGuard[Iterable[C]]:
     return hasattr(literal_group, "__iter__")
 
 
@@ -264,7 +264,7 @@ class FiniteCombinatoryLogic(Generic[C]):
                         )
                     )
                 else:
-                    group: Sequence[Any] | Contains = literals[literal_parameter.group]
+                    group: Iterable[Any] | Contains = literals[literal_parameter.group]
                     if isiterable(group):
                         substitutions = deque(
                             filter(
