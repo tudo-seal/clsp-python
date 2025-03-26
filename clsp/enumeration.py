@@ -14,6 +14,7 @@ from typing import Any, Generic, Optional, TypeVar, overload
 import typing
 from queue import PriorityQueue
 from dataclasses import dataclass, field
+import random
 
 
 from .grammar import (
@@ -25,38 +26,44 @@ from .grammar import (
 
 from .types import Literal
 
-S = TypeVar("S")  # non-terminals
+NT = TypeVar("NT")  # non-terminals
 T = TypeVar("T", covariant=True, bound=Hashable)
 
 
 # Tree: TypeAlias = tuple[T, tuple["Tree[T]", ...]]
 @dataclass(slots=True)
-class Tree(Generic[T]):
+class Tree(Generic[NT, T]):
     root: T
-    children: tuple["Tree[T]", ...] = field(default=())
+    derived_from: NT
+    rhs_rule: RHSRule[NT, T]
+
+    children: tuple["Tree[NT, T]", ...] = field(default=())
     variable_names: list[str] = field(default_factory=list)
+    frozen: bool = field(default=False)
 
     size: int = field(init=False, compare=True, repr=False)
     _hash: int = field(init=False, compare=False, repr=False)
+    # logic_goals: list[Predicate] = field(init=False, compare=False, repr=False)
 
     def __post_init__(self) -> None:
         self.size = 1 + sum(child.size for child in self.children)
         self._hash = hash((self.root, self.children))
+        # self.logic_goals = self.rhs_rule.predicates
 
     @property
-    def parameters(self) -> dict[str, "Tree[T]"]:
+    def parameters(self) -> dict[str, "Tree[NT, T]"]:
         return {name: self.children[i] for i, name in enumerate(self.variable_names)}
 
     @property
-    def arguments(self) -> tuple["Tree[T]", ...]:
+    def arguments(self) -> tuple["Tree[NT, T]", ...]:
         return tuple(self.children[len(self.variable_names) :])
 
     @overload
     def __getitem__(self, i: typing.Literal[0]) -> T: ...
     @overload
-    def __getitem__(self, i: typing.Literal[1]) -> tuple["Tree[T]", ...]: ...
+    def __getitem__(self, i: typing.Literal[1]) -> tuple["Tree[NT, T]", ...]: ...
 
-    def __getitem__(self, i: typing.Literal[0] | typing.Literal[1]) -> T | tuple["Tree[T]", ...]:
+    def __getitem__(self, i: typing.Literal[0] | typing.Literal[1]) -> T | tuple["Tree[NT, T]", ...]:
         match i:
             case 0:
                 return self.root
@@ -71,7 +78,7 @@ class Tree(Generic[T]):
     def __hash__(self) -> int:
         return self._hash
 
-    def __lt__(self, other: "Tree[T]") -> bool:
+    def __lt__(self, other: "Tree[NT, T]") -> bool:
         return self.size < other.size
 
     def __rec_to_str__(self, outermost: bool) -> str:
@@ -90,8 +97,95 @@ class Tree(Generic[T]):
     def __str__(self) -> str:
         return self.__rec_to_str__(True)
 
+    # subtrees() returns a list of all subtrees and their contexts.
+    # The context is its path in the primary tree, the variable name of the subtree,
+    # its siblings as a substitution and a list of predicates.
+    # If the subtree is an argument and not a parameter, the context is empty, because there are no constraints.
+    @property
+    def subtrees(self) -> Sequence[tuple["Tree[NT, T]", list[int], str, dict[str, "Tree[NT, T]"], list[Predicate]]]:
+        path: list[int] = []
+        for i, child in enumerate(self.children):
+            if not child.frozen:
+                if i < len(self.variable_names):
+                    path.append(i)
+                    params : dict[str, "Tree[NT, T]"] = {name: self.parameters[name] for name, _ in self.rhs_rule.binder}
+                    preds : list[Predicate] = self.rhs_rule.predicates
+                    yield child, path, self.variable_names[i], params, preds
+                else:
+                    path.append(i)
+                    params: dict[str, "Tree[NT, T]"] = {}
+                    preds: list[Predicate] = []
+                    yield child, path, "", params, preds
+                #yield from child.subtrees
+                for t, p, param, pred in child.subtrees:
+                    # the path need to be updated, this way without being an argument to the recursive call
+                    yield t, path + p, param, pred
 
-def tree_size(tree: Tree[T]) -> int:
+
+    def is_valid(self, p_subtree: tuple["Tree[NT, T]", list[int], str, dict[str, "Tree[NT, T]"], list[Predicate]],
+                 s_subtree: "Tree[NT, T]") -> bool:
+        substitution = p_subtree[3]
+        substitution.update({p_subtree[2]: s_subtree})
+        return all(pred.eval(substitution) for pred in p_subtree[4])
+
+    # TODO: is_consistent currently traverses the whole tree top down, but it should be more efficient to just traverse bottom up from the crossover point.
+    def is_consistent(self) -> bool:
+        result: list[bool] = []
+        for i, child in enumerate(self.children):
+            if i < len(self.variable_names):
+                substitution = {name: self.parameters[name] for name, _ in self.rhs_rule.binder}
+                result.append(all(pred.eval(substitution) for pred in self.rhs_rule.predicates))
+            result.append(child.is_consistent())
+        return all(result)
+
+    # replace the subtree at the given path with the new subtree
+    def replace(self, path: list[int], new_subtree: "Tree[NT, T]") -> "Tree[NT, T]":
+        if not path:
+            return new_subtree
+        i = path.pop(0)
+        return Tree(self.root, self.derived_from, self.rhs_rule, tuple(
+            (new_subtree if (not path) else child.replace(path, new_subtree)) if j == i else child
+            for j, child in enumerate(self.children)), self.variable_names, self.frozen)
+
+    # crossover function
+    def crossover(self, secondary_derivation_tree: "Tree[NT, T]") -> "Tree[NT, T]" | None:
+        # 1.
+        primary_sub_trees: list[tuple["Tree[NT, T]", list[int], str, dict[str, "Tree[NT, T]"], list[Predicate]]] = (
+            list(self.subtrees))
+        # 2.
+        secondary_sub_trees: list["Tree[NT, T]"] = list(
+            map(lambda x: x[0], secondary_derivation_tree.subtrees))
+        secondary_sub_trees.insert(0, secondary_derivation_tree)
+        # 3.
+        while primary_sub_trees:
+            # 4.
+            sel_primary_subtree: tuple["Tree[NT, T]", list[int], str, dict[str, "Tree[NT, T]"], list[Predicate]] = (
+                random.choice(primary_sub_trees))
+            primary_crossover_point: NT = sel_primary_subtree[0].derived_from
+            primary_sub_trees.remove(sel_primary_subtree)
+            # 5.
+            temp_secondary_subtrees: list[Tree[NT, T]] = secondary_sub_trees.copy()
+            temp_secondary_subtrees = list(filter(lambda x: x.derived_from == primary_crossover_point,
+                                                  temp_secondary_subtrees))
+            # 6.
+            while temp_secondary_subtrees:
+                # 7.
+                sel_secondary_subtree: Tree[NT, T] = random.choice(temp_secondary_subtrees)
+                temp_secondary_subtrees.remove(sel_secondary_subtree)
+                if self.is_valid(sel_primary_subtree, sel_secondary_subtree):
+                    offspring = self.replace(sel_primary_subtree[1], sel_secondary_subtree)
+                    if offspring.is_consistent():
+                        return offspring
+        return None
+
+    # mutation the tree by selecting a random subtree and replacing it with a new subtree inhabiting the same type
+    # therefore, mutation needs the grammar as an extra argument to inhabit the mutations
+    # this should be more memory efficient than taking the grammar as a field in each node
+    def mutate(self, grammar: ParameterizedTreeGrammar[NT, T]) -> "Tree[NT, T]" | None:
+        return None
+
+
+def tree_size(tree: Tree[NT, T]) -> int:
     """The number of nodes in a tree."""
 
     # result = 0
@@ -111,10 +205,10 @@ def tree_size(tree: Tree[T]) -> int:
 
 
 def enumerate_term_vectors(
-    non_terminals: Sequence[S],
-    existing_terms: Mapping[S, set[Tree[T]]],
-    nt_term: Optional[tuple[S, Tree[T]]] = None,
-) -> Iterable[tuple[Tree[T], ...]]:
+    non_terminals: Sequence[NT],
+    existing_terms: Mapping[NT, set[Tree[NT, T]]],
+    nt_term: Optional[tuple[NT, Tree[NT, T]]] = None,
+) -> Iterable[tuple[Tree[NT, T], ...]]:
     """Enumerate possible term vectors for a given list of non-terminals and existing terms. Use nt_term at least once (if given)."""
     if nt_term is None:
         yield from itertools.product(*(existing_terms[n] for n in non_terminals))
@@ -128,37 +222,40 @@ def enumerate_term_vectors(
 
 
 def generate_new_terms(
-    rule: RHSRule[S, T],
-    existing_terms: Mapping[S, set[Tree[T]]],
+    lhs:  NT,  # the non-terminal of the rule
+    rule: RHSRule[NT, T],
+    existing_terms: Mapping[NT, set[Tree[NT, T]]],
     max_count: Optional[int] = None,
-    nt_old_term: Optional[tuple[S, Tree[T]]] = None,
-) -> set[Tree[T]]:
+    nt_old_term: Optional[tuple[NT, Tree[NT, T]]] = None,
+) -> set[Tree[NT, T]]:
     # Genererate new terms for rule `rule` from existing terms up to `max_count`
     # the term `old_term` should be a subterm of all resulting terms, at a position, that corresponds to `nt`
 
-    output_set: set[Tree[T]] = set()
+    output_set: set[Tree[NT, T]] = set()
     if max_count == 0:
         return output_set
 
     names: tuple[str, ...]
-    param_nts: tuple[S, ...]
+    param_nts: tuple[NT, ...]
 
     names, param_nts = zip(*rule.binder.items()) if len(rule.binder) > 0 else ((), ())
-    literals: list[Tree[T] | str] = [
-        Tree(p.value) if isinstance(p, Literal) else p.name for p in rule.parameters
+    literals: list[Tree[NT, T] | str] = [
+        Tree(p.value,lhs,rule) if isinstance(p, Literal) else p.name for p in rule.parameters
     ]
-    interleave: Callable[[Mapping[str, Tree[T]]], tuple[Tree[T], ...]] = lambda substitution: tuple(
+    interleave: Callable[[Mapping[str, Tree[NT, T]]], tuple[Tree[NT, T], ...]] = lambda substitution: tuple(
         substitution[t] if isinstance(t, str) else t for t in literals
     )
-    new_term: Callable[[tuple[Tree[T], ...]], Tree[T]] = lambda params_args: Tree(
+    new_term: Callable[[tuple[Tree[NT, T], ...]], Tree[NT, T]] = lambda params_args: Tree(
         rule.terminal,
+        lhs,
+        rule,
         params_args,
         variable_names=rule.variable_names,
     )
 
     if nt_old_term is None:
         all_args = list(enumerate_term_vectors(rule.args, existing_terms, None))
-        all_params: list[tuple[Tree[T], ...]] = [
+        all_params: list[tuple[Tree[NT, T], ...]] = [
             interleave(substitution)
             for param_terms in enumerate_term_vectors(param_nts, existing_terms, None)
             for substitution in (dict(zip(names, param_terms)),)
@@ -208,11 +305,11 @@ def generate_new_terms(
 
 
 def enumerate_terms(
-    start: S,
-    grammar: ParameterizedTreeGrammar[S, T],
+    start: NT,
+    grammar: ParameterizedTreeGrammar[NT, T],
     max_count: Optional[int] = None,
     max_bucket_size: Optional[int] = None,
-) -> Iterable[Tree[T]]:
+) -> Iterable[Tree[NT, T]]:
     return itertools.islice(
         enumerate_terms_fast(start, grammar, max_count, max_bucket_size),
         max_count,
@@ -220,29 +317,29 @@ def enumerate_terms(
 
 
 def enumerate_terms_fast(
-    start: S,
-    grammar: ParameterizedTreeGrammar[S, T],
+    start: NT,
+    grammar: ParameterizedTreeGrammar[NT, T],
     max_count: Optional[int] = None,
     max_bucket_size: Optional[int] = None,
-) -> Iterable[Tree[T]]:
+) -> Iterable[Tree[NT, T]]:
     """
     Enumerate terms as an iterator efficiently - all terms are enumerated, no guaranteed term order.
     """
     if start not in grammar.nonterminals():
         return
 
-    queues: dict[S, PriorityQueue[Tree[T]]] = {n: PriorityQueue() for n in grammar.nonterminals()}
-    existing_terms: dict[S, set[Tree[T]]] = {n: set() for n in grammar.nonterminals()}
-    inverse_grammar: dict[S, deque[tuple[S, RHSRule[S, T]]]] = {
+    queues: dict[NT, PriorityQueue[Tree[NT, T]]] = {n: PriorityQueue() for n in grammar.nonterminals()}
+    existing_terms: dict[NT, set[Tree[NT, T]]] = {n: set() for n in grammar.nonterminals()}
+    inverse_grammar: dict[NT, deque[tuple[NT, RHSRule[NT, T]]]] = {
         n: deque() for n in grammar.nonterminals()
     }
-    all_results: set[Tree[T]] = set()
+    all_results: set[Tree[NT, T]] = set()
 
     for n, exprs in grammar.as_tuples():
         for expr in exprs:
             for m in expr.non_terminals():
                 inverse_grammar[m].append((n, expr))
-            for new_term in generate_new_terms(expr, existing_terms):
+            for new_term in generate_new_terms(n, expr, existing_terms):
                 queues[n].put(new_term)
                 if n == start and new_term not in all_results:
                     if max_count is not None and len(all_results) >= max_count:
@@ -270,7 +367,7 @@ def enumerate_terms_fast(
                         non_terminals.add(m)
                     if m == start:
                         for new_term in generate_new_terms(
-                            expr, existing_terms, max_count, (n, term)
+                            m, expr, existing_terms, max_count, (n, term)
                         ):
                             if new_term not in all_results:
                                 if max_count is not None and len(all_results) >= max_count:
@@ -280,7 +377,7 @@ def enumerate_terms_fast(
                                 queues[start].put(new_term)
                     else:
                         for new_term in generate_new_terms(
-                            expr, existing_terms, max_bucket_size, (n, term)
+                            m, expr, existing_terms, max_bucket_size, (n, term)
                         ):
                             queues[m].put(new_term)
         current_bucket_size += 1
@@ -587,10 +684,10 @@ def enumerate_terms_fast(
 #                 yield term
 
 
-def interpret_term(term: Tree[T], interpretation: Optional[dict[T, Any]] = None) -> Any:
+def interpret_term(term: Tree[NT, T], interpretation: Optional[dict[T, Any]] = None) -> Any:
     """Recursively evaluate given term."""
 
-    terms: deque[Tree[T]] = deque((term,))
+    terms: deque[Tree[NT, T]] = deque((term,))
     combinators: deque[tuple[T, int]] = deque()
     # decompose terms
     while terms:
