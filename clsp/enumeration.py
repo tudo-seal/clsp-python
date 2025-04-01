@@ -56,7 +56,7 @@ class Tree(Generic[NT, T]):
 
     @property
     def arguments(self) -> tuple["Tree[NT, T]", ...]:
-        return tuple(self.children[len(self.variable_names) :])
+        return tuple(self.children[len(self.variable_names):])
 
     @overload
     def __getitem__(self, i: typing.Literal[0]) -> T: ...
@@ -101,25 +101,24 @@ class Tree(Generic[NT, T]):
     # The context is its path in the primary tree, the variable name of the subtree,
     # its siblings as a substitution and a list of predicates.
     # If the subtree is an argument and not a parameter, the context is empty, because there are no constraints.
-    @property
-    def subtrees(self) -> Sequence[tuple["Tree[NT, T]", list[int], str, dict[str, "Tree[NT, T]"], list[Predicate]]]:
+    def subtrees(self) -> typing.Generator[tuple["Tree[NT, T]", list[int], str, dict[str, "Tree[NT, T]"], list[Predicate]]]:
         path: list[int] = []
         for i, child in enumerate(self.children):
             if not child.frozen:
                 if i < len(self.variable_names):
-                    path.append(i)
-                    params : dict[str, "Tree[NT, T]"] = {name: self.parameters[name] for name, _ in self.rhs_rule.binder}
-                    preds : list[Predicate] = self.rhs_rule.predicates
-                    yield child, path, self.variable_names[i], params, preds
+                    new_path = path + [i]
+                    params: dict[str, "Tree[NT, T]"] = {name: self.parameters[name] for name, _ in self.rhs_rule.binder.items()}
+                    preds: list[Predicate] = self.rhs_rule.predicates
+                    yield child, new_path, self.variable_names[i], params, preds
                 else:
-                    path.append(i)
+                    new_path = path + [i]
                     params: dict[str, "Tree[NT, T]"] = {}
                     preds: list[Predicate] = []
-                    yield child, path, "", params, preds
-                #yield from child.subtrees
-                for t, p, param, pred in child.subtrees:
+                    yield child, new_path, "", params, preds
+                #yield from child.subtrees()
+                for t, p, names, param, pred in child.subtrees():
                     # the path need to be updated, this way without being an argument to the recursive call
-                    yield t, path + p, param, pred
+                    yield t, path + [i] + p, names, param, pred
 
 
     def is_valid(self, p_subtree: tuple["Tree[NT, T]", list[int], str, dict[str, "Tree[NT, T]"], list[Predicate]],
@@ -133,7 +132,7 @@ class Tree(Generic[NT, T]):
         result: list[bool] = []
         for i, child in enumerate(self.children):
             if i < len(self.variable_names):
-                substitution = {name: self.parameters[name] for name, _ in self.rhs_rule.binder}
+                substitution = {name: self.parameters[name] for name in self.rhs_rule.binder.keys()}
                 result.append(all(pred.eval(substitution) for pred in self.rhs_rule.predicates))
             result.append(child.is_consistent())
         return all(result)
@@ -143,18 +142,20 @@ class Tree(Generic[NT, T]):
         if not path:
             return new_subtree
         i = path.pop(0)
-        return Tree(self.root, self.derived_from, self.rhs_rule, tuple(
-            (new_subtree if (not path) else child.replace(path, new_subtree)) if j == i else child
-            for j, child in enumerate(self.children)), self.variable_names, self.frozen)
+        if i < len(self.children):
+            return Tree(self.root, self.derived_from, self.rhs_rule, tuple(
+                (child.replace(path, new_subtree)) if j == i else child
+                for j, child in enumerate(self.children)), self.variable_names, self.frozen)
+        else:
+            return self
 
     # crossover function
-    def crossover(self, secondary_derivation_tree: "Tree[NT, T]") -> "Tree[NT, T]" | None:
+    def crossover(self, secondary_derivation_tree: "Tree[NT, T]"):  # -> "Tree[NT, T]" | None:
         # 1.
         primary_sub_trees: list[tuple["Tree[NT, T]", list[int], str, dict[str, "Tree[NT, T]"], list[Predicate]]] = (
-            list(self.subtrees))
+            list(self.subtrees()))
         # 2.
-        secondary_sub_trees: list["Tree[NT, T]"] = list(
-            map(lambda x: x[0], secondary_derivation_tree.subtrees))
+        secondary_sub_trees: list["Tree[NT, T]"] = list(map(lambda x: x[0], secondary_derivation_tree.subtrees()))
         secondary_sub_trees.insert(0, secondary_derivation_tree)
         # 3.
         while primary_sub_trees:
@@ -178,10 +179,34 @@ class Tree(Generic[NT, T]):
                         return offspring
         return None
 
-    # mutation the tree by selecting a random subtree and replacing it with a new subtree inhabiting the same type
-    # therefore, mutation needs the grammar as an extra argument to inhabit the mutations
-    # this should be more memory efficient than taking the grammar as a field in each node
-    def mutate(self, grammar: ParameterizedTreeGrammar[NT, T]) -> "Tree[NT, T]" | None:
+    # mutating the tree by selecting a random subtree and replacing it with a new subtree inhabiting the same type.
+    # Therefore, mutation needs the grammar as an extra argument to inhabit the mutations.
+    # This should be more memory efficient than taking the grammar as a field in each node
+    def mutate(self, grammar: ParameterizedTreeGrammar[NT, T]):  # -> "Tree[NT, T]" | None:
+        # include an optional parameter maximum depth and ensure, that no tree produced by mutation exceeds this depth
+        # 1.
+        sub_trees: list[tuple["Tree[NT, T]", list[int], str, dict[str, "Tree[NT, T]"], list[Predicate]]] = (
+            list(self.subtrees()))
+        # 2.
+        while sub_trees:
+            # 3.
+            mutated_subtree: tuple["Tree[NT, T]", list[int], str, dict[str, "Tree[NT, T]"], list[Predicate]] = (
+                random.choice(sub_trees))
+            mutate_point: T = mutated_subtree[1]
+            sub_trees.remove(mutated_subtree)
+            non_terminal: NT = mutated_subtree[0].derived_from
+            # 6.
+            new_sub_tree: Tree[NT, T] = random.choice(list(enumerate_terms(non_terminal, grammar, 300)))
+            # 7.
+            offspring = self.replace(mutate_point, new_sub_tree)
+            if offspring.is_consistent():
+                return offspring
+        mutate_point = []
+        non_terminal = self.derived_from
+        new_sub_tree: Tree[NT, T] = random.choice(list(enumerate_terms(non_terminal, grammar, 300)))
+        offspring = self.replace(mutate_point, new_sub_tree)
+        if offspring.is_consistent():
+            return offspring
         return None
 
 
