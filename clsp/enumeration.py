@@ -34,7 +34,7 @@ T = TypeVar("T", covariant=True, bound=Hashable)
 @dataclass(slots=True)
 class Tree(Generic[NT, T]):
     root: T
-    derived_from: NT
+    derived_from: NT | str
     rhs_rule: RHSRule[NT, T]
 
     children: tuple["Tree[NT, T]", ...] = field(default=())
@@ -101,24 +101,22 @@ class Tree(Generic[NT, T]):
     # The context is its path in the primary tree, the variable name of the subtree,
     # its siblings as a substitution and a list of predicates.
     # If the subtree is an argument and not a parameter, the context is empty, because there are no constraints.
-    def subtrees(self) -> typing.Generator[tuple["Tree[NT, T]", list[int], str, dict[str, "Tree[NT, T]"], list[Predicate]]]:
-        path: list[int] = []
-        for i, child in enumerate(self.children):
+    def subtrees(self, prefix: list[int]) -> typing.Generator[tuple["Tree[NT, T]", list[int], str, dict[str, "Tree[NT, T]"], list[Predicate]]]:
+        for i, child in list(enumerate(self.children)):
             if not child.frozen:
                 if i < len(self.variable_names):
-                    new_path = path + [i]
                     params: dict[str, "Tree[NT, T]"] = {name: self.parameters[name] for name, _ in self.rhs_rule.binder.items()}
                     preds: list[Predicate] = self.rhs_rule.predicates
-                    yield child, new_path, self.variable_names[i], params, preds
+                    yield child, prefix + [i], self.variable_names[i], params, preds
                 else:
-                    new_path = path + [i]
                     params: dict[str, "Tree[NT, T]"] = {}
                     preds: list[Predicate] = []
-                    yield child, new_path, "", params, preds
-                #yield from child.subtrees()
-                for t, p, names, param, pred in child.subtrees():
+                    yield child, prefix + [i], "", params, preds
+                yield from list(child.subtrees(prefix + [i]))
+                #for t, p, names, param, pred in child.subtrees([i]):
                     # the path need to be updated, this way without being an argument to the recursive call
-                    yield t, path + [i] + p, names, param, pred
+                #    yield t, [i] + p, names, param, pred
+
 
 
     def is_valid(self, p_subtree: tuple["Tree[NT, T]", list[int], str, dict[str, "Tree[NT, T]"], list[Predicate]],
@@ -128,11 +126,12 @@ class Tree(Generic[NT, T]):
         return all(pred.eval(substitution) for pred in p_subtree[4])
 
     # TODO: is_consistent currently traverses the whole tree top down, but it should be more efficient to just traverse bottom up from the crossover point.
+    # TODO: this function is buggy!!!!
     def is_consistent(self) -> bool:
         result: list[bool] = []
         for i, child in enumerate(self.children):
             if i < len(self.variable_names):
-                substitution = {name: self.parameters[name] for name in self.rhs_rule.binder.keys()}
+                substitution = {name: self.parameters[name] for name, _ in self.rhs_rule.binder.items()}
                 result.append(all(pred.eval(substitution) for pred in self.rhs_rule.predicates))
             result.append(child.is_consistent())
         return all(result)
@@ -153,9 +152,9 @@ class Tree(Generic[NT, T]):
     def crossover(self, secondary_derivation_tree: "Tree[NT, T]"):  # -> "Tree[NT, T]" | None:
         # 1.
         primary_sub_trees: list[tuple["Tree[NT, T]", list[int], str, dict[str, "Tree[NT, T]"], list[Predicate]]] = (
-            list(self.subtrees()))
+            list(self.subtrees([])))
         # 2.
-        secondary_sub_trees: list["Tree[NT, T]"] = list(map(lambda x: x[0], secondary_derivation_tree.subtrees()))
+        secondary_sub_trees: list["Tree[NT, T]"] = list(map(lambda x: x[0], secondary_derivation_tree.subtrees([])))
         secondary_sub_trees.insert(0, secondary_derivation_tree)
         # 3.
         while primary_sub_trees:
@@ -174,8 +173,11 @@ class Tree(Generic[NT, T]):
                 sel_secondary_subtree: Tree[NT, T] = random.choice(temp_secondary_subtrees)
                 temp_secondary_subtrees.remove(sel_secondary_subtree)
                 if self.is_valid(sel_primary_subtree, sel_secondary_subtree):
-                    offspring = self.replace(sel_primary_subtree[1], sel_secondary_subtree)
-                    if offspring.is_consistent():
+                    offspring = self.replace(sel_primary_subtree[1].copy(), sel_secondary_subtree)
+                    if (offspring.derived_from == self.derived_from) and offspring.is_consistent():
+                        print(f"crossover-point: {primary_crossover_point}")
+                        print(f"sel_primary_subtree path: {sel_primary_subtree[1]}")
+                        print(f"sel_secondary_subtree derived from: {sel_secondary_subtree.derived_from}")
                         return offspring
         return None
 
@@ -186,7 +188,7 @@ class Tree(Generic[NT, T]):
         # include an optional parameter maximum depth and ensure, that no tree produced by mutation exceeds this depth
         # 1.
         sub_trees: list[tuple["Tree[NT, T]", list[int], str, dict[str, "Tree[NT, T]"], list[Predicate]]] = (
-            list(self.subtrees()))
+            list(self.subtrees([])))
         # 2.
         while sub_trees:
             # 3.
@@ -199,7 +201,7 @@ class Tree(Generic[NT, T]):
             new_sub_tree: Tree[NT, T] = random.choice(list(enumerate_terms(non_terminal, grammar, 300)))
             # 7.
             offspring = self.replace(mutate_point, new_sub_tree)
-            if offspring.is_consistent():
+            if (offspring.derived_from == self.derived_from) and offspring.is_consistent():
                 return offspring
         mutate_point = []
         non_terminal = self.derived_from
@@ -265,7 +267,7 @@ def generate_new_terms(
 
     names, param_nts = zip(*rule.binder.items()) if len(rule.binder) > 0 else ((), ())
     literals: list[Tree[NT, T] | str] = [
-        Tree(p.value,lhs,rule) if isinstance(p, Literal) else p.name for p in rule.parameters
+        Tree(p.value, p.group, rule) if isinstance(p, Literal) else p.name for p in rule.parameters
     ]
     interleave: Callable[[Mapping[str, Tree[NT, T]]], tuple[Tree[NT, T], ...]] = lambda substitution: tuple(
         substitution[t] if isinstance(t, str) else t for t in literals

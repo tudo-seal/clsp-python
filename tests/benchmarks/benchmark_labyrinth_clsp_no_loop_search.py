@@ -7,6 +7,8 @@ from clsp.fcl import FiniteCombinatoryLogic
 
 from clsp.types import Constructor, Literal, Param, LVar, Type
 
+from clsp.search import tournament_search, Fitness
+
 
 def plus_one(a: str) -> Callable[[Mapping[str, Literal]], int]:
     def _inner(vars: Mapping[str, Literal]) -> int:
@@ -28,6 +30,9 @@ def getpath(
     path
 ) -> Iterable[tuple[int, int]]:
     while path.root != "START":
+        # TODO why do empty parameters occur? This shouldn't happen, should it?
+        if not path.parameters:
+            break
         position_arg = path.parameters["a"].root
         if isinstance(position_arg, tuple):
             yield position_arg
@@ -85,7 +90,7 @@ def main(solutions: int = 10000, output: bool = True) -> float:
         for row in range(SIZE):
             for col in range(SIZE):
                 if is_free((row, col)):
-                    print("-", end="")
+                    print(f"-", end="")
                 else:
                     print("#", end="")
             print("")
@@ -99,14 +104,43 @@ def main(solutions: int = 10000, output: bool = True) -> float:
     start = timeit.default_timer()
     grammar = fcl.inhabit(fin)
 
-    for term in enumerate_terms(fin, grammar, solutions):
-        positions = list(getpath(term))
-        if len(positions) != len(set(positions)):
-            continue
+    def shortest_path_and_loop_free(tree) -> int:
+        path = list(getpath(tree))
+        length = len(path)
+        if len(path) != len(set(path)):
+            return -100000000
+        else:
+            return length*(-1)
 
-        t = interpret_term(term)
-        if output:
-            print(t)
+    fit = Fitness(shortest_path_and_loop_free, "shortest_path_and_loop_free", ordering=lambda x, y: x < y)
+
+    #for term in list(tournament_search(fin, grammar, fit, population_size=100, generations=1, tournament_size=3, preserved_fittest=1))[:10]:
+    #    positions = list(getpath(term))
+    #    t = interpret_term(term)
+    #    print(t)
+    #    print(f"Path length: {len(positions)}")
+    #    print("#######################################")
+
+    terms = list(enumerate_terms(fin, grammar, max_count=10))
+
+    for i in range(0,10,2):
+        term1 = terms[i]
+        term2 = terms[i+1]
+        offspring = term1.crossover(term2)
+        print(f"parent1: {interpret_term(term1)}")
+        print(f"parent2: {interpret_term(term2)}")
+        print(f"offspring: {interpret_term(offspring)}")
+
+        print(f"offspring consistent: {offspring.is_consistent()}")
+
+        print(term1.derived_from)
+        print(term1.children[0].derived_from)
+        print(term1.children[1].derived_from)
+        print(term1.children[2].derived_from)
+        term3 = term1.children[2]
+        print(interpret_term(term3))
+
+        print("#######################################")
 
     return timeit.default_timer() - start
 
