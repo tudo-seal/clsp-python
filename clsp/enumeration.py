@@ -36,6 +36,7 @@ class Tree(Generic[NT, T]):
     root: T
     derived_from: NT | str
     rhs_rule: RHSRule[NT, T]
+    is_literal: bool
 
     children: tuple["Tree[NT, T]", ...] = field(default=())
     variable_names: list[str] = field(default_factory=list)
@@ -120,13 +121,20 @@ class Tree(Generic[NT, T]):
 
 
     def is_valid(self, p_subtree: tuple["Tree[NT, T]", list[int], str, dict[str, "Tree[NT, T]"], list[Predicate]],
-                 s_subtree: "Tree[NT, T]") -> bool:
+                 s_subtree: "Tree[NT, T]", grammar: ParameterizedTreeGrammar[NT, T]) -> bool:
         substitution = p_subtree[3]
-        substitution.update({p_subtree[2]: s_subtree})
-        return all(pred.eval(substitution) for pred in p_subtree[4])
+        if s_subtree.is_literal:
+            rules = grammar.get(p_subtree[0].derived_from)
+            for r in rules:
+                for name, para in zip(r.variable_names, r.parameters):
+                    if name == p_subtree[2] and para == s_subtree:
+                        substitution.update({p_subtree[2]: s_subtree})
+                        return all(pred.eval(substitution) for pred in r.predicates)
+        else:
+            substitution.update({p_subtree[2]: s_subtree})
+            return all(pred.eval(substitution) for pred in p_subtree[4])
 
     # TODO: is_consistent currently traverses the whole tree top down, but it should be more efficient to just traverse bottom up from the crossover point.
-    # TODO: this function is buggy!!!!
     def is_consistent(self) -> bool:
         result: list[bool] = []
         for i, child in enumerate(self.children):
@@ -142,14 +150,14 @@ class Tree(Generic[NT, T]):
             return new_subtree
         i = path.pop(0)
         if i < len(self.children):
-            return Tree(self.root, self.derived_from, self.rhs_rule, tuple(
+            return Tree(self.root, self.derived_from, self.rhs_rule, self.is_literal, tuple(
                 (child.replace(path, new_subtree)) if j == i else child
                 for j, child in enumerate(self.children)), self.variable_names, self.frozen)
         else:
             return self
 
     # crossover function
-    def crossover(self, secondary_derivation_tree: "Tree[NT, T]"):  # -> "Tree[NT, T]" | None:
+    def crossover(self, secondary_derivation_tree: "Tree[NT, T]", grammar: ParameterizedTreeGrammar[NT, T]):  # -> "Tree[NT, T]" | None:
         # 1.
         primary_sub_trees: list[tuple["Tree[NT, T]", list[int], str, dict[str, "Tree[NT, T]"], list[Predicate]]] = (
             list(self.subtrees([])))
@@ -162,19 +170,20 @@ class Tree(Generic[NT, T]):
             sel_primary_subtree: tuple["Tree[NT, T]", list[int], str, dict[str, "Tree[NT, T]"], list[Predicate]] = (
                 random.choice(primary_sub_trees))
             primary_crossover_point: NT = sel_primary_subtree[0].derived_from
+            is_literal = sel_primary_subtree[0].is_literal
             primary_sub_trees.remove(sel_primary_subtree)
             # 5.
             temp_secondary_subtrees: list[Tree[NT, T]] = secondary_sub_trees.copy()
-            temp_secondary_subtrees = list(filter(lambda x: x.derived_from == primary_crossover_point,
+            temp_secondary_subtrees = list(filter(lambda x: x.derived_from == primary_crossover_point and x.is_literal == is_literal,
                                                   temp_secondary_subtrees))
             # 6.
             while temp_secondary_subtrees:
                 # 7.
                 sel_secondary_subtree: Tree[NT, T] = random.choice(temp_secondary_subtrees)
                 temp_secondary_subtrees.remove(sel_secondary_subtree)
-                if self.is_valid(sel_primary_subtree, sel_secondary_subtree):
+                if self.is_valid(sel_primary_subtree, sel_secondary_subtree, grammar):
                     offspring = self.replace(sel_primary_subtree[1].copy(), sel_secondary_subtree)
-                    if (offspring.derived_from == self.derived_from) and offspring.is_consistent():
+                    if offspring.is_consistent():
                         print(f"crossover-point: {primary_crossover_point}")
                         print(f"sel_primary_subtree path: {sel_primary_subtree[1]}")
                         print(f"sel_secondary_subtree derived from: {sel_secondary_subtree.derived_from}")
@@ -184,6 +193,7 @@ class Tree(Generic[NT, T]):
     # mutating the tree by selecting a random subtree and replacing it with a new subtree inhabiting the same type.
     # Therefore, mutation needs the grammar as an extra argument to inhabit the mutations.
     # This should be more memory efficient than taking the grammar as a field in each node
+    # TODO literals and constants should not be mutated! Only Trees with children!
     def mutate(self, grammar: ParameterizedTreeGrammar[NT, T]):  # -> "Tree[NT, T]" | None:
         # include an optional parameter maximum depth and ensure, that no tree produced by mutation exceeds this depth
         # 1.
@@ -267,7 +277,7 @@ def generate_new_terms(
 
     names, param_nts = zip(*rule.binder.items()) if len(rule.binder) > 0 else ((), ())
     literals: list[Tree[NT, T] | str] = [
-        Tree(p.value, p.group, rule) if isinstance(p, Literal) else p.name for p in rule.parameters
+        Tree(p.value, lhs, rule, True) if isinstance(p, Literal) else p.name for p in rule.parameters
     ]
     interleave: Callable[[Mapping[str, Tree[NT, T]]], tuple[Tree[NT, T], ...]] = lambda substitution: tuple(
         substitution[t] if isinstance(t, str) else t for t in literals
@@ -276,6 +286,7 @@ def generate_new_terms(
         rule.terminal,
         lhs,
         rule,
+        False,
         params_args,
         variable_names=rule.variable_names,
     )

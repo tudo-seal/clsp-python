@@ -104,7 +104,7 @@ def main(solutions: int = 10000, output: bool = True) -> float:
     start = timeit.default_timer()
     grammar = fcl.inhabit(fin)
 
-    def shortest_path_and_loop_free(tree) -> int:
+    def shortest_loop_free_path(tree) -> int:
         path = list(getpath(tree))
         length = len(path)
         if len(path) != len(set(path)):
@@ -112,34 +112,21 @@ def main(solutions: int = 10000, output: bool = True) -> float:
         else:
             return length*(-1)
 
-    fit = Fitness(shortest_path_and_loop_free, "shortest_path_and_loop_free", ordering=lambda x, y: x < y)
+    def longest_loop_free_path(tree) -> int:
+        path = list(getpath(tree))
+        length = len(path)
+        if len(path) != len(set(path)):
+            return -1
+        else:
+            return length
 
-    #for term in list(tournament_search(fin, grammar, fit, population_size=100, generations=1, tournament_size=3, preserved_fittest=1))[:10]:
-    #    positions = list(getpath(term))
-    #    t = interpret_term(term)
-    #    print(t)
-    #    print(f"Path length: {len(positions)}")
-    #    print("#######################################")
+    fit = Fitness(shortest_loop_free_path, "shortest_path_and_loop_free", ordering=lambda x, y: x < y)
 
-    terms = list(enumerate_terms(fin, grammar, max_count=10))
-
-    for i in range(0,10,2):
-        term1 = terms[i]
-        term2 = terms[i+1]
-        offspring = term1.crossover(term2)
-        print(f"parent1: {interpret_term(term1)}")
-        print(f"parent2: {interpret_term(term2)}")
-        print(f"offspring: {interpret_term(offspring)}")
-
-        print(f"offspring consistent: {offspring.is_consistent()}")
-
-        print(term1.derived_from)
-        print(term1.children[0].derived_from)
-        print(term1.children[1].derived_from)
-        print(term1.children[2].derived_from)
-        term3 = term1.children[2]
-        print(interpret_term(term3))
-
+    for term in list(tournament_search(fin, grammar, fit, population_size=100, generations=1, tournament_size=3, preserved_fittest=1))[:10]:
+        positions = list(getpath(term))
+        t = interpret_term(term)
+        print(t)
+        print(f"Path length: {len(positions)}")
         print("#######################################")
 
     return timeit.default_timer() - start

@@ -72,8 +72,8 @@ def tournament_search(target: NT, grammar: ParameterizedTreeGrammar[NT, T], fitn
             parent1 = selected[i]
             parent2 = selected[i + 1]
             # Perform crossover and mutation to create offspring
-            offspring1 = parent1.crossover(parent2)
-            offspring2 = parent2.crossover(parent1)  # offspring1.mutate(grammar)
+            offspring1 = parent1.crossover(parent2, grammar)
+            offspring2 = parent2.crossover(parent1, grammar)  # offspring1.mutate(grammar)
             next_generation.append(offspring1)
             next_generation.append(offspring2)
         # Preserve the fittest individuals from the current generation
