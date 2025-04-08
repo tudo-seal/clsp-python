@@ -55,7 +55,7 @@ def tournament_selection_curried(pop_fit: Sequence[tuple[Tree[NT, T], V]], tourn
         selected.append(winner)
     return selected
 
-
+# evolutionary algorithm for searching the fittest tree (local maximum of the fitness function) using tournament selection
 def tournament_search(target: NT, grammar: ParameterizedTreeGrammar[NT, T], fitness: Fitness[NT, T, V],
                    population_size: int, generations: int, tournament_size=3, preserved_fittest=3) -> Sequence[Tree[NT, T]]:
     # Create the initial population
@@ -73,7 +73,7 @@ def tournament_search(target: NT, grammar: ParameterizedTreeGrammar[NT, T], fitn
             parent2 = selected[i + 1]
             # Perform crossover and mutation to create offspring
             offspring1 = parent1.crossover(parent2, grammar)
-            offspring2 = parent2.crossover(parent1, grammar)  # offspring1.mutate(grammar)
+            offspring2 = offspring1.mutate(grammar)
             next_generation.append(offspring1)
             next_generation.append(offspring2)
         # Preserve the fittest individuals from the current generation

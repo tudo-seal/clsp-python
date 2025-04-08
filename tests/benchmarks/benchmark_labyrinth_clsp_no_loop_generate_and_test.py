@@ -27,10 +27,11 @@ def is_free(pos: tuple[int, int]) -> bool:
 def getpath(
     path
 ) -> Iterable[tuple[int, int]]:
+    position_arg = path.parameters["b"].root
     while path.root != "START":
-        position_arg = path.parameters["a"].root
         if isinstance(position_arg, tuple):
             yield position_arg
+        position_arg = path.parameters["a"].root
         path = path.parameters["pos"]
 
 

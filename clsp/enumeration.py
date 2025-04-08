@@ -121,18 +121,22 @@ class Tree(Generic[NT, T]):
 
 
     def is_valid(self, p_subtree: tuple["Tree[NT, T]", list[int], str, dict[str, "Tree[NT, T]"], list[Predicate]],
-                 s_subtree: "Tree[NT, T]", grammar: ParameterizedTreeGrammar[NT, T]) -> bool:
+                 s_subtree: "Tree[NT, T]", grammar: ParameterizedTreeGrammar[NT, T]) -> tuple[bool, "Tree[NT, T]"]:
         substitution = p_subtree[3]
-        if s_subtree.is_literal:
+        if p_subtree[0].is_literal and s_subtree.is_literal:
             rules = grammar.get(p_subtree[0].derived_from)
             for r in rules:
                 for name, para in zip(r.variable_names, r.parameters):
                     if name == p_subtree[2] and para == s_subtree:
                         substitution.update({p_subtree[2]: s_subtree})
-                        return all(pred.eval(substitution) for pred in r.predicates)
+                        s_subtree.rhs_rule = r
+                        return all(pred.eval(substitution) for pred in r.predicates), s_subtree
+            return False, s_subtree
+        elif p_subtree[0].is_literal != s_subtree.is_literal:
+            return False, s_subtree
         else:
             substitution.update({p_subtree[2]: s_subtree})
-            return all(pred.eval(substitution) for pred in p_subtree[4])
+            return all(pred.eval(substitution) for pred in p_subtree[4]), s_subtree
 
     # TODO: is_consistent currently traverses the whole tree top down, but it should be more efficient to just traverse bottom up from the crossover point.
     def is_consistent(self) -> bool:
@@ -157,7 +161,7 @@ class Tree(Generic[NT, T]):
             return self
 
     # crossover function
-    def crossover(self, secondary_derivation_tree: "Tree[NT, T]", grammar: ParameterizedTreeGrammar[NT, T]):  # -> "Tree[NT, T]" | None:
+    def crossover(self, secondary_derivation_tree: "Tree[NT, T]", grammar: ParameterizedTreeGrammar[NT, T]): # -> "Tree[NT, T]" | None:
         # 1.
         primary_sub_trees: list[tuple["Tree[NT, T]", list[int], str, dict[str, "Tree[NT, T]"], list[Predicate]]] = (
             list(self.subtrees([])))
@@ -181,12 +185,10 @@ class Tree(Generic[NT, T]):
                 # 7.
                 sel_secondary_subtree: Tree[NT, T] = random.choice(temp_secondary_subtrees)
                 temp_secondary_subtrees.remove(sel_secondary_subtree)
-                if self.is_valid(sel_primary_subtree, sel_secondary_subtree, grammar):
-                    offspring = self.replace(sel_primary_subtree[1].copy(), sel_secondary_subtree)
+                valid, new_secondary = self.is_valid(sel_primary_subtree, sel_secondary_subtree, grammar)
+                if valid:
+                    offspring = self.replace(sel_primary_subtree[1].copy(), new_secondary)
                     if offspring.is_consistent():
-                        print(f"crossover-point: {primary_crossover_point}")
-                        print(f"sel_primary_subtree path: {sel_primary_subtree[1]}")
-                        print(f"sel_secondary_subtree derived from: {sel_secondary_subtree.derived_from}")
                         return offspring
         return None
 
@@ -204,14 +206,16 @@ class Tree(Generic[NT, T]):
             # 3.
             mutated_subtree: tuple["Tree[NT, T]", list[int], str, dict[str, "Tree[NT, T]"], list[Predicate]] = (
                 random.choice(sub_trees))
-            mutate_point: T = mutated_subtree[1]
             sub_trees.remove(mutated_subtree)
+            if mutated_subtree[0].is_literal or not mutated_subtree[0].children:
+                continue
+            mutate_point: T = mutated_subtree[1]
             non_terminal: NT = mutated_subtree[0].derived_from
             # 6.
             new_sub_tree: Tree[NT, T] = random.choice(list(enumerate_terms(non_terminal, grammar, 300)))
             # 7.
             offspring = self.replace(mutate_point, new_sub_tree)
-            if (offspring.derived_from == self.derived_from) and offspring.is_consistent():
+            if offspring.is_consistent():
                 return offspring
         mutate_point = []
         non_terminal = self.derived_from

@@ -29,13 +29,11 @@ def is_free(pos: tuple[int, int]) -> bool:
 def getpath(
     path
 ) -> Iterable[tuple[int, int]]:
+    position_arg = path.parameters["b"].root
     while path.root != "START":
-        # TODO why do empty parameters occur? This shouldn't happen, should it?
-        if not path.parameters:
-            break
-        position_arg = path.parameters["a"].root
         if isinstance(position_arg, tuple):
             yield position_arg
+        position_arg = path.parameters["a"].root
         path = path.parameters["pos"]
 
 
@@ -107,7 +105,7 @@ def main(solutions: int = 10000, output: bool = True) -> float:
     def shortest_loop_free_path(tree) -> int:
         path = list(getpath(tree))
         length = len(path)
-        if len(path) != len(set(path)):
+        if length != len(set(path)):
             return -100000000
         else:
             return length*(-1)
@@ -115,20 +113,29 @@ def main(solutions: int = 10000, output: bool = True) -> float:
     def longest_loop_free_path(tree) -> int:
         path = list(getpath(tree))
         length = len(path)
-        if len(path) != len(set(path)):
+        if length != len(set(path)):
             return -1
         else:
             return length
 
     fit = Fitness(shortest_loop_free_path, "shortest_path_and_loop_free", ordering=lambda x, y: x < y)
+    fit2 = Fitness(longest_loop_free_path, "longest_path_and_loop_free", ordering=lambda x, y: x > y)
 
-    for term in list(tournament_search(fin, grammar, fit, population_size=100, generations=1, tournament_size=3, preserved_fittest=1))[:10]:
-        positions = list(getpath(term))
-        t = interpret_term(term)
-        print(t)
-        print(f"Path length: {len(positions)}")
-        print("#######################################")
+    final_population = list(tournament_search(fin, grammar, fit2, population_size=1000, generations=4, tournament_size=3, preserved_fittest=1))
 
+    #for term in final_population[:10]:
+    #    positions = list(getpath(term))
+    #    t = interpret_term(term)
+    #    print(t)
+    #    print(f"Path length: {len(positions)}")
+    #    print("#######################################")
+
+    print("maximum:")
+    winner = max(final_population, key=fit2.eval)
+    print(interpret_term(winner))
+    win_path = list(getpath(winner))
+    print(f"Path: {win_path}")
+    print(f"Path set length: {len(set(win_path))}")
     return timeit.default_timer() - start
 
 
