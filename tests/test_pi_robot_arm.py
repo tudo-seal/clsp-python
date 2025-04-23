@@ -40,7 +40,7 @@ class TestRobotArm(unittest.TestCase):
             Part("motor"): DSL()
             .Use("current_motor_count", "int")
             .Use("new_motor_count", "int")
-            .AsRaw(lambda vars: vars["current_motor_count"] + 1)
+            .As(lambda current_motor_count: current_motor_count + 1)
             .In(
                 Constructor("Structural") ** Constructor("Motor")
                 & ("c" @ LVar("current_motor_count")) ** ("c" @ LVar("new_motor_count"))
