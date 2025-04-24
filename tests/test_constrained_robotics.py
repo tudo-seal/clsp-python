@@ -41,6 +41,12 @@ class TestConstrainedRobotics(unittest.TestCase):
     prevents efficient pre-computation.
     """
 
+    STRONG_MOTOR = "Strong Motor"
+    WEAK_MOTOR = "Weak Motor"
+    BRANCHING_PART = "Branching Part"
+    EXTENDING_PART = "Extending Part"
+    EFFECTOR = "Effector"
+
     logger = logging.getLogger(__name__)
     logging.basicConfig(
         format="%(module)s %(levelname)s: %(message)s",
@@ -53,24 +59,15 @@ class TestConstrainedRobotics(unittest.TestCase):
         This is used in conjunction with type predicates to ensure that target weight is not exceeded.
         As terms are constructed bottom-up, this leads to efficient filtering on terms.
 
+        Note that all parameters that are not literals but represent structural parts need to be affixed or suffixed
+        with "part".
+
         :param tree: The uninterpreted term.
         :return: The computed weight of the term.
         """
-        match tree.root.name:
-            case "Branching Part":
-                return (
-                    self.compute_weight(tree.parameters["left_part"])
-                    + self.compute_weight(tree.parameters["right_part"])
-                    + tree.root.properties.get("weight")
-                )
-            case "Extending Part" | "Weak Motor" | "Strong Motor":
-                return self.compute_weight(tree.parameters["next_part"]) + tree.root.properties.get(
-                    "weight"
-                )
-            case "Effector":
-                return tree.root.properties.get("weight")
-            case _:
-                raise RuntimeError("Unhandled Part in Repository.")
+        return tree.root.properties.get("weight") + sum(
+            self.compute_weight(part) for key, part in tree.parameters.items() if "part" in key
+        )
 
     def compute_torque(self, tree: Tree[Part]) -> float:
         """
@@ -80,11 +77,59 @@ class TestConstrainedRobotics(unittest.TestCase):
         """
         return 0.0
 
+    def check_torque_strictly_descending(self, tree: Tree[Part], torque) -> bool:
+        pass
+
     def setUp(self) -> None:
         """
 
         :return:
         """
+        part_properties: dict[str, dict[str, float]] = {
+            self.STRONG_MOTOR: {"weight": 1.0, "torque": 3.0, "angle": 70.0, "length": 5.0},
+            self.WEAK_MOTOR: {"weight": 0.8, "torque": 1.0, "angle": 90.0, "length": 5.0},
+            self.BRANCHING_PART: {"weight": 0.8, "torque": 1.0, "angle": 90.0, "length": 5.0},
+            self.EXTENDING_PART: {"weight": 0.5, "length": 50.0},
+            self.EFFECTOR: {"weight": 0.1, "torque": 1.0, "length": 5.0},
+        }
+
+        weight_algebra = {
+            self.STRONG_MOTOR: lambda _, __, ___, next_part: part_properties.get(
+                self.STRONG_MOTOR
+            ).get("weight")
+            + next_part,
+            self.WEAK_MOTOR: lambda _, __, ___, next_part: part_properties.get(self.WEAK_MOTOR).get(
+                "weight"
+            )
+            + next_part,
+            self.BRANCHING_PART: lambda _, __, ____, _____, left_part, right_part: part_properties.get(
+                self.BRANCHING_PART
+            ).get(
+                "weight"
+            )
+            + left_part
+            + right_part,
+            self.EXTENDING_PART: lambda _, __, next_part: part_properties.get(
+                self.EXTENDING_PART
+            ).get("weight")
+            + next_part,
+            self.EFFECTOR: lambda _: part_properties.get(self.EFFECTOR).get("weight"),
+        }
+
+        max_torque_algebra = {
+            self.STRONG_MOTOR: lambda _, __, ___, next_part: max(
+                part_properties.get(self.STRONG_MOTOR).get("torque"), next_part
+            ),
+            self.WEAK_MOTOR: lambda _, __, ___, next_part: max(
+                part_properties.get(self.WEAK_MOTOR).get("torque"), next_part
+            ),
+            self.BRANCHING_PART: lambda _, __, ____, _____, left_part, right_part: max(
+                left_part, right_part
+            ),
+            self.EXTENDING_PART: lambda _, __, next_part: next_part,
+            self.EFFECTOR: lambda _: 0.0,
+        }
+
         repo: dict[Part, Type | Param] = {
             #
             ###########################################################################################################
@@ -93,9 +138,7 @@ class TestConstrainedRobotics(unittest.TestCase):
             # [PROPERTIES]: WEIGHT, TORQUE, ANGLE, LENGTH
             ###########################################################################################################
             #
-            Part(
-                "Strong Motor", {"weight": 1.0, "torque": 3.0, "angle": 70.0, "length": 5.0}
-            ): DSL()
+            self.STRONG_MOTOR: DSL()
             .Use("target_weight", "weight")
             .Use("dof", "dofs")
             .Use("new_dof", "dofs")
@@ -106,7 +149,12 @@ class TestConstrainedRobotics(unittest.TestCase):
             )
             .With(
                 lambda target_weight, next_part: target_weight
-                > self.compute_weight(next_part) + 1.0
+                > interpret_term(next_part, weight_algebra)
+                + part_properties.get(self.STRONG_MOTOR).get("weight")
+            )
+            .With(
+                lambda next_part: interpret_term(next_part, max_torque_algebra)
+                <= part_properties.get(self.STRONG_MOTOR).get("torque")
             )
             .In((Constructor("Motor") & ("c" @ LVar("target_weight"))) & ("c" @ LVar("new_dof"))),
             #
@@ -116,7 +164,7 @@ class TestConstrainedRobotics(unittest.TestCase):
             # [PROPERTIES]: WEIGHT, TORQUE, ANGLE, LENGTH
             ###########################################################################################################
             #
-            Part("Weak Motor", {"weight": 0.8, "torque": 1.0, "angle": 90.0, "length": 5.0}): DSL()
+            self.WEAK_MOTOR: DSL()
             .Use("target_weight", "weight")
             .Use("dof", "dofs")
             .Use("new_dof", "dofs")
@@ -127,7 +175,12 @@ class TestConstrainedRobotics(unittest.TestCase):
             )
             .With(
                 lambda target_weight, next_part: target_weight
-                > self.compute_weight(next_part) + 0.8
+                > interpret_term(next_part, weight_algebra)
+                + part_properties.get(self.WEAK_MOTOR).get("weight")
+            )
+            .With(
+                lambda next_part: interpret_term(next_part, max_torque_algebra)
+                <= part_properties.get(self.WEAK_MOTOR).get("torque")
             )
             .In((Constructor("Motor") & ("c" @ LVar("target_weight"))) & ("c" @ LVar("new_dof"))),
             #
@@ -137,7 +190,7 @@ class TestConstrainedRobotics(unittest.TestCase):
             # [PROPERTIES]: WEIGHT, LENGTH
             ###########################################################################################################
             #
-            Part("Branching Part", {"weight": 1.0, "length": 25.0}): DSL()
+            self.BRANCHING_PART: DSL()
             .Use("target_weight", "weight")
             .Use("dof_l", "dofs")
             .Use("dof_r", "dofs")
@@ -153,9 +206,11 @@ class TestConstrainedRobotics(unittest.TestCase):
             )
             .With(
                 lambda target_weight, left_part, right_part,: target_weight
-                > self.compute_weight(left_part) + self.compute_weight(right_part) + 1
+                > interpret_term(left_part, weight_algebra)
+                + interpret_term(right_part, weight_algebra)
+                + part_properties.get(self.BRANCHING_PART).get("weight")
             )
-            .In((Constructor("Inert") & ("c" @ LVar("target_weight"))) & ("c" @ LVar("new_dof"))),
+            .In(Constructor("Inert") & ("c" @ LVar("target_weight")) & ("c" @ LVar("new_dof"))),
             #
             ###########################################################################################################
             # [IDENTIFIER]: EXTENDING PART
@@ -163,7 +218,7 @@ class TestConstrainedRobotics(unittest.TestCase):
             # [PROPERTIES]: WEIGHT, LENGTH
             ###########################################################################################################
             #
-            Part("Extending Part", {"weight": 0.5, "length": 50.0}): DSL()
+            self.EXTENDING_PART: DSL()
             .Use("target_weight", "weight")
             .Use("dof", "dofs")
             .Use(
@@ -172,9 +227,10 @@ class TestConstrainedRobotics(unittest.TestCase):
             )
             .With(
                 lambda target_weight, next_part: target_weight
-                > self.compute_weight(next_part) + 0.5
+                > interpret_term(next_part, weight_algebra)
+                + part_properties.get(self.EXTENDING_PART).get("weight")
             )
-            .In((Constructor("Inert") & ("c" @ LVar("target_weight"))) & ("c" @ LVar("dof"))),
+            .In(Constructor("Inert") & ("c" @ LVar("target_weight")) & ("c" @ LVar("dof"))),
             #
             ###########################################################################################################
             # [IDENTIFIER]: EFFECTOR
@@ -182,10 +238,12 @@ class TestConstrainedRobotics(unittest.TestCase):
             # [PROPERTIES]: WEIGHT, TORQUE, LENGTH
             ###########################################################################################################
             #
-            Part("Effector", {"weight": 0.1, "torque": 1.0, "length": 5.0}): DSL()
+            self.EFFECTOR: DSL()
             .Use("target_weight", "weight")
-            .Use("dof", "dofs")
-            .With(lambda target_weight: target_weight > 0.1)
+            .With(
+                lambda target_weight: target_weight
+                > part_properties.get(self.EFFECTOR).get("weight")
+            )
             .In(
                 (Constructor("Motor") & ("c" @ LVar("target_weight"))) & ("c" @ Literal(0, "dofs"))
             ),
@@ -195,13 +253,14 @@ class TestConstrainedRobotics(unittest.TestCase):
             def __contains__(self, value: object) -> bool:
                 return isinstance(value, float) and value >= 0.0
 
-        targets = {"weight": 1.8, "dof": 1}
+        targets = {"weight": 3.2, "dof": 2}
         literals = {
             "weight": Float(),
             "length": Float(),
             "dofs": list(range(targets.get("dof") + 1)),
         }
         environment: dict[str, set[str]] = {"Motor": {"Structural"}, "Inert": {"Structural"}}
+
         subtypes = Subtypes(environment)
         fcl = FiniteCombinatoryLogic(repo, subtypes=subtypes, literals=literals)
         self.query = (
@@ -210,7 +269,7 @@ class TestConstrainedRobotics(unittest.TestCase):
             & ("c" @ Literal(targets.get("dof"), "dofs"))
         )
         self.grammar = fcl.inhabit(self.query)
-        self.terms = list(enumerate_terms(self.query, self.grammar, max_count=1249))
+        self.terms = list(enumerate_terms(self.query, self.grammar, max_count=20))
         for term in self.terms:
             print(term)
 
