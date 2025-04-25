@@ -34,17 +34,17 @@ T = TypeVar("T", covariant=True, bound=Hashable)
 @dataclass(slots=True)
 class Tree(Generic[NT, T]):
     root: T
-    derived_from: NT | str
-    rhs_rule: RHSRule[NT, T]
-    is_literal: bool
 
     children: tuple["Tree[NT, T]", ...] = field(default=())
     variable_names: list[str] = field(default_factory=list)
+
+    derived_from: NT | str = field(default="")
+    rhs_rule: RHSRule[NT, T] = field(default_factory=list)
+    is_literal: bool = field(default=False)
     frozen: bool = field(default=False)
 
     size: int = field(init=False, compare=True, repr=False)
     _hash: int = field(init=False, compare=False, repr=False)
-    # logic_goals: list[Predicate] = field(init=False, compare=False, repr=False)
 
     def __post_init__(self) -> None:
         self.size = 1 + sum(child.size for child in self.children)
@@ -154,9 +154,10 @@ class Tree(Generic[NT, T]):
             return new_subtree
         i = path.pop(0)
         if i < len(self.children):
-            return Tree(self.root, self.derived_from, self.rhs_rule, self.is_literal, tuple(
+            return Tree(self.root, tuple(
                 (child.replace(path, new_subtree)) if j == i else child
-                for j, child in enumerate(self.children)), self.variable_names, self.frozen)
+                for j, child in enumerate(self.children)), self.variable_names,
+                        self.derived_from, self.rhs_rule, self.is_literal, self.frozen)
         else:
             return self
 
@@ -195,7 +196,6 @@ class Tree(Generic[NT, T]):
     # mutating the tree by selecting a random subtree and replacing it with a new subtree inhabiting the same type.
     # Therefore, mutation needs the grammar as an extra argument to inhabit the mutations.
     # This should be more memory efficient than taking the grammar as a field in each node
-    # TODO literals and constants should not be mutated! Only Trees with children!
     def mutate(self, grammar: ParameterizedTreeGrammar[NT, T]):  # -> "Tree[NT, T]" | None:
         # include an optional parameter maximum depth and ensure, that no tree produced by mutation exceeds this depth
         # 1.
@@ -281,18 +281,18 @@ def generate_new_terms(
 
     names, param_nts = zip(*rule.binder.items()) if len(rule.binder) > 0 else ((), ())
     literals: list[Tree[NT, T] | str] = [
-        Tree(p.value, lhs, rule, True) if isinstance(p, Literal) else p.name for p in rule.parameters
+        Tree(p.value, derived_from=lhs, rhs_rule=rule, is_literal=True) if isinstance(p, Literal) else p.name for p in rule.parameters
     ]
     interleave: Callable[[Mapping[str, Tree[NT, T]]], tuple[Tree[NT, T], ...]] = lambda substitution: tuple(
         substitution[t] if isinstance(t, str) else t for t in literals
     )
     new_term: Callable[[tuple[Tree[NT, T], ...]], Tree[NT, T]] = lambda params_args: Tree(
         rule.terminal,
+        params_args,
+        rule.variable_names,
         lhs,
         rule,
         False,
-        params_args,
-        variable_names=rule.variable_names,
     )
 
     if nt_old_term is None:

@@ -1,6 +1,7 @@
 import random
 from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+from operator import truediv
 from typing import Any, Generic, Optional, TypeVar, overload
 from .enumeration import Tree, enumerate_terms
 from .grammar import ParameterizedTreeGrammar
@@ -24,7 +25,8 @@ class Fitness(Generic[NT, T, V]):
 
 
 # Create the initial population
-def create_initial_population(target: NT, grammar: ParameterizedTreeGrammar[NT, T], size: int) -> Sequence[Tree[NT, T]]:
+# TODO: this is not a good way to create the initial population. It should be done by sampling from the grammar
+def enumerate_initial_population(target: NT, grammar: ParameterizedTreeGrammar[NT, T], size: int) -> Sequence[Tree[NT, T]]:
     overfitted = list(enumerate_terms(target, grammar, max_count=100000))
     length = len(overfitted)
     if size > length:
@@ -32,6 +34,27 @@ def create_initial_population(target: NT, grammar: ParameterizedTreeGrammar[NT, 
     initial = random.sample(overfitted, size)
     return initial
 
+def create_initial_population(target: NT, grammar: ParameterizedTreeGrammar[NT, T], pop_size: int, tree_depth_delta=None, max_tree_depth=None) -> Sequence[Tree[NT, T]]:
+    if tree_depth_delta is None:
+        tree_depth_delta = 100
+    min_size: int = grammar.minimum_tree_depth(target)
+    if max_tree_depth is None:
+        max_tree_depth = min_size + tree_depth_delta
+    if max_tree_depth < min_size:
+        raise ValueError(f"max_tree_depth {max_tree_depth} is less than minimum tree depth {min_size}")
+    initial_population: Sequence[Tree[NT, T]] = []
+    for _ in range(pop_size):
+        nt = target
+        cs = 0
+        while True:
+            rules, _ = grammar.annotations()
+            applicable = []
+            for (lhs, rhs), n in rules.items():
+                if lhs == nt and cs + n <= max_tree_depth:
+                    applicable.append(rhs)
+            candidate = random.choice(applicable)
+    # TODO: implement randomized top-down enumeration
+    return []
 
 # Tournament selection function using tournament selection
 def tournament_selection(population: Sequence[Tree[NT, T]], fitness: Fitness[NT, T, V], tournament_size=3, select=None) -> Sequence[Tree[NT, T]]:
@@ -59,7 +82,7 @@ def tournament_selection_curried(pop_fit: Sequence[tuple[Tree[NT, T], V]], tourn
 def tournament_search(target: NT, grammar: ParameterizedTreeGrammar[NT, T], fitness: Fitness[NT, T, V],
                    population_size: int, generations: int, tournament_size=3, preserved_fittest=3) -> Sequence[Tree[NT, T]]:
     # Create the initial population
-    population = create_initial_population(target, grammar, population_size)
+    population = enumerate_initial_population(target, grammar, population_size)
 
     # Run the genetic algorithm for a number of generations
     for generation in range(generations):
