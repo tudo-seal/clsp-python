@@ -98,6 +98,14 @@ class Tree(Generic[NT, T]):
     def __str__(self) -> str:
         return self.__rec_to_str__(True)
 
+    def to_edge_dict(self) -> dict[T, list[T]]:
+        """Convert the tree to a dictionary of edges."""
+        edges: dict[T, list[T]] = {self.root: []}
+        for child in self.children:
+            edges[self.root].append(child.root)
+            edges.update(child.to_edge_dict())
+        return edges
+
     # subtrees() returns a list of all subtrees and their contexts.
     # The context is its path in the primary tree, the variable name of the subtree,
     # its siblings as a substitution and a list of predicates.
