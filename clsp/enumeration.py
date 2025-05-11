@@ -98,12 +98,12 @@ class Tree(Generic[NT, T]):
     def __str__(self) -> str:
         return self.__rec_to_str__(True)
 
-    def to_edge_dict(self) -> dict[T, list[T]]:
-        """Convert the tree to a dictionary of edges."""
+    def to_adjacency_dict(self) -> dict[T, list[T]]:
+        """Convert the tree to a dictionary, mapping combinators to their argument roots."""
         edges: dict[T, list[T]] = {self.root: []}
         for child in self.children:
             edges[self.root].append(child.root)
-            edges.update(child.to_edge_dict())
+            edges.update(child.to_adjacency_dict())
         return edges
 
     # subtrees() returns a list of all subtrees and their contexts.

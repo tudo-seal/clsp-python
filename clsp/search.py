@@ -5,105 +5,639 @@ from operator import truediv
 from typing import Any, Generic, Optional, TypeVar, overload
 from .enumeration import Tree, enumerate_terms
 from .grammar import ParameterizedTreeGrammar
+from .fcl import Contains, FiniteCombinatoryLogic
+from .subtypes import Subtypes
+from abc import ABC, abstractmethod
+
+from copy import deepcopy
+# TODO edit pyproject.toml, or use setup.py or whatever to manage dependencies
+import torch
+from gpytorch import settings
+from gpytorch.distributions import MultivariateNormal
+from gpytorch.likelihoods import _GaussianLikelihoodBase
+from gpytorch.models import ExactGP
+from gpytorch.models.exact_prediction_strategies import prediction_strategy
+from gpytorch import Module
+import networkx as nx
+from botorch import fit_gpytorch_model
+
+from grakel import graph_from_networkx
+from grakel.kernels import (
+    RandomWalk,
+)
 
 NT = TypeVar("NT")  # non-terminals
 T = TypeVar("T", covariant=True, bound=Hashable)
-V = TypeVar("V")  # codomain of fitness-function. needs to be a poset!
+V = TypeVar("V")  # codomain of fitness-function. needs to be a poset! which means that compare methods are defined.
+
+class Sample(ABC):
+    """
+    Abstract base class for sampling methods.
+    """
+
+    def __init__(self, gamma: Mapping[T, NT], delta: Mapping[str, Iterable[Any] | Contains], target: NT,
+                 subtypes: Subtypes = Subtypes({})):
+        self.gamma: Mapping[T, NT] = gamma
+        self.delta: Mapping[str, Iterable[Any] | Contains] = delta
+        self.subtypes: Subtypes = subtypes
+        self.fcl = FiniteCombinatoryLogic(gamma, subtypes, delta)
+        self.target: NT = target
+        self.grammar: ParameterizedTreeGrammar[NT, T] = self.fcl.inhabit(self.target)
+
+    @abstractmethod
+    def sample(self, size: int) -> Iterable[Tree[NT, T]]:
+        """
+        Sample a number of trees from the grammar.
+        """
+
+        raise NotImplementedError("sample() must be implemented")
+
+class Enumerate(Sample):
+    """
+    Enumeration sampling method.
+    """
+
+    def sample(self, size: int) -> Iterable[Tree[NT, T]]:
+        """
+        Sample a number of trees from the grammar.
+        """
+        return enumerate_terms(self.target, self.grammar, max_count=size)
+
+class SampleFromEnumeration(Sample):
+    """
+    Sample from the enumeration of the grammar.
+    """
+    def sample(self, size: int) -> Iterable[Tree[NT, T]]:
+        overfitted = list(enumerate_terms(self.target, self.grammar, max_count=size*100))
+        length = len(overfitted)
+        if size > length:
+            size = length
+        initial = random.sample(overfitted, size)
+        return initial
+
+class Search(Sample):
+    """
+    Abstract base class for sampling methods.
+    """
+
+    @abstractmethod
+    def search_max(self, fitness: Callable[[Tree[NT, T]], V]) -> Tree[NT, T]:
+        """
+        Search for a tree with maximum fitness.
+        """
+        raise NotImplementedError("search_max() must be implemented")
+
+    @abstractmethod
+    def search_min(self, fitness: Callable[[Tree[NT, T]], V]) -> Tree[NT, T]:
+        """
+        Search for a tree with minimum fitness.
+        """
+        raise NotImplementedError("search_min() must be implemented")
+
+    @abstractmethod
+    def search_fittest(self, fitness: Callable[[Tree[NT, T]], V], size: int) -> Iterable[Tree[NT, T]]:
+        """
+        Return an iterable of the trees with maximum fitness in the population.
+        The iterable is sorted in descending order of fitness, such that the tree with
+        maximum fitness is first.
+        """
+        raise NotImplementedError("search_fittest() must be implemented")
 
 
-@dataclass
-class Fitness(Generic[NT, T, V]):
-    fit: Callable[[Tree[NT, T]], V]
-    name: str = field(default="fit")
-    ordering: Callable[[V, V], bool] = field(default=lambda x, y: x < y)
+class GenerateAndTest(Search):
+    """
+    Generate and test search method.
+    """
 
-    def eval(self, tree: Tree[NT, T]) -> V:
-        return self.fit(tree)
+    def sample(self, size: int) -> Iterable[Tree[NT, T]]:
+        """
+        Sample a number of trees from the grammar.
+        """
+        return enumerate_terms(self.target, self.grammar, max_count=size)
 
-    def __str__(self) -> str:
-        return f"{self.name}"
+    def search_max(self, fitness: Callable[[Tree[NT, T]], V]) -> Tree[NT, T]:
+        """
+        Search for a tree with maximum fitness.
+        """
+        return max(self.sample(size=1000), key=fitness)
+
+    def search_min(self, fitness: Callable[[Tree[NT, T]], V]) -> Tree[NT, T]:
+        """
+        Search for a tree with minimum fitness.
+        """
+        return min(self.sample(size=1000), key=fitness)
+
+    def search_fittest(self, fitness: Callable[[Tree[NT, T]], V], size: int) -> Iterable[Tree[NT, T]]:
+        """
+        Return an iterable of the trees with maximum fitness in the population.
+        The iterable is sorted in descending order of fitness, such that the tree with
+        maximum fitness is first.
+        """
+        return sorted(self.sample(size=size), key=fitness, reverse=True)
+
+class SelectionStrategy(ABC):
+    """
+    Abstract base class for selection strategies.
+    """
+
+    @abstractmethod
+    def select(self, evaluated_trees: Mapping[Tree[NT, T], V]) -> Sequence[Tree[NT, T]]:
+        """
+        Select a number of trees from the population based on their fitness.
+        """
+        raise NotImplementedError("select() must be implemented")
+
+class TournamentSelection(SelectionStrategy):
+    """
+    Tournament selection strategy.
+    """
+
+    def __init__(self, tournament_size: int = 3, population_size: int = None):
+        self.tournament_size = tournament_size
+        self.size = population_size
+
+    def select(self, evaluated_trees: Mapping[Tree[NT, T], V]) -> Sequence[Tree[NT, T]]:
+        """
+        Select a number of trees from the population based on their fitness.
+        """
+        if self.size is None or self.size > len(evaluated_trees):
+            self.size = len(evaluated_trees)
+        selected: set[Tree[NT, T]] = set()
+        while len(selected) < self.size:
+            tournament = random.sample(list(evaluated_trees.items()), self.tournament_size)
+            winner = max(tournament, key=lambda x: x[1])[0]
+            selected.add(winner)
+        return list(selected)
+
+class EvolutionaryAlgorithm(Search):
+    """
+    Abstract class for evolutionary algorithms.
+    """
+
+    def __init__(self, gamma: Mapping[T, NT], delta: Mapping[str, Iterable[Any] | Contains], target: NT,
+                 subtypes: Subtypes = Subtypes({}),
+                 selection_strategy: SelectionStrategy = TournamentSelection(), generations: int = 5):
+        super().__init__(gamma, delta, target, subtypes)
+        self.selection_strategy = selection_strategy
+        self.generations = generations
+
+class SimpleEA(EvolutionaryAlgorithm):
+    """
+    Simple evolutionary algorithm.
+    """
+
+    def sample(self, size: int) -> Iterable[Tree[NT, T]]:
+        return SampleFromEnumeration(self.gamma, self.delta, self.target, self.subtypes).sample(size)
+
+    def search_max(self, fitness: Callable[[Tree[NT, T]], V]) -> Tree[NT, T]:
+        return list(self.search_fittest(fitness, 100))[0]
+
+    def search_min(self, fitness: Callable[[Tree[NT, T]], V]) -> Tree[NT, T]:
+        return self.search_max(lambda x: -fitness(x))
+
+    def search_fittest(self, fitness: Callable[[Tree[NT, T]], V], size: int) -> Iterable[Tree[NT, T]]:
+        # let the [preserved_fittest] fittest individuals survive
+        preserved_fittest: int = 3
+        # Create the initial population
+        population = self.sample(size)
+        # Run the genetic algorithm for a number of generations
+        for generation in range(self.generations):
+            print(f"Generation {generation + 1}/{self.generations}")
+            # Select the best individuals for reproduction
+            selected = self.selection_strategy.select({tree: fitness(tree) for tree in population})
+            # Create the next generation
+            next_generation = []
+            for i in range(0, len(selected), 2):
+                parent1 = selected[i]
+                parent2 = selected[i + 1]
+                # Perform crossover and mutation to create offspring
+                offspring1 = parent1.crossover(parent2, self.grammar)
+                offspring2 = offspring1.mutate(self.grammar)
+                next_generation.append(offspring1)
+                next_generation.append(offspring2)
+            # Preserve the fittest individuals from the current generation
+            next_generation.extend(sorted(population, key=fitness, reverse=True)[:preserved_fittest])
+            # Replace the old population with the new one
+            population = next_generation
+        # Sort the final population by fitness
+        population = sorted(population, key=fitness, reverse=True)
+        return population
 
 
-# Create the initial population
-# TODO: this is not a good way to create the initial population. It should be done by sampling from the grammar
-def enumerate_initial_population(target: NT, grammar: ParameterizedTreeGrammar[NT, T], size: int) -> Sequence[Tree[NT, T]]:
-    overfitted = list(enumerate_terms(target, grammar, max_count=100000))
-    length = len(overfitted)
-    if size > length:
-        size = length
-    initial = random.sample(overfitted, size)
-    return initial
+class SIGP(ExactGP):
+    """
+    A reimplementation of gpytorch's ExactGP that allows for tree inputs.
+    The inputs to this class is a Sequence[nx.Graph] instance, which will be transformed into a
+    sequence of networkx graphs.
 
-def create_initial_population(target: NT, grammar: ParameterizedTreeGrammar[NT, T], pop_size: int, tree_depth_delta=None, max_tree_depth=None) -> Sequence[Tree[NT, T]]:
-    if tree_depth_delta is None:
-        tree_depth_delta = 100
-    min_size: int = grammar.minimum_tree_depth(target)
-    if max_tree_depth is None:
-        max_tree_depth = min_size + tree_depth_delta
-    if max_tree_depth < min_size:
-        raise ValueError(f"max_tree_depth {max_tree_depth} is less than minimum tree depth {min_size}")
-    initial_population: Sequence[Tree[NT, T]] = []
-    for _ in range(pop_size):
-        nt = target
-        cs = 0
-        while True:
-            rules, _ = grammar.annotations()
-            applicable = []
-            for (lhs, rhs), n in rules.items():
-                if lhs == nt and cs + n <= max_tree_depth:
-                    applicable.append(rhs)
-            candidate = random.choice(applicable)
-    # TODO: implement randomized top-down enumeration
-    return []
+    train_targets need to be a torch.Tensor.
 
-# Tournament selection function using tournament selection
-def tournament_selection(population: Sequence[Tree[NT, T]], fitness: Fitness[NT, T, V], tournament_size=3, select=None) -> Sequence[Tree[NT, T]]:
-    if select is None:
-        select = len(population)
-    selected = []
-    for _ in range(select):
-        tournament = random.sample(population, tournament_size)
-        winner = max(tournament, key=fitness.eval)
-        selected.append(winner)
-    return selected
+    This class follows is originally from https://github.com/leojklarner/gauche, but is tailored to our CLS usecase.
+
+    In the longer term, if ExactGP can be refactored such that the validation checks ensuring
+    that the inputs are torch.Tensors are optional, this class should subclass ExactGP without
+    performing those checks.
+    """
+
+    def __init__(self, train_inputs: Sequence[nx.Graph], train_targets: torch.Tensor,
+                 likelihood: gpytorch.likelihoods.Likelihood):
+        if (
+            train_inputs is not None
+            and type(train_inputs) is Sequence[nx.Graph]
+        ):
+            train_inputs = (train_inputs,)
+        if not isinstance(likelihood, _GaussianLikelihoodBase):
+            raise RuntimeError("SIGP can only handle Gaussian likelihoods")
+
+        if not isinstance(train_targets, torch.Tensor):
+            raise RuntimeError("SIGP can only handle torch.Tensor train_targets.")
+
+        super(ExactGP, self).__init__()
+        if train_inputs is not None:
+            self.train_inputs = tuple(
+                (
+                    i.unsqueeze(-1)
+                    if torch.is_tensor(i) and i.ndimension() == 1
+                    else i
+                )
+                for i in train_inputs
+            )
+            self.train_targets = train_targets
+        else:
+            self.train_inputs = None
+            self.train_targets = None
+        self.likelihood = likelihood
+
+        self.prediction_strategy = None
+
+    def __call__(self, *args, **kwargs):
+        train_inputs = (
+            list(self.train_inputs) if self.train_inputs is not None else []
+        )
+
+        inputs = [
+            (
+                i.unsqueeze(-1)
+                if torch.is_tensor(i) and i.ndimension() == 1
+                else i
+            )
+            for i in args
+        ]
+
+        # Training mode: optimizing
+        if self.training:
+            if self.train_inputs is None:
+                raise RuntimeError(
+                    "train_inputs, train_targets cannot be None in training mode. "
+                    "Call .eval() for prior predictions, or call .set_train_data() to add training data."
+                )
+            res = super(ExactGP, self).__call__(*inputs, **kwargs)
+            return res
+
+        # Prior mode
+        elif (
+            settings.prior_mode.on()
+            or self.train_inputs is None
+            or self.train_targets is None
+        ):
+            full_inputs = args
+            full_output = super(ExactGP, self).__call__(*full_inputs, **kwargs)
+            if settings.debug().on():
+                if not isinstance(full_output, MultivariateNormal):
+                    raise RuntimeError(
+                        "SIGP.forward must return a MultivariateNormal"
+                    )
+            return full_output
+
+        # Posterior mode
+        else:
+            # Get the terms that only depend on training data
+            if self.prediction_strategy is None:
+                train_output = super(ExactGP, self).__call__(
+                    *train_inputs, **kwargs
+                )
+
+                # Create the prediction strategy for
+                self.prediction_strategy = prediction_strategy(
+                    train_inputs=train_inputs,
+                    train_prior_dist=train_output,
+                    train_labels=self.train_targets,
+                    likelihood=self.likelihood,
+                )
+
+            # Concatenate the input to the training input
+            full_inputs = []
+            if torch.is_tensor(train_inputs[0]):
+                batch_shape = train_inputs[0].shape[:-2]
+                for train_input, input in zip(train_inputs, inputs):
+                    # Make sure the batch shapes agree for training/test data
+                    if batch_shape != train_input.shape[:-2]:
+                        batch_shape = torch.broadcast_shapes(
+                            batch_shape, train_input.shape[:-2]
+                        )
+                        train_input = train_input.expand(
+                            *batch_shape, *train_input.shape[-2:]
+                        )
+                    if batch_shape != input.shape[:-2]:
+                        batch_shape = torch.broadcast_shapes(
+                            batch_shape, input.shape[:-2]
+                        )
+                        train_input = train_input.expand(
+                            *batch_shape, *train_input.shape[-2:]
+                        )
+                        input = input.expand(*batch_shape, *input.shape[-2:])
+                    full_inputs.append(torch.cat([train_input, input], dim=-2))
+            else:
+                # from IPython.core.debugger import set_trace; set_trace()
+                full_inputs = deepcopy(train_inputs)
+                full_inputs[0].append(inputs[0])
+
+            # Get the joint distribution for training/test data
+            full_output = super(ExactGP, self).__call__(*full_inputs, **kwargs)
+            if settings.debug().on():
+                if not isinstance(full_output, MultivariateNormal):
+                    raise RuntimeError(
+                        "SIGP.forward must return a MultivariateNormal"
+                    )
+            full_mean, full_covar = (
+                full_output.loc,
+                full_output.lazy_covariance_matrix,
+            )
+
+            # Determine the shape of the joint distribution
+            batch_shape = full_output.batch_shape
+            joint_shape = full_output.event_shape
+            tasks_shape = joint_shape[1:]  # For multitask learning
+            test_shape = torch.Size(
+                [
+                    joint_shape[0] - self.prediction_strategy.train_shape[0],
+                    *tasks_shape,
+                ]
+            )
+
+            # Make the prediction
+            with settings.cg_tolerance(settings.eval_cg_tolerance.value()):
+                (
+                    predictive_mean,
+                    predictive_covar,
+                ) = self.prediction_strategy.exact_prediction(
+                    full_mean, full_covar
+                )
+
+            # Reshape predictive mean to match the appropriate event shape
+            predictive_mean = predictive_mean.view(
+                *batch_shape, *test_shape
+            ).contiguous()
+            return full_output.__class__(predictive_mean, predictive_covar)
+
+class GraphKernel(Module):
+    """
+    A base class supporting external graph kernels.
+    The external kernel must have a method `fit_transform`, which, when
+    evaluated on an `Inputs` instance `X`, returns a scaled kernel matrix
+    v * k(X, X).
+
+    As gradients are not propagated through to the external kernel, outputs are
+    cached to avoid repeated computation.
+    """
+
+    def __init__(
+        self,
+        dtype=torch.float,
+    ) -> None:
+        super().__init__()
+        self.node_label = None
+        self.edge_label = None
+        self._scale_variance = torch.nn.Parameter(
+            torch.tensor([0.1], dtype=dtype)
+        )
+
+    def scale(self, S: torch.Tensor) -> torch.Tensor:
+        return torch.nn.functional.softplus(self._scale_variance) * S
+
+    def forward(self, X: torch.Tensor) -> torch.Tensor:
+        return self.scale(self.kernel(X))
+
+    def kernel(self, X: torch.Tensor) -> torch.Tensor:
+        raise NotImplementedError("Subclasses must implement this method.")
+
+class RandomWalkKernel(GraphKernel):
+    """
+    A GraKel wrapper for the random walk kernel.
+    This kernel only works on unlabelled graphs.
+    See RandomWalkLabeledKernel for labelled graphs.
+
+    See https://ysig.github.io/GraKeL/0.1a8/kernels/random_walk.html
+    for more details.
+    """
+
+    def __init__(self, dtype=torch.float):
+        super().__init__(dtype=dtype)
+
+    @lru_cache(maxsize=5)
+    def kernel(self, X: Sequence[nx.Graph], **grakel_kwargs) -> torch.Tensor:
+        # extract required data from the networkx graphs
+        # constructed with the Graphein utilities
+        # this is cheap and will be cached
+        X = graph_from_networkx(
+            X, node_labels_tag=self.node_label, edge_labels_tag=self.edge_label
+        )
+
+        return torch.tensor(
+            RandomWalk(**grakel_kwargs).fit_transform(X)
+        ).float()
 
 
-def tournament_selection_curried(pop_fit: Sequence[tuple[Tree[NT, T], V]], tournament_size=3, select=None) -> Sequence[Tree[NT, T]]:
-    if select is None:
-        select = len(pop_fit)
-    selected = []
-    for _ in range(select):
-        tournament = random.sample(pop_fit, tournament_size)
-        winner = max(tournament, key=lambda x: x[1])[0]
-        selected.append(winner)
-    return selected
+class GraphGP(SIGP):
+    def __init__(
+        self,
+        train_x: Sequence[nx.Graph],
+        train_y: torch.Tensor,
+        likelihood: gpytorch.likelihoods.Likelihood,
+        kernel: GraphKernel,
+    ):
+        """
+        A subclass of the SIGP class that allows us to use kernels over
+        discrete inputs with GPyTorch and BoTorch machinery.
 
-# evolutionary algorithm for searching the fittest tree (local maximum of the fitness function) using tournament selection
-def tournament_search(target: NT, grammar: ParameterizedTreeGrammar[NT, T], fitness: Fitness[NT, T, V],
-                   population_size: int, generations: int, tournament_size=3, preserved_fittest=3) -> Sequence[Tree[NT, T]]:
-    # Create the initial population
-    population = enumerate_initial_population(target, grammar, population_size)
+        Parameters:
+        -----------
+        train_x: NonTensorialInputs
+            The training inputs for the model. These are graph objects.
+        train_y: torch.Tensor
+            The training labels for the model.
+        likelihood: gpytorch.likelihoods.Likelihood
+            The likelihood function for the model.
+        kernel: GraphKernel
+            The kernel function for the model.
+        **kernel_kwargs:
+            The keyword arguments for the kernel function.
+        """
 
-    # Run the genetic algorithm for a number of generations
-    for generation in range(generations):
-        print(f"Generation {generation + 1}/{generations}")
-        # Select the best individuals for reproduction
-        selected = tournament_selection(population, fitness, tournament_size=3, select=population_size)
-        # Create the next generation
-        next_generation = []
-        for i in range(0, len(selected), 2):
-            parent1 = selected[i]
-            parent2 = selected[i + 1]
-            # Perform crossover and mutation to create offspring
-            offspring1 = parent1.crossover(parent2, grammar)
-            offspring2 = offspring1.mutate(grammar)
-            next_generation.append(offspring1)
-            next_generation.append(offspring2)
-        # Preserve the fittest individuals from the current generation
-        next_generation.extend(sorted(population, key=lambda x: fitness.eval(x), reverse=True)[:preserved_fittest])
-        # Replace the old population with the new one
-        population = next_generation
-    # Sort the final population by fitness
-    population = sorted(population, key=fitness.eval, reverse=True)
-    return population
+        super().__init__(train_x, train_y, likelihood)
+        self.mean = gpytorch.means.ConstantMean()
+        self.covariance = kernel
+
+    def forward(self, x):
+        """
+        A forward pass through the model.
+        """
+        mean = self.mean(torch.zeros(len(x), 1)).float()
+        covariance = self.covariance(x)
+
+        # because graph kernels operate over discrete inputs it might be beneficial
+        # to add some jitter for numerical stability
+        #jitter = max(covariance.diag().mean().detach().item() * 1e-4, 1e-4)
+        #covariance += torch.eye(len(x)) * jitter
+        return gpytorch.distributions.MultivariateNormal(mean, covariance)
+
+class BayesianOptimization(Search):
+    """
+    Bayesian optimization for searching trees.
+    """
+
+    def __init__(self, model: GraphGP,
+                 acquisition_function: Callable[tuple[GraphGP, Tree[NT, T]], V],
+                 acquisition_optimizer: Search,
+                 gamma: Mapping[T, NT], delta: Mapping[str, Iterable[Any] | Contains], target: NT,
+                 subtypes: Subtypes = Subtypes({})):
+        super().__init__(gamma, delta, target, subtypes)
+        self.model = model
+        self.acquisition_function = acquisition_function
+        self.acquisition_optimizer = acquisition_optimizer
+        self.train_x: Sequence[nx.Graph] = model.train_inputs
+        self.train_y: torch.Tensor = model.train_targets
+
+
+    def toTensor(self, y: V) -> torch.Tensor:
+        """
+        Convert the fitness value to a tensor.
+        """
+        if isinstance(y, torch.Tensor):
+            return y
+        elif isinstance(y, (int, float)):
+            return torch.tensor([y], dtype=torch.float)
+        else:
+            raise ValueError(f"Cannot convert {y} to tensor")
+
+def tree_expected_improvement(model: GraphGP, tree: Tree[NT, T]) -> torch.Tensor:
+    """
+    Compute the negative expected improvement of a tree with respect to the model.
+    """
+    # xi: float: manual exploration-exploitation trade-off parameter.
+    xi: float = 0.0
+    x = nx.Graph(tree.to_adjacency_dict())
+    from torch.distributions import Normal
+    try:
+        mu, cov = model.predict(x)
+    except:
+        return -1.  # in case of error. return ei of -1
+    std = torch.sqrt(torch.diag(cov))
+    mu_star = torch.max(model.y_)
+    gauss = Normal(torch.zeros(1, device=mu.device), torch.ones(1, device=mu.device))
+    u = (mu - mu_star - xi) / std
+    ucdf = gauss.cdf(u)
+    updf = torch.exp(gauss.log_prob(u))
+    ei = std * updf + (mu - mu_star - xi) * ucdf
+    return ei
+
+def tree_augmented_expected_improvement(model: GraphGP, tree: Tree[NT, T]) -> torch.Tensor:
+    """
+    Compute the negative expected improvement of a tree with respect to the model.
+    """
+    # xi: float: manual exploration-exploitation trade-off parameter.
+    xi: float = 0.0
+    x = nx.Graph(tree.to_adjacency_dict())
+    from torch.distributions import Normal
+    try:
+        mu, cov = model.predict(x)
+    except:
+        return -1.  # in case of error. return ei of -1
+    std = torch.sqrt(torch.diag(cov))
+    mu_star = torch.max(model.y_)
+    gauss = Normal(torch.zeros(1, device=mu.device), torch.ones(1, device=mu.device))
+    u = (mu - mu_star - xi) / std
+    ucdf = gauss.cdf(u)
+    updf = torch.exp(gauss.log_prob(u))
+    ei = std * updf + (mu - mu_star - xi) * ucdf
+    sigma_n = model.likelihood
+    ei *= (1. - torch.sqrt(torch.tensor(sigma_n, device=mu.device)) / torch.sqrt(sigma_n + torch.diag(cov)))
+    return ei
+
+class SimpleBO(BayesianOptimization):
+    """
+    Simple Bayesian optimization for searching trees.
+    """
+    def initialize_model(self, train_x, train_obj, state_dict=None):
+        """
+        Initialise model and loss function.
+
+        Args:
+            train_x: tensor of inputs
+            train_obj: tensor of outputs
+            state_dict: current state dict used to speed up fitting
+
+        Returns: mll object, model object
+        """
+
+        # define model for objective
+        model = GraphGP(
+            train_x,
+            train_obj,
+            likelihood=self.model.likelihood,
+            kernel=self.model.covariance,
+        )
+        mll = gpytorch.mlls.ExactMarginalLogLikelihood(model.likelihood, model)
+        # load state dict if it is passed
+        if state_dict is not None:
+            model.load_state_dict(state_dict)
+
+        return mll, model
+
+    def search_max(self, fitness: Callable[[Tree[NT, T]], V]) -> Tree[NT, T]:
+        """
+        Simple Bayesian Optimization loop.
+        """
+        init_population = self.sample(5)
+        evaluated_trees: dict[Tree[NT, T], V] = {tree: fitness(tree) for tree in init_population}
+        # initialize the model with the initial population
+        likelihood = self.model.likelihood
+        # Define the marginal log likelihood used to optimise the model hyperparameters
+        train_x = list(self.train_x) + [nx.Graph(tree.to_adjacency_dict()) for tree in evaluated_trees.keys()]
+        train_y = torch.cat(self.train_y + [self.toTensor(y) for y in evaluated_trees.values()])
+        mll_ei, model_ei = self.initialize_model(evaluated_trees.keys(), evaluated_trees.values())
+
+        x_next = max(evaluated_trees, key=lambda x: evaluated_trees[x])
+
+        for i in range(100):
+            # Use the BoTorch utility for fitting GPs in order
+            # to use the LBFGS-B optimiser (recommended)
+            fit_gpytorch_model(mll_ei)
+            # Get the next point to sample
+            x_next: Tree[NT, T] = self.acquisition_optimizer.search_max(
+                lambda tree: tree_expected_improvement(model_ei, tree)
+            )
+            # Evaluate the next point
+            y_next: V = fitness(x_next)
+            train_x.append(nx.Graph(x_next.to_adjacency_dict()))
+            train_y = torch.cat([train_y, self.toTensor(y_next)])
+            # Add the new point to the model
+            mll_ei, model_ei = self.initialize_model(evaluated_trees.keys(), evaluated_trees.values(),
+                                                     model_ei.state_dict())
+
+        self.model = model_ei
+        self.train_x = train_x
+        self.train_y = train_y
+        return x_next
+
+    def sample(self, size: int) -> Iterable[Tree[NT, T]]:
+        pass
+
+    def search_min(self, fitness: Callable[[Tree[NT, T]], V]) -> Tree[NT, T]:
+        pass
+
+    def search_fittest(self, fitness: Callable[[Tree[NT, T]], V], size: int) -> Iterable[Tree[NT, T]]:
+        pass
+
+
 
