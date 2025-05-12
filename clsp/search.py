@@ -11,6 +11,22 @@ from .types import Literal
 from abc import ABC, abstractmethod
 
 from copy import deepcopy
+# TODO edit pyproject.toml, or use setup.py or whatever to manage dependencies
+import torch
+from gpytorch import settings
+from gpytorch.distributions import MultivariateNormal
+from gpytorch.likelihoods import _GaussianLikelihoodBase
+from gpytorch.models import ExactGP
+from gpytorch.models.exact_prediction_strategies import prediction_strategy
+from gpytorch import Module
+import networkx as nx
+from botorch import fit_gpytorch_model
+
+from grakel import graph_from_networkx
+from grakel.kernels import (
+    RandomWalk,
+)
+
 
 NT = TypeVar("NT")  # non-terminals
 T = TypeVar("T", covariant=True, bound=Hashable)
