@@ -664,7 +664,7 @@ def tree_augmented_expected_improvement(model: GraphGP, tree: Tree[NT, T]) -> to
     ei *= (1. - torch.sqrt(torch.tensor(sigma_n, device=mu.device)) / torch.sqrt(sigma_n + torch.diag(cov)))
     return ei
 
-class SimpleBO(BayesianOptimization):
+class SimpleBO(BayesianOptimization, RandomSample):
     """
     Simple Bayesian optimization for searching trees.
     """
@@ -729,9 +729,6 @@ class SimpleBO(BayesianOptimization):
         self.train_x = train_x
         self.train_y = train_y
         return x_next
-
-    def sample(self, size: int) -> Iterable[Tree[NT, T]]:
-        pass
 
     def search_min(self, fitness: Callable[[Tree[NT, T]], V]) -> Tree[NT, T]:
         pass
