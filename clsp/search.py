@@ -282,6 +282,7 @@ class SimpleEA(EvolutionaryAlgorithm, RandomSample):
     def search_fittest(self, fitness: Callable[[Tree[NT, T]], V], size: int) -> Iterable[Tree[NT, T]]:
         # let the [preserved_fittest] fittest individuals survive
         preserved_fittest: int = 3
+        self.selection_strategy.size = size
         # Create the initial population
         population = self.sample(size)
         # Run the genetic algorithm for a number of generations

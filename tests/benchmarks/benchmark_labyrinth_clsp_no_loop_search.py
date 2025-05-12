@@ -7,7 +7,7 @@ from clsp.fcl import FiniteCombinatoryLogic
 
 from clsp.types import Constructor, Literal, Param, LVar, Type
 
-from clsp.search import SimpleEA
+from clsp.search import TournamentSelection, SimpleEA
 
 
 def plus_one(a: str) -> Callable[[Mapping[str, Literal]], int]:
@@ -118,10 +118,12 @@ def main(solutions: int = 10000, output: bool = True) -> float:
         else:
             return length
 
-    tournament_search = SimpleEA(repo, literals, fin, generations=4).search_fittest
+    tournament_selection = TournamentSelection(3, 1000)
+
+    tournament_search = SimpleEA(repo, literals, fin, selection_strategy=tournament_selection, generations=4).search_fittest
 
 
-    final_population = list(tournament_search(longest_loop_free_path, 100))
+    final_population = list(tournament_search(longest_loop_free_path, 500)) # 500 overwrites 100 from above
 
     #for term in final_population[:10]:
     #    positions = list(getpath(term))
