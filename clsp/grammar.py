@@ -146,8 +146,9 @@ class ParameterizedTreeGrammar(Generic[NT, T]):
 
         nts: list[NT] = []
 
+        check = not_annotated.copy()
         # every rule that only derives nonterminals has length 1
-        for nt, rhs in not_annotated:
+        for nt, rhs in check:
             if not list(rhs.non_terminals()):
                 # rule only derives terminals
                 for ((l, r), _) in annotated:
@@ -160,13 +161,17 @@ class ParameterizedTreeGrammar(Generic[NT, T]):
                 not_annotated.remove((nt, rhs))
                 nts.append(nt)
 
+        assert(len(annotated) > 0)
+        assert(all([list(rhs.non_terminals()) for _, rhs in not_annotated]))
+
         for nt in nts:
             # if a right hand side has the minmal length 1, the symbol also has this length
             symbol_depths = symbol_depths + ((nt, 1),)
 
         while not_annotated:
             termination_check = not_annotated.copy()
-            for nt, rhs in not_annotated:
+            for nt, rhs in termination_check:
+                assert(list(rhs.non_terminals()))
                 # check if all nonterminals in rhs are already annotated
                 if all(s in map(lambda t: t[0], symbol_depths) for s in rhs.non_terminals()):
                     # the length of a rule is the maximum of its nonterminal lenghts + 1

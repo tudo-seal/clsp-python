@@ -123,7 +123,7 @@ def main(solutions: int = 10000, output: bool = True) -> float:
     tournament_search = SimpleEA(repo, literals, fin, selection_strategy=tournament_selection, generations=4).search_fittest
 
 
-    final_population = list(tournament_search(longest_loop_free_path, 500)) # 500 overwrites 100 from above
+    final_population = list(tournament_search(longest_loop_free_path, 500)) # 500 overwrites 1000 from above
 
     #for term in final_population[:10]:
     #    positions = list(getpath(term))
