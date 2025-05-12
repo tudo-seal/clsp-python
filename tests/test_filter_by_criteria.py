@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 import unittest
+from typing import Any
+
 from clsp.enumeration import enumerate_terms, interpret_term, Tree
 from clsp.fcl import FiniteCombinatoryLogic, Contains
 from clsp.dsl import DSL
@@ -44,7 +46,7 @@ class TestFilterByCriteria(unittest.TestCase):
         # level=logging.INFO,
     )
 
-    def compute_weight(self, tree: Tree[Part]) -> float:
+    def compute_weight(self, tree: Tree[Any, Part]) -> float:
         """
         Recursively computes the weight of the given term.
         This is used in conjunction with type predicates to ensure that target weight is not exceeded.
@@ -163,7 +165,7 @@ class TestFilterByCriteria(unittest.TestCase):
             self.logger.info(term)
             self.assertIn(self.compute_weight(term), weights)
 
-        unhandled_tree: Tree[Part] = Tree(Part("Unhandled Part", 0))
+        unhandled_tree: Tree[Any,Part] = Tree(Part("Unhandled Part", 0))
         self.assertRaises(RuntimeError, self.compute_weight, unhandled_tree)
 
 

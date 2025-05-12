@@ -38,6 +38,7 @@ class Tree(Generic[NT, T]):
     children: tuple["Tree[NT, T]", ...] = field(default=())
     variable_names: list[str] = field(default_factory=list)
 
+    # if the following 4 fields are set, the combinatory terms is annotated to also function as a derivation tree
     derived_from: NT | str = field(default="")
     rhs_rule: RHSRule[NT, T] = field(default_factory=list)
     is_literal: bool = field(default=False)
@@ -106,11 +107,13 @@ class Tree(Generic[NT, T]):
             edges.update(child.to_adjacency_dict())
         return edges
 
-    # subtrees() returns a list of all subtrees and their contexts.
-    # The context is its path in the primary tree, the variable name of the subtree,
-    # its siblings as a substitution and a list of predicates.
-    # If the subtree is an argument and not a parameter, the context is empty, because there are no constraints.
     def subtrees(self, prefix: list[int]) -> typing.Generator[tuple["Tree[NT, T]", list[int], str, dict[str, "Tree[NT, T]"], list[Predicate]]]:
+        """
+        subtrees() returns a list of all subtrees and their contexts.
+        The context is its path in the primary tree, the variable name of the subtree,
+        its siblings as a substitution and a list of predicates.
+        If the subtree is an argument and not a parameter, the context is empty, because there are no constraints.
+        """
         for i, child in list(enumerate(self.children)):
             if not child.frozen:
                 if i < len(self.variable_names):
@@ -130,6 +133,12 @@ class Tree(Generic[NT, T]):
 
     def is_valid(self, p_subtree: tuple["Tree[NT, T]", list[int], str, dict[str, "Tree[NT, T]"], list[Predicate]],
                  s_subtree: "Tree[NT, T]", grammar: ParameterizedTreeGrammar[NT, T]) -> tuple[bool, "Tree[NT, T]"]:
+        """
+        Check if substituting the primary subtree p_subtree with the secondary subtree s_subtree regarding the grammar
+        is valid.
+        Returns not only validity, but an updated secondary subtree, because the derivation tree of the
+        secondary subtree might change to be valid.
+        """
         substitution = p_subtree[3]
         if p_subtree[0].is_literal and s_subtree.is_literal:
             rules = grammar.get(p_subtree[0].derived_from)
@@ -148,6 +157,9 @@ class Tree(Generic[NT, T]):
 
     # TODO: is_consistent currently traverses the whole tree top down, but it should be more efficient to just traverse bottom up from the crossover point.
     def is_consistent(self) -> bool:
+        """
+        Checks if a derivation tree is consistent.
+        """
         result: list[bool] = []
         for i, child in enumerate(self.children):
             if i < len(self.variable_names):
@@ -156,8 +168,10 @@ class Tree(Generic[NT, T]):
             result.append(child.is_consistent())
         return all(result)
 
-    # replace the subtree at the given path with the new subtree
     def replace(self, path: list[int], new_subtree: "Tree[NT, T]") -> "Tree[NT, T]":
+        """
+        replace the subtree at the given path with the new subtree
+        """
         if not path:
             return new_subtree
         i = path.pop(0)
@@ -169,8 +183,11 @@ class Tree(Generic[NT, T]):
         else:
             return self
 
-    # crossover function
     def crossover(self, secondary_derivation_tree: "Tree[NT, T]", grammar: ParameterizedTreeGrammar[NT, T]): # -> "Tree[NT, T]" | None:
+        """
+        crossover function for annotated combinatory terms/ derivation trees
+        """
+        # TODO include an optional parameter maximum depth and ensure, that no tree produced by mutation exceeds this depth
         # 1.
         primary_sub_trees: list[tuple["Tree[NT, T]", list[int], str, dict[str, "Tree[NT, T]"], list[Predicate]]] = (
             list(self.subtrees([])))
@@ -201,11 +218,12 @@ class Tree(Generic[NT, T]):
                         return offspring
         return None
 
-    # mutating the tree by selecting a random subtree and replacing it with a new subtree inhabiting the same type.
-    # Therefore, mutation needs the grammar as an extra argument to inhabit the mutations.
-    # This should be more memory efficient than taking the grammar as a field in each node
     def mutate(self, grammar: ParameterizedTreeGrammar[NT, T]):  # -> "Tree[NT, T]" | None:
-        # include an optional parameter maximum depth and ensure, that no tree produced by mutation exceeds this depth
+        """
+        mutating the tree by selecting a random subtree and replacing it with a new subtree inhabiting the same type.
+        Therefore, mutation needs the grammar as an extra argument to inhabit the mutations.
+        """
+        # TODO include an optional parameter maximum depth and ensure, that no tree produced by mutation exceeds this depth
         # 1.
         sub_trees: list[tuple["Tree[NT, T]", list[int], str, dict[str, "Tree[NT, T]"], list[Predicate]]] = (
             list(self.subtrees([])))

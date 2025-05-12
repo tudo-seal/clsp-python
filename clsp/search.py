@@ -16,6 +16,13 @@ NT = TypeVar("NT")  # non-terminals
 T = TypeVar("T", covariant=True, bound=Hashable)
 V = TypeVar("V")  # codomain of fitness-function. needs to be a poset! which means that compare methods are defined.
 
+"""
+This module contains classes and functions for treating 
+the inhabitation results (parameterized tree grammars/ sets of horn clauses)  as search spaces.
+Searching will be enabled by genetic operations on combinatory terms.
+Besides enumerating terms, different sampling methods are implemented.
+"""
+
 class Sample(ABC):
     """
     Abstract base class for sampling methods.
@@ -40,7 +47,7 @@ class Sample(ABC):
 
 class Enumerate(Sample):
     """
-    Enumeration sampling method.
+    Enumeration as a sampling method.
     """
 
     def sample(self, size: int) -> Iterable[Tree[NT, T]]:
@@ -51,7 +58,7 @@ class Enumerate(Sample):
 
 class SampleFromEnumeration(Sample):
     """
-    Sample from the enumeration of the grammar.
+    Sample from a finite enumeration of the grammar.
     """
     def sample(self, size: int) -> Iterable[Tree[NT, T]]:
         overfitted = list(enumerate_terms(self.target, self.grammar, max_count=size*10))
@@ -64,6 +71,9 @@ class SampleFromEnumeration(Sample):
 class RandomSample(Sample):
     """
     Random sampling method.
+    This sampling methods annotates the grammar with the minimum tree depth of each rule.
+    In presence of term predicates in gamma, the minimum tree depth is an over-approximation of the expected tree depth
+    and therefore corresponds to a lower bound of the expected tree depth.
     """
     def __init__(self, gamma: Mapping[T, NT], delta: Mapping[str, Iterable[Any] | Contains], target: NT,
                  subtypes: Subtypes = Subtypes({}),
@@ -165,7 +175,7 @@ class RandomSample(Sample):
 
 class Search(Sample):
     """
-    Abstract base class for sampling methods.
+    Abstract base class for search strategies.
     """
 
     @abstractmethod
@@ -260,6 +270,8 @@ class TournamentSelection(SelectionStrategy):
 class EvolutionaryAlgorithm(Search):
     """
     Abstract class for evolutionary algorithms.
+    Since different SelectionStrategies need different hyperparameters, the concrete selection strategy is an argument
+    for the constructor and not handled via multiple inheritance.
     """
 
     def __init__(self, gamma: Mapping[T, NT], delta: Mapping[str, Iterable[Any] | Contains], target: NT,
@@ -271,7 +283,7 @@ class EvolutionaryAlgorithm(Search):
 
 class SimpleEA(EvolutionaryAlgorithm, RandomSample):
     """
-    Simple evolutionary algorithm.
+    This class implements a very simple evolutionary algorithm with tournament selection.
     """
     def search_max(self, fitness: Callable[[Tree[NT, T]], V]) -> Tree[NT, T]:
         return list(self.search_fittest(fitness, 100))[0]

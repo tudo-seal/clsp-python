@@ -133,6 +133,7 @@ class ParameterizedTreeGrammar(Generic[NT, T]):
         The length of a terminal symbol is always 0, therefore we don't need to return annotations for terminals.
         """
 
+        # Because annotated and symbol_depths needs to be hashable, I wasn't able to use a dict for each of them...
         annotated: tuple[tuple[tuple[NT, RHSRule[NT, T]], int],...] = tuple()
 
         not_annotated: list[tuple[NT, RHSRule[NT, T]]] = [
