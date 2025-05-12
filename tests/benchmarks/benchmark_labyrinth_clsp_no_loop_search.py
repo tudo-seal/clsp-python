@@ -121,7 +121,7 @@ def main(solutions: int = 10000, output: bool = True) -> float:
     tournament_search = SimpleEA(repo, literals, fin, generations=4).search_fittest
 
 
-    final_population = list(tournament_search(longest_loop_free_path, 1000))
+    final_population = list(tournament_search(longest_loop_free_path, 100))
 
     #for term in final_population[:10]:
     #    positions = list(getpath(term))
@@ -131,7 +131,7 @@ def main(solutions: int = 10000, output: bool = True) -> float:
     #    print("#######################################")
 
     print("maximum:")
-    winner = max(final_population, key=fit2.eval)
+    winner = final_population[0]
     print(interpret_term(winner))
     win_path = list(getpath(winner))
     print(f"Path: {win_path}")
