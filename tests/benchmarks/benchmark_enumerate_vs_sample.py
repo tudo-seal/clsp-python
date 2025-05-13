@@ -266,15 +266,31 @@ def easy_subtree_kernel(t1: Tree[Any, str], t2: Tree[Any, str]) -> float:
     Computes the kernel of two trees.
     :param t1: The first tree.
     :param t2: The second tree.
-    :return: The number n of shared subtrees of the two trees divided through the mean amount of subtrees.
+    :return: The distance between the two trees.
     """
+    # TODO if t1 == t2, 0 should be returned. But currently, 0.333333333 is returned. WHY?????
     subtrees1: list[Tree[Any, str]] = list(map(lambda x: x[0], t1.subtrees([])))
     subtrees2: list[Tree[Any, str]] = list(map(lambda x: x[0], t2.subtrees([])))
     mean_len = len(subtrees1) + len(subtrees2) / 2
     shared: int = 0
+    occur1: dict[Tree[Any, str], int] = {}
     for t in subtrees1:
-        if t in subtrees2:
-            shared += 1
+        k = occur1.get(t)
+        if k is None:
+            occur1[t] = 1
+        else:
+            occur1[t] = k + 1
+    occur2: dict[Tree[Any, str], int] = {}
+    for t in subtrees2:
+        k = occur2.get(t)
+        if k is None:
+            occur2[t] = 1
+        else:
+            occur2[t] = k + 1
+    for t, n in occur1.items():
+        k = occur2.get(t)
+        if k is not None:
+            shared = shared + min(n, k)
     return 1 - (shared / mean_len)
 
 target = Constructor("graph",
@@ -302,7 +318,7 @@ The maximum size of an enumerated term is {max(enum_sizes)}.
 The minimum size of an enumerated term is {min(enum_sizes)}.
 """)
 
-enum_distances = list(filter(lambda n: n != 1, [easy_subtree_kernel(t1, t2) for t1 in result_enum for t2 in result_enum]))
+enum_distances = list([easy_subtree_kernel(t1, t2) for t1 in result_enum for t2 in result_enum if t1 != t2])
 print(f"""
 Regarding the easy_subtree_kernel:
 The average distance between enumerated terms is {sum(enum_distances) / len(enum_distances)}.
@@ -325,7 +341,7 @@ The maximum size of an random sampled term is {max(random_sizes)}.
 The minimum size of an random sampled term is {min(random_sizes)}.
 """)
 
-random_distances = list(filter(lambda n: n != 1, [easy_subtree_kernel(t1, t2) for t1 in result_random for t2 in result_random]))
+random_distances = list([easy_subtree_kernel(t1, t2) for t1 in result_random for t2 in result_random if t1 != t2])
 print(f"""
 Regarding the easy_subtree_kernel:
 The average distance between random sampled terms is {sum(random_distances) / len(random_distances)}.
@@ -333,103 +349,3 @@ The maximum distance between random sampled terms is {max(random_distances)}.
 The minimum distance between random sampled terms is {min(random_distances)}.
 """)
 
-"""
-Ausgabe bei der edges und swap noch size 0 hatten:
-
-target: graph(input([0, dimension]) & output([0, dimension]) & size([3, nat]))
-start enumerate
-Inhabitation took 0.11470774607732892 seconds
-The grammar has 318 rules
-Enumeration of 100 terms took 0.09271134901791811 seconds
-
-The average size of the enumerated terms is 30.07.
-The maximum size of an enumerated term is 42.
-The minimum size of an enumerated term is 11.
-
-
-Regarding the easy_subtree_kernel:
-The average distance between enumerated terms is 0.8012879187976645.
-The maximum distance between enumerated terms is 0.9777777777777777.
-The minimum distance between enumerated terms is 0.2857142857142857.
-
-start random
-Inhabitation + grammar annotations took 0.9225658050272614 seconds
-Random sampling of 100 terms  took 4.5936380659695715 seconds
-
-The average size of the random sampled terms is 688.49.
-The maximum size of an random sampled term is 18953.
-The minimum size of an random sampled term is 11.
-
-
-Regarding the easy_subtree_kernel:
-The average distance between random sampled terms is 0.8104361872835941.
-The maximum distance between random sampled terms is 0.9998418889006008.
-The minimum distance between random sampled terms is 0.09579560828390055.
-"""
-
-"""
-Ausgaben, in denen edges und swap size 1 haben:
-
-target: graph(input([0, dimension]) & output([0, dimension]) & size([3, nat]))
-start enumerate
-Inhabitation took 0.1275391650851816 seconds
-The grammar has 245 rules
-Enumeration of 100 terms took 0.07822113204747438 seconds
-
-The average size of the enumerated terms is 33.14.
-The maximum size of an enumerated term is 50.
-The minimum size of an enumerated term is 11.
-
-
-Regarding the easy_subtree_kernel:
-The average distance between enumerated terms is 0.7722083826247406.
-The maximum distance between enumerated terms is 0.9583333333333334.
-The minimum distance between enumerated terms is 0.2558139534883721.
-
-start random
-Inhabitation + grammar annotations took 0.6216761311516166 seconds
-Random sampling of 100 terms  took 0.1908578600268811 seconds
-
-The average size of the random sampled terms is 50.04.
-The maximum size of an random sampled term is 154.
-The minimum size of an random sampled term is 11.
-
-
-Regarding the easy_subtree_kernel:
-The average distance between random sampled terms is 0.7809099935217045.
-The maximum distance between random sampled terms is 0.984375.
-The minimum distance between random sampled terms is 0.19277108433734935.
-
-
-####################
-
-target: graph(input([0, dimension]) & output([0, dimension]) & size([5, nat]))
-start enumerate
-Inhabitation took 0.23601386696100235 seconds
-The grammar has 722 rules
-Enumeration of 100 terms took 0.17270648619160056 seconds
-
-The average size of the enumerated terms is 35.36.
-The maximum size of an enumerated term is 49.
-The minimum size of an enumerated term is 19.
-
-
-Regarding the easy_subtree_kernel:
-The average distance between enumerated terms is 0.8472608453580226.
-The maximum distance between enumerated terms is 0.9848484848484849.
-The minimum distance between enumerated terms is 0.30645161290322576.
-
-start random
-Inhabitation + grammar annotations took 5.934273890918121 seconds
-Random sampling of 100 terms  took 0.8865617769770324 seconds
-
-The average size of the random sampled terms is 83.05.
-The maximum size of an random sampled term is 169.
-The minimum size of an random sampled term is 19.
-
-
-Regarding the easy_subtree_kernel:
-The average distance between random sampled terms is 0.8168042805708999.
-The maximum distance between random sampled terms is 0.9878048780487805.
-The minimum distance between random sampled terms is 0.24390243902439024.
-"""
