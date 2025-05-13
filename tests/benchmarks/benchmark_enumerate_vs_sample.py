@@ -162,7 +162,7 @@ print(f"Inhabitation took {timeit.default_timer() - start_enum} seconds")
 grammar = [(nt, rhs) for nt, deque in enum.grammar.as_tuples() for rhs in deque]
 print(f"The grammar has {len(grammar)} rules")
 start_enum = timeit.default_timer()
-result_enum = list(enum.sample(n))
+result_enum: list[Tree[Any, str]] = list(enum.sample(n))
 print(f"Enumeration of {n} terms took {timeit.default_timer() - start_enum} seconds")
 
 enum_sizes = [t.size for t in result_enum]
@@ -185,7 +185,7 @@ start_random = timeit.default_timer()
 random = RandomSample(gamma, delta, target)
 print(f"Inhabitation + grammar annotations took {timeit.default_timer() - start_random} seconds")
 start_random = timeit.default_timer()
-result_random = list(random.sample(n))
+result_random: list[Tree[Any, str]] = list(random.sample(n))
 print(f"Random sampling of {n} terms  took {timeit.default_timer() - start_random} seconds")
 print(f"The sample has indeed {len(result_random)} terms.")
 

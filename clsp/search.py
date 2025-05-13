@@ -106,10 +106,10 @@ class RandomSample(Sample):
                 return None
             # rule only derives terminals
             params: list[Literal] = list(candidate.all_args())
-            children: tuple[Tree[NT, T], ...] = tuple(
+            cs: tuple[Tree[NT, T], ...] = tuple(
                 map(lambda p: Tree(p.value, derived_from=nt, rhs_rule=candidate, is_literal=True), params))
             if candidate.check([]):
-                return Tree(candidate.terminal, children, derived_from=nt, rhs_rule=candidate, is_literal=True)
+                return Tree(candidate.terminal, cs, derived_from=nt, rhs_rule=candidate, is_literal=True)
             else:
                 return None
         else:
@@ -131,7 +131,7 @@ class RandomSample(Sample):
                         child_depth = self.max_tree_depth
                     if cs + child_depth <= self.max_tree_depth:
                         new_cs = cs + child_depth
-                        child_tree = self.sample_random_term(child_nt, new_cs)
+                        child_tree: Tree[NT, T] = self.sample_random_term(child_nt, new_cs)
                         if child_tree is not None:
                             children = children + (child_tree,)
                             substitution[var] = child_tree
@@ -177,7 +177,7 @@ class RandomSample(Sample):
         for _ in range(size):
             nt = self.target
             cs = 0
-            term = self.sample_random_term(nt, cs)
+            term: Tree[NT, T] = self.sample_random_term(nt, cs)
             if term is not None:
                 sample.append(term)
         return sample
@@ -265,8 +265,8 @@ class TournamentSelection(SelectionStrategy):
     """
 
     def __init__(self, tournament_size: int = 3, population_size: int = None):
+        super().__init__(population_size)
         self.tournament_size = tournament_size
-        self.size = population_size
 
     def select(self, evaluated_trees: Mapping[Tree[NT, T], V]) -> Sequence[Tree[NT, T]]:
         """
@@ -313,7 +313,7 @@ class SimpleEA(EvolutionaryAlgorithm, RandomSample):
         preserved_fittest: int = 3
         self.selection_strategy.size = size
         # Create the initial population
-        population: Iterable[Tree[NT, T]] = self.sample(size)
+        population: list[Tree[NT, T]] = list(self.sample(size))
         # Run the genetic algorithm for a number of generations
         for generation in range(self.generations):
             print(f"Generation {generation + 1}/{self.generations}")
@@ -321,14 +321,18 @@ class SimpleEA(EvolutionaryAlgorithm, RandomSample):
             selected: Sequence[Tree[NT, T]] = self.selection_strategy.select(
                 {tree: fitness(tree) for tree in population})
             # Create the next generation
-            next_generation = []
+            next_generation: list[Tree[NT, T]] = []
             pair_length = len(selected) if len(selected) % 2 == 0 else len(selected) - 1
             for i in range(0, pair_length, 2):
                 parent1 = selected[i]
                 parent2 = selected[i + 1]
                 # Perform crossover and mutation to create offspring
-                offspring1 = parent1.crossover(parent2, self.grammar)
-                offspring2 = offspring1.mutate(self.grammar)
+                offspring1: Tree[Any, str] | None = parent1.crossover(parent2, self.grammar)
+                if offspring1 is None:
+                    offspring1 = parent1
+                offspring2: Tree[Any, str] | None = offspring1.mutate(self.grammar)
+                if offspring2 is None:
+                    offspring2 = parent2
                 next_generation.append(offspring1)
                 next_generation.append(offspring2)
             # Preserve the fittest individuals from the current generation

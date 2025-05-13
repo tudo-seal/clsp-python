@@ -104,7 +104,7 @@ def main(solutions: int = 10000, output: bool = True) -> float:
     start = timeit.default_timer()
     grammar = fcl.inhabit(fin)
 
-    def shortest_loop_free_path(tree) -> int:
+    def shortest_loop_free_path(tree: Tree[Any, Any]) -> int:
         path = list(getpath(tree))
         length = len(path)
         if length != len(set(path)):
@@ -112,7 +112,7 @@ def main(solutions: int = 10000, output: bool = True) -> float:
         else:
             return length*(-1)
 
-    def longest_loop_free_path(tree) -> int:
+    def longest_loop_free_path(tree: Tree[Any, Any]) -> int:
         path = list(getpath(tree))
         length = len(path)
         if length != len(set(path)):
