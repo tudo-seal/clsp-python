@@ -1,16 +1,14 @@
 import random
+from abc import ABC, abstractmethod
 from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
-from operator import truediv
-from typing import Any, Generic, Optional, TypeVar, overload
+from collections import deque
+from typing import Any, TypeVar
+
 from .enumeration import Tree, enumerate_terms
-from .grammar import ParameterizedTreeGrammar, RHSRule
 from .fcl import Contains, FiniteCombinatoryLogic
+from .grammar import ParameterizedTreeGrammar, RHSRule
 from .subtypes import Subtypes
 from .types import Literal
-from abc import ABC, abstractmethod
-
-from copy import deepcopy
 
 NT = TypeVar("NT")  # non-terminals
 T = TypeVar("T", covariant=True, bound=Hashable)
@@ -22,6 +20,7 @@ the inhabitation results (parameterized tree grammars/ sets of horn clauses)  as
 Searching will be enabled by genetic operations on combinatory terms.
 Besides enumerating terms, different sampling methods are implemented.
 """
+
 
 class Sample(ABC):
     """
@@ -45,6 +44,7 @@ class Sample(ABC):
 
         raise NotImplementedError("sample() must be implemented")
 
+
 class Enumerate(Sample):
     """
     Enumeration as a sampling method.
@@ -56,17 +56,20 @@ class Enumerate(Sample):
         """
         return enumerate_terms(self.target, self.grammar, max_count=size)
 
+
 class SampleFromEnumeration(Sample):
     """
     Sample from a finite enumeration of the grammar.
     """
+
     def sample(self, size: int) -> Iterable[Tree[NT, T]]:
-        overfitted = list(enumerate_terms(self.target, self.grammar, max_count=size*10))
+        overfitted = list(enumerate_terms(self.target, self.grammar, max_count=size * 10))
         length = len(overfitted)
         if size > length:
             size = length
         initial = random.sample(overfitted, size)
         return initial
+
 
 class RandomSample(Sample):
     """
@@ -75,6 +78,7 @@ class RandomSample(Sample):
     In presence of term predicates in gamma, the minimum tree depth is an over-approximation of the expected tree depth
     and therefore corresponds to a lower bound of the expected tree depth.
     """
+
     def __init__(self, gamma: Mapping[T, NT], delta: Mapping[str, Iterable[Any] | Contains], target: NT,
                  subtypes: Subtypes = Subtypes({}),
                  tree_depth_delta=None, max_tree_depth=None
@@ -92,37 +96,39 @@ class RandomSample(Sample):
         if self.max_tree_depth < self.min_size:
             raise ValueError(f"max_tree_depth {self.max_tree_depth} is less than minimum tree depth {self.min_size}")
         rules, symbol_depths = self.grammar.annotations()
-        self.rules: tuple[tuple[tuple[NT, RHSRule[NT, T]], int],...] = rules
-        self.symbol_depths: tuple[tuple[NT, int],...] = symbol_depths
+        self.rules: dict[NT, deque[tuple[RHSRule[NT, T], int]]] = rules
+        self.symbol_depths: dict[NT, int] = symbol_depths
         self.cost = 10
 
-    def build_tree(self, nt: NT, cs: int, candidate: RHSRule[NT, T]) -> Tree[NT, T] | None :
+    def build_tree(self, nt: NT, cs: int, candidate: RHSRule[NT, T]) -> Tree[NT, T] | None:
         if not list(candidate.non_terminals()):
             if cs + 1 > self.max_tree_depth:
                 return None
             # rule only derives terminals
             params: list[Literal] = list(candidate.all_args())
-            children: tuple[Tree[NT, T],...] = tuple(map(lambda p: Tree(p.value, derived_from=nt, rhs_rule=candidate, is_literal=True), params))
+            children: tuple[Tree[NT, T], ...] = tuple(
+                map(lambda p: Tree(p.value, derived_from=nt, rhs_rule=candidate, is_literal=True), params))
             if candidate.check([]):
                 return Tree(candidate.terminal, children, derived_from=nt, rhs_rule=candidate, is_literal=True)
             else:
                 return None
         else:
             # rule derives non-terminals
-            children: tuple[Tree[NT, T],...] = ()
+            children: tuple[Tree[NT, T], ...] = ()
             substitution: dict[str, Tree[NT, T]] = {}
             interleave: Callable[[Mapping[str, Tree[NT, T]]], tuple[Tree[NT, T], ...]] = lambda subs: tuple(
                 subs[t] if isinstance(t, str) else t for t in [
-                    Tree(p.value, derived_from=nt, rhs_rule=candidate, is_literal=True) if isinstance(p, Literal) else p.name
+                    Tree(p.value, derived_from=nt, rhs_rule=candidate, is_literal=True)
+                    if isinstance(p, Literal)
+                    else p.name
                     for p in candidate.parameters
                 ]
             )
             for _ in range(self.cost):
                 for var, child_nt in candidate.binder.items():
-                    child_depth = self.max_tree_depth
-                    for  l, r in self.symbol_depths:
-                        if l == child_nt:
-                            child_depth = r
+                    child_depth = self.symbol_depths.get(child_nt)
+                    if child_depth is None:
+                        child_depth = self.max_tree_depth
                     if cs + child_depth <= self.max_tree_depth:
                         new_cs = cs + child_depth
                         child_tree = self.sample_random_term(child_nt, new_cs)
@@ -144,19 +150,23 @@ class RandomSample(Sample):
                     )
             return None
 
-
     def sample_random_term(self, nt: NT, cs: int) -> Tree[NT, T] | None:
-        applicable: list[RHSRule[NT, T]] = []
-        for (lhs, rhs), n in self.rules:
+        applicable: list[tuple[RHSRule[NT, T], int]] = []
+        #for (lhs, rhs), n in self.rules:
+        #    new_cs = cs + n
+        #    if lhs == nt and new_cs <= self.max_tree_depth:
+        #        applicable.append(rhs)
+        for rhs, n in self.rules[nt]:
             new_cs = cs + n
-            if lhs == nt and new_cs <= self.max_tree_depth:
-                applicable.append(rhs)
+            if new_cs <= self.max_tree_depth:
+                applicable.append((rhs, new_cs))
+
         while applicable:
-            candidate: RHSRule[NT, T] = random.choice(applicable)
-            tree = self.build_tree(nt, cs, candidate)
+            candidate, next_cs = random.choice(applicable)
+            tree = self.build_tree(nt, next_cs, candidate)
             if tree is not None:
                 return tree
-            applicable.remove(candidate)
+            applicable.remove((candidate, next_cs))
         return None
 
     def sample(self, size: int) -> Iterable[Tree[NT, T]]:
@@ -233,6 +243,7 @@ class GenerateAndTest(Search):
         """
         return sorted(self.sample(size=size), key=fitness, reverse=True)
 
+
 class SelectionStrategy(ABC):
     """
     Abstract base class for selection strategies.
@@ -244,6 +255,7 @@ class SelectionStrategy(ABC):
         Select a number of trees from the population based on their fitness.
         """
         raise NotImplementedError("select() must be implemented")
+
 
 class TournamentSelection(SelectionStrategy):
     """
@@ -267,6 +279,7 @@ class TournamentSelection(SelectionStrategy):
             selected.add(winner)
         return list(selected)
 
+
 class EvolutionaryAlgorithm(Search):
     """
     Abstract class for evolutionary algorithms.
@@ -281,10 +294,12 @@ class EvolutionaryAlgorithm(Search):
         self.selection_strategy = selection_strategy
         self.generations = generations
 
+
 class SimpleEA(EvolutionaryAlgorithm, RandomSample):
     """
     This class implements a very simple evolutionary algorithm with tournament selection.
     """
+
     def search_max(self, fitness: Callable[[Tree[NT, T]], V]) -> Tree[NT, T]:
         return list(self.search_fittest(fitness, 100))[0]
 
@@ -301,7 +316,8 @@ class SimpleEA(EvolutionaryAlgorithm, RandomSample):
         for generation in range(self.generations):
             print(f"Generation {generation + 1}/{self.generations}")
             # Select the best individuals for reproduction
-            selected: Sequence[Tree[NT, T]] = self.selection_strategy.select({tree: fitness(tree) for tree in population})
+            selected: Sequence[Tree[NT, T]] = self.selection_strategy.select(
+                {tree: fitness(tree) for tree in population})
             # Create the next generation
             next_generation = []
             pair_length = len(selected) if len(selected) % 2 == 0 else len(selected) - 1

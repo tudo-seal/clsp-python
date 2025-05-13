@@ -1,26 +1,25 @@
 import timeit
+from typing import Any
 
 from clsp.dsl import DSL
 from clsp.enumeration import Tree
 from clsp.fcl import Contains
-
-from clsp.types import Constructor, Literal,  LVar
-
 from clsp.search import Enumerate, RandomSample
+from clsp.types import Constructor, Literal, LVar
 
-from typing import Any
 
 # to allow infinite literal groups, we need to define a subclass of Contains for that group
 class Nat(Contains):
     def __contains__(self, value: object) -> bool:
         return isinstance(value, int) and value >= 0
 
+
 # Our Delta will contain Booleans as the two elementary set and natural numbers as an infinite set (good for indexing).
 base_delta: dict[str, list[Any]] = {"nat": Nat(),
                                     "bool": [True, False]}
 
 delta = base_delta | {
-    "dimension": [n for n in range(0, 3)]
+    "dimension": [n for n in range(0, 5)]
 }
 
 gamma = {
@@ -28,7 +27,7 @@ gamma = {
     .In(Constructor("graph",
                     Constructor("input", Literal(1, "dimension")) &
                     Constructor("output", Literal(1, "dimension")) &
-                    Constructor("size", Literal(1, "nat")))), # Constructor("size", Literal(0, "nat")))),
+                    Constructor("size", Literal(0, "nat")))),  # Constructor("size", Literal(1, "nat")))),
     "vertex": DSL()
     .Use("m", "dimension")
     .Use("n", "dimension")
@@ -47,52 +46,52 @@ gamma = {
     .As(lambda n, o: o - n)
     .Use("s3", "nat")
     .Use("s1", "nat")
-    .As(lambda s3: {x for x in range(0, s3+1)}, multi_value=True)
+    .As(lambda s3: {x for x in range(0, s3 + 1)}, multi_value=True)
     .Use("s2", "nat")
     .As(lambda s3, s1: s3 - s1)
     .Use("x", Constructor("graph",
-                    Constructor("input", LVar("m")) &
-                    Constructor("output", LVar("n")) &
-                    Constructor("size",  LVar("s1"))))
+                          Constructor("input", LVar("m")) &
+                          Constructor("output", LVar("n")) &
+                          Constructor("size", LVar("s1"))))
     .Use("y", Constructor("graph",
-                    Constructor("input", LVar("p")) &
-                    Constructor("output", LVar("q")) &
-                    Constructor("size",  LVar("s2"))))
+                          Constructor("input", LVar("p")) &
+                          Constructor("output", LVar("q")) &
+                          Constructor("size", LVar("s2"))))
     .In(Constructor("graph",
                     Constructor("input", LVar("i")) &
                     Constructor("output", LVar("o")) &
-                    Constructor("size",  LVar("s3")))),
+                    Constructor("size", LVar("s3")))),
     "before": DSL()
     .Use("m", "dimension")
     .Use("n", "dimension")
     .Use("p", "dimension")
     .Use("s3", "nat")
     .Use("s1", "nat")
-    .As(lambda s3: {x for x in range(0, s3+1)}, multi_value=True)
+    .As(lambda s3: {x for x in range(0, s3 + 1)}, multi_value=True)
     .Use("s2", "nat")
     .As(lambda s3, s1: s3 - s1)
     .Use("x", Constructor("graph",
-                    Constructor("input", LVar("m")) &
-                    Constructor("output", LVar("n")) &
-                    Constructor("size",  LVar("s1"))))
+                          Constructor("input", LVar("m")) &
+                          Constructor("output", LVar("n")) &
+                          Constructor("size", LVar("s1"))))
     .Use("y", Constructor("graph",
-                    Constructor("input", LVar("n")) &
-                    Constructor("output", LVar("p")) &
-                    Constructor("size",  LVar("s2"))))
+                          Constructor("input", LVar("n")) &
+                          Constructor("output", LVar("p")) &
+                          Constructor("size", LVar("s2"))))
     .In(Constructor("graph",
                     Constructor("input", LVar("m")) &
                     Constructor("output", LVar("p")) &
-                    Constructor("size",  LVar("s3")))),
+                    Constructor("size", LVar("s3")))),
     "swap": DSL()
     .Use("io", "dimension")
     .Use("m", "dimension")
-    .With(lambda io, m: 0 < m < io) # swapping zero connections is neutral
+    .With(lambda io, m: 0 < m < io)  # swapping zero connections is neutral
     .Use("n", "dimension")
     .As(lambda io, m: io - m)
     .In(Constructor("graph",
                     Constructor("input", LVar("io")) &
                     Constructor("output", LVar("io")) &
-                    Constructor("size", Literal(1, "nat")))), # Constructor("size", Literal(0, "nat")))),
+                    Constructor("size", Literal(0, "nat")))),  # Constructor("size", Literal(1, "nat")))),
     "copy": DSL()
     .Use("m", "dimension")
     .With(lambda m: m > 0)
@@ -106,14 +105,15 @@ gamma = {
     .Use("s1", "nat")
     .As(lambda m, s2: s2 // m)
     .Use("x", Constructor("graph",
-                    Constructor("input", LVar("p")) &
-                    Constructor("output", LVar("q")) &
-                    Constructor("size", LVar("s1"))))
+                          Constructor("input", LVar("p")) &
+                          Constructor("output", LVar("q")) &
+                          Constructor("size", LVar("s1"))))
     .In(Constructor("graph",
                     Constructor("input", LVar("i")) &
                     Constructor("output", LVar("o")) &
                     Constructor("size", LVar("s2")))),
 }
+
 
 def easy_subtree_kernel(t1: Tree[Any, str], t2: Tree[Any, str]) -> float:
     """
@@ -145,6 +145,7 @@ def easy_subtree_kernel(t1: Tree[Any, str], t2: Tree[Any, str]) -> float:
         if k is not None:
             shared = shared + min(n, k)
     return 1 - (shared / mean_len)
+
 
 target = Constructor("graph",
                      Constructor("input", Literal(0, "dimension")) &
@@ -186,6 +187,7 @@ print(f"Inhabitation + grammar annotations took {timeit.default_timer() - start_
 start_random = timeit.default_timer()
 result_random = list(random.sample(n))
 print(f"Random sampling of {n} terms  took {timeit.default_timer() - start_random} seconds")
+print(f"The sample has indeed {len(result_random)} terms.")
 
 random_sizes = [t.size for t in result_random]
 print(f"""
@@ -201,4 +203,3 @@ The average distance between random sampled terms is {sum(random_distances) / le
 The maximum distance between random sampled terms is {max(random_distances)}.
 The minimum distance between random sampled terms is {min(random_distances)}.
 """)
-
