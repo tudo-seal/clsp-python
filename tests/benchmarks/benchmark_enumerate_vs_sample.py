@@ -268,10 +268,9 @@ def easy_subtree_kernel(t1: Tree[Any, str], t2: Tree[Any, str]) -> float:
     :param t2: The second tree.
     :return: The distance between the two trees.
     """
-    # TODO if t1 == t2, 0 should be returned. But currently, 0.333333333 is returned. WHY?????
     subtrees1: list[Tree[Any, str]] = list(map(lambda x: x[0], t1.subtrees([])))
     subtrees2: list[Tree[Any, str]] = list(map(lambda x: x[0], t2.subtrees([])))
-    mean_len = len(subtrees1) + len(subtrees2) / 2
+    mean_len = (len(subtrees1) + len(subtrees2)) / 2
     shared: int = 0
     occur1: dict[Tree[Any, str], int] = {}
     for t in subtrees1:
