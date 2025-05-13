@@ -15,8 +15,8 @@ class Nat(Contains):
 
 
 # Our Delta will contain Booleans as the two elementary set and natural numbers as an infinite set (good for indexing).
-base_delta: dict[str, list[Any]] = {"nat": Nat(),
-                                    "bool": [True, False]}
+base_delta: dict[str, Any] = {"nat": Nat(),
+                              "bool": [True, False]}
 
 delta = base_delta | {
     "dimension": [n for n in range(0, 5)]
