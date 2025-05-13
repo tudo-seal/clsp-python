@@ -248,6 +248,8 @@ class SelectionStrategy(ABC):
     """
     Abstract base class for selection strategies.
     """
+    def __init__(self, population_size: int):
+        self.size = population_size
 
     @abstractmethod
     def select(self, evaluated_trees: Mapping[Tree[NT, T], V]) -> Sequence[Tree[NT, T]]:
@@ -311,7 +313,7 @@ class SimpleEA(EvolutionaryAlgorithm, RandomSample):
         preserved_fittest: int = 3
         self.selection_strategy.size = size
         # Create the initial population
-        population = self.sample(size)
+        population: Iterable[Tree[NT, T]] = self.sample(size)
         # Run the genetic algorithm for a number of generations
         for generation in range(self.generations):
             print(f"Generation {generation + 1}/{self.generations}")

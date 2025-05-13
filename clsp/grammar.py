@@ -183,19 +183,19 @@ class ParameterizedTreeGrammar(Generic[NT, T]):
                 # check if all nonterminals in rhs are already annotated
                 if all(s in symbol_depths.keys() for s in rhs.non_terminals()):
                     # the length of a rule is the maximum of its nonterminal lenghts + 1
-                    rs: deque[tuple[RHSRule[NT, T], int]] | None = annotated.get(nt)
+                    ris: deque[tuple[RHSRule[NT, T], int]] | None = annotated.get(nt)
                     new_depth = max(symbol_depths[t] for t in rhs.non_terminals()) + 1
-                    if rs is None:
-                        rs = deque()
-                    if rhs not in map(lambda x: x[0], rs):
-                        rs.append((rhs, new_depth))
+                    if ris is None:
+                        ris = deque()
+                    if rhs not in map(lambda x: x[0], ris):
+                        ris.append((rhs, new_depth))
                     else:
-                        for r, i in rs:
+                        for r, i in ris:
                             if r == rhs:
-                                rs.remove((r, i))
-                                rs.append((r, new_depth))
+                                ris.remove((r, i))
+                                ris.append((r, new_depth))
                                 break
-                    annotated[nt] = rs
+                    annotated[nt] = ris
                     not_annotated.remove((nt, rhs))
                     # The first time we derive a length for a right hand side, we can assume, that it is the minimum length and therefore set the symbol depth
                     sd = symbol_depths.get(nt)

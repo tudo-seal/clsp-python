@@ -10,7 +10,7 @@ import itertools
 from inspect import Parameter, signature, _ParameterKind, _empty
 from collections import deque
 from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
-from typing import Any, Generic, Optional, TypeVar, overload
+from typing import Any, Generic, Optional, TypeVar, overload, Union
 import typing
 from queue import PriorityQueue
 from dataclasses import dataclass, field
@@ -40,7 +40,7 @@ class Tree(Generic[NT, T]):
 
     # if the following 4 fields are set, the combinatory terms is annotated to also function as a derivation tree
     derived_from: NT | str = field(default="")
-    rhs_rule: RHSRule[NT, T] = field(default_factory=list)
+    rhs_rule: RHSRule[NT, T] | None = field(default=None)
     is_literal: bool = field(default=False)
     frozen: bool = field(default=False)
 
@@ -107,7 +107,9 @@ class Tree(Generic[NT, T]):
             edges.update(child.to_adjacency_dict())
         return edges
 
-    def subtrees(self, prefix: list[int]) -> typing.Generator[tuple["Tree[NT, T]", list[int], str, dict[str, "Tree[NT, T]"], list[Predicate]]]:
+    def subtrees(self, prefix: list[int]) -> typing.Generator[
+        tuple["Tree[NT, T]", list[int], str, dict[str, "Tree[NT, T]"], list[Predicate]]
+    ]:
         """
         subtrees() returns a list of all subtrees and their contexts.
         The context is its path in the primary tree, the variable name of the subtree,
@@ -117,13 +119,13 @@ class Tree(Generic[NT, T]):
         for i, child in list(enumerate(self.children)):
             if not child.frozen:
                 if i < len(self.variable_names):
-                    params: dict[str, "Tree[NT, T]"] = {name: self.parameters[name] for name, _ in self.rhs_rule.binder.items()}
-                    preds: list[Predicate] = self.rhs_rule.predicates
-                    yield child, prefix + [i], self.variable_names[i], params, preds
+                    yield (child,
+                           prefix + [i],
+                           self.variable_names[i],
+                           {name: self.parameters[name] for name, _ in self.rhs_rule.binder.items()},
+                           self.rhs_rule.predicates)
                 else:
-                    params: dict[str, "Tree[NT, T]"] = {}
-                    preds: list[Predicate] = []
-                    yield child, prefix + [i], "", params, preds
+                    yield child, prefix + [i], "", {}, []
                 yield from list(child.subtrees(prefix + [i]))
                 #for t, p, names, param, pred in child.subtrees([i]):
                     # the path need to be updated, this way without being an argument to the recursive call
@@ -141,7 +143,7 @@ class Tree(Generic[NT, T]):
         """
         substitution = p_subtree[3]
         if p_subtree[0].is_literal and s_subtree.is_literal:
-            rules = grammar.get(p_subtree[0].derived_from)
+            rules = grammar[p_subtree[0].derived_from]
             for r in rules:
                 for name, para in zip(r.variable_names, r.parameters):
                     if name == p_subtree[2] and para == s_subtree:
@@ -183,7 +185,7 @@ class Tree(Generic[NT, T]):
         else:
             return self
 
-    def crossover(self, secondary_derivation_tree: "Tree[NT, T]", grammar: ParameterizedTreeGrammar[NT, T]): # -> "Tree[NT, T]" | None:
+    def crossover(self, secondary_derivation_tree: "Tree[NT, T]", grammar: ParameterizedTreeGrammar[NT, T]) -> Union["Tree[NT, T]", None]:
         """
         crossover function for annotated combinatory terms/ derivation trees
         """
@@ -218,7 +220,7 @@ class Tree(Generic[NT, T]):
                         return offspring
         return None
 
-    def mutate(self, grammar: ParameterizedTreeGrammar[NT, T]):  # -> "Tree[NT, T]" | None:
+    def mutate(self, grammar: ParameterizedTreeGrammar[NT, T]) -> Union["Tree[NT, T]", None]:
         """
         mutating the tree by selecting a random subtree and replacing it with a new subtree inhabiting the same type.
         Therefore, mutation needs the grammar as an extra argument to inhabit the mutations.
@@ -235,7 +237,7 @@ class Tree(Generic[NT, T]):
             sub_trees.remove(mutated_subtree)
             if mutated_subtree[0].is_literal or not mutated_subtree[0].children:
                 continue
-            mutate_point: T = mutated_subtree[1]
+            mutate_point: list[int] = mutated_subtree[1]
             non_terminal: NT = mutated_subtree[0].derived_from
             # 6.
             new_sub_tree: Tree[NT, T] = random.choice(list(enumerate_terms(non_terminal, grammar, 300)))
