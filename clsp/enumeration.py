@@ -151,7 +151,7 @@ class Tree(Generic[NT, T]):
                 for name, para in zip(r.variable_names, r.parameters):
                     if not isinstance(para, Literal):
                         raise ValueError("Only literals should be considered at that point")
-                    # TODO think about the case, that there might be a rule with parameters?
+                    # TODO yeah, this is bullshit. I don't know, what I did here, but to assume that different rules use the same variable name makes no sense
                     if name == p_subtree[2] and para.value == s_subtree.root:
                         substitution.update({p_subtree[2]: s_subtree})
                         s_subtree.rhs_rule = r
