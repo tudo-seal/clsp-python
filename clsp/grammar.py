@@ -202,10 +202,10 @@ class ParameterizedTreeGrammar(Generic[NT, T]):
                     if sd is None:
                         symbol_depths[nt] = new_depth
                     # rs == annotated[nt] and therefore corresponds to the annoted rules for nonterminal nt
-                    if all(rule in map(lambda x: x[0], rs) for rule in self._rules[nt]):
+                    if all(rule in map(lambda x: x[0], ris) for rule in self._rules[nt]):
                         # all rules of this nonterminal are already annotated
                         # the length of a terminal symbol is the minimum of the length of its rules
-                        symbol_depths[nt] = min(map(lambda x: x[1], rs))
+                        symbol_depths[nt] = min(map(lambda x: x[1], ris))
             if termination_check == not_annotated:
                 # no more rules can be annotated
                 break

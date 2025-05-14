@@ -27,7 +27,7 @@ from .grammar import (
 from .types import Literal
 
 NT = TypeVar("NT")  # non-terminals
-T = TypeVar("T", covariant=True, bound=Hashable)
+T = TypeVar("T", bound=Hashable)
 
 
 # Tree: TypeAlias = tuple[T, tuple["Tree[T]", ...]]
@@ -39,7 +39,7 @@ class Tree(Generic[NT, T]):
     variable_names: list[str] = field(default_factory=list)
 
     # if the following 4 fields are set, the combinatory terms is annotated to also function as a derivation tree
-    derived_from: NT | str = field(default="")
+    derived_from: NT | None = field(default=None)
     rhs_rule: RHSRule[NT, T] | None = field(default=None)
     is_literal: bool = field(default=False)
     frozen: bool = field(default=False)
@@ -122,8 +122,8 @@ class Tree(Generic[NT, T]):
                     yield (child,
                            prefix + [i],
                            self.variable_names[i],
-                           {name: self.parameters[name] for name, _ in self.rhs_rule.binder.items()},
-                           self.rhs_rule.predicates)
+                           {name: self.parameters[name] for name, _ in self.rhs_rule.binder.items()} if self.rhs_rule is not None else {},
+                           self.rhs_rule.predicates if self.rhs_rule is not None else [])
                 else:
                     yield child, prefix + [i], "", {}, []
                 yield from list(child.subtrees(prefix + [i]))
@@ -143,10 +143,16 @@ class Tree(Generic[NT, T]):
         """
         substitution = p_subtree[3]
         if p_subtree[0].is_literal and s_subtree.is_literal:
-            rules = grammar[p_subtree[0].derived_from]
+            df: NT | None = p_subtree[0].derived_from
+            if df is None:
+                return False, s_subtree
+            rules = grammar[df]
             for r in rules:
                 for name, para in zip(r.variable_names, r.parameters):
-                    if name == p_subtree[2] and para == s_subtree:
+                    if not isinstance(para, Literal):
+                        raise ValueError("Only literals should be considered at that point")
+                    # TODO think about the case, that there might be a rule with parameters?
+                    if name == p_subtree[2] and para.value == s_subtree.root:
                         substitution.update({p_subtree[2]: s_subtree})
                         s_subtree.rhs_rule = r
                         return all(pred.eval(substitution) for pred in r.predicates), s_subtree
@@ -164,6 +170,8 @@ class Tree(Generic[NT, T]):
         """
         result: list[bool] = []
         for i, child in enumerate(self.children):
+            if self.rhs_rule is None:
+                return False
             if i < len(self.variable_names):
                 substitution = {name: self.parameters[name] for name, _ in self.rhs_rule.binder.items()}
                 result.append(all(pred.eval(substitution) for pred in self.rhs_rule.predicates))
@@ -201,7 +209,9 @@ class Tree(Generic[NT, T]):
             # 4.
             sel_primary_subtree: tuple["Tree[NT, T]", list[int], str, dict[str, "Tree[NT, T]"], list[Predicate]] = (
                 random.choice(primary_sub_trees))
-            primary_crossover_point: NT = sel_primary_subtree[0].derived_from
+            primary_crossover_point: NT | None = sel_primary_subtree[0].derived_from
+            if primary_crossover_point is None:
+                return None
             is_literal = sel_primary_subtree[0].is_literal
             primary_sub_trees.remove(sel_primary_subtree)
             # 5.
@@ -238,7 +248,9 @@ class Tree(Generic[NT, T]):
             if mutated_subtree[0].is_literal or not mutated_subtree[0].children:
                 continue
             mutate_point: list[int] = mutated_subtree[1]
-            non_terminal: NT = mutated_subtree[0].derived_from
+            non_terminal: NT | None = mutated_subtree[0].derived_from
+            if non_terminal is None:
+                raise ValueError("A combinatory tree on which genetic operations are performed must be a derivation tree")
             # 6.
             new_sub_tree: Tree[NT, T] = random.choice(list(enumerate_terms(non_terminal, grammar, 300)))
             # 7.
@@ -247,7 +259,9 @@ class Tree(Generic[NT, T]):
                 return offspring
         mutate_point = []
         non_terminal = self.derived_from
-        new_sub_tree: Tree[NT, T] = random.choice(list(enumerate_terms(non_terminal, grammar, 300)))
+        if non_terminal is None:
+            raise ValueError("A combinatory tree on which genetic operations are performed must be a derivation tree")
+        new_sub_tree = random.choice(list(enumerate_terms(non_terminal, grammar, 300)))
         offspring = self.replace(mutate_point, new_sub_tree)
         if offspring.is_consistent():
             return offspring
