@@ -1,8 +1,12 @@
+"""
+This module provides a `Subtypes` class, which is used to check subtyping relationships
+between types in the intersection type system.
+"""
+
 from collections import deque
 from collections.abc import Mapping
 
-from .types import Arrow, Constructor, Intersection, Literal, Product, LVar, Type
-
+from .types import Arrow, Constructor, Intersection, Literal, Var, Type
 
 class Subtypes:
     def __init__(self, environment: Mapping[str, set[str]]):
@@ -23,7 +27,7 @@ class Subtypes:
                         case Literal(name1, group1):
                             if name2 == name1 and group1 == group2:
                                 return True
-                        case LVar(name1):
+                        case Var(name1):
                             if substitutions[name1] == supertype:
                                 return True
                         case Intersection(l, r):
@@ -53,27 +57,11 @@ class Subtypes:
                 return len(casted_arr) != 0 and self._check_subtype_rec(
                     casted_arr, tgt2, substitutions
                 )
-            case Product(l2, r2):
-                casted_l: deque[Type] = deque()
-                casted_r: deque[Type] = deque()
-                while subtypes:
-                    match subtypes.pop():
-                        case Product(l1, r1):
-                            casted_l.append(l1)
-                            casted_r.append(r1)
-                        case Intersection(l, r):
-                            subtypes.extend((l, r))
-                return (
-                    len(casted_l) != 0
-                    and len(casted_r) != 0
-                    and self._check_subtype_rec(casted_l, l2, substitutions)
-                    and self._check_subtype_rec(casted_r, r2, substitutions)
-                )
             case Intersection(l, r):
                 return self._check_subtype_rec(
                     subtypes.copy(), l, substitutions
                 ) and self._check_subtype_rec(subtypes, r, substitutions)
-            case LVar(name):
+            case Var(name):
                 while subtypes:
                     match subtypes.pop():
                         case Literal(value, group):
@@ -89,7 +77,7 @@ class Subtypes:
     def check_subtype(
         self, subtype: Type, supertype: Type, substitutions: Mapping[str, Literal]
     ) -> bool:
-        """Decides whether subtype <= supertype."""
+        """Decides whether subtype <= supertype with respect to intersection type subtyping."""
 
         return self._check_subtype_rec(deque((subtype,)), supertype, substitutions)
 
@@ -129,8 +117,6 @@ class Subtypes:
                             return (
                                 {}
                             )  # there are actual non-Ambiguous cases (relevant in practice?)
-            case Product(_, _):
-                return {}  # not implemented, I hate Products
             case Intersection(l, r):
                 substitution1 = self.infer_substitution(l, path, groups)
                 substitution2 = self.infer_substitution(r, path, groups)
@@ -153,7 +139,7 @@ class Subtypes:
                 ):
                     return substitution2  # substitution2 included in substitution1
                 return {}
-            case LVar(name):
+            case Var(name):
                 match path:
                     case Literal(name2, group2):
                         if groups[name] == group2:
@@ -193,10 +179,3 @@ class Subtypes:
                     known_supertypes.update(to_add)
 
         return result
-
-    # def minimize(self, tys: set[Type]) -> set[Type]:
-    #     result: set[Type] = set()
-    #     for ty in tys:
-    #         if all(map(lambda ot: not self.check_subtype(ot, ty), result)):
-    #             result = {ty, *(ot for ot in result if not self.check_subtype(ty, ot))}
-    #     return result

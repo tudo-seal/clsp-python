@@ -1,98 +1,53 @@
 from __future__ import annotations
-
 from collections import defaultdict, deque
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence, Mapping
+from queue import PriorityQueue
 from dataclasses import dataclass, field
-from itertools import chain
+from itertools import product
 from typing import Generic, TypeVar, Any, Optional
+from .tree import Tree
 
-from .types import Literal
-
-NT = TypeVar("NT")
-T = TypeVar("T")
-
-
-# @dataclass
-# class Binder(Generic[NT]):
-#     name: str
-#     nonterminal: NT
-#
-#     def __str__(self) -> str:
-#         return f"∀({self.name}: {self.nonterminal})."
-
-
-@dataclass
-class Predicate:
-    predicate: Callable[[dict[str, Any]], bool]
-    name: str = field(default="P")
-    predicate_substs: dict[str, Any] = field(default_factory=dict)
-    _evaluated: bool = field(default=False)
-    _value: bool = field(default=False)
-
-    def eval(self, assign: dict[str, Any]) -> bool:
-        if not self._evaluated:
-            self._value = self.predicate(self.predicate_substs | assign)
-            # TODO: the predicate needs to be reevaluated for different assignments
-            # self._evaluated = True
-
-        return self._value
-
-    def __str__(self) -> str:
-        return f"{self.name} ⇛ "
-
+NT = TypeVar("NT") # type of non-terminals
+T = TypeVar("T") # type of terminals
 
 @dataclass(frozen=True)
-class GVar:
+class TerminalArgument(Generic[T]):
+    name: str
+    value: T
+    
+@dataclass(frozen=True)
+class NonTerminalArgument(Generic[NT]):
+    value: NT
+
+@dataclass(frozen=True)
+class NamedNonTerminalArgument(NonTerminalArgument[NT]):
     name: str
 
-    def __str__(self) -> str:
-        return f"<{self.name}>"
-
+Argument = TerminalArgument | NonTerminalArgument[NT]
 
 @dataclass(frozen=True)
 class RHSRule(Generic[NT, T]):
-    binder: dict[str, NT]
-    predicates: list[Predicate]
-
+    arguments: tuple[Argument, ...]
+    predicates: tuple[Callable[[dict[str, Any]], bool], ...]
     terminal: T
-    parameters: list[Literal | GVar]
-    variable_names: list[str]
-    args: list[NT]
 
-    def __len__(self) -> int:
-        return len(self.parameters) + len(self.args)
-
-    def all_args(self) -> Iterable[NT | Literal]:
-        for p in self.parameters:
-            if isinstance(p, Literal):
-                yield p
-            else:
-                yield self.binder[p.name]
-        yield from self.args
-
-    def check(self, parameters: Iterable[Any]) -> bool:
-        """Test if all predicates of a rule are satisfied by the parameters."""
-        substitution = {
-            param.name: subterm
-            for subterm, param in zip(parameters, self.parameters)
-            if isinstance(param, GVar)
-        }
-        return all(predicate.eval(substitution) for predicate in self.predicates)
-
+    @property
     def non_terminals(self) -> frozenset[NT]:
         """Set of non-terminals occurring in the body of the rule."""
-        return frozenset(chain(self.binder.values(), self.args))
+        return frozenset(arg.value for arg in self.arguments if isinstance(arg, NonTerminalArgument))
 
-    def __str__(self) -> str:
-        forallstrings = "".join([f"∀({name}:{ty})." for name, ty in self.binder.items()])
-        predicatestrings = "".join([str(predicate) for predicate in self.predicates])
-        paramstring = "".join([f"({str(param)})" for param in self.parameters])
-        argstring = "".join([f"({str(arg)})" for arg in self.args])
-        return f"{forallstrings}{predicatestrings}{str(self.terminal)}{paramstring}{argstring}"
+    @property
+    def argument_names(self) -> tuple[str | None, ...]:
+        """Names of named arguments."""
+        return tuple(a.name if isinstance(a, NamedNonTerminalArgument) or isinstance(a, TerminalArgument) else None for a in self.arguments)
+
+    @property
+    def literal_substitution(self):
+        return {n.name: n.value for n in self.arguments if isinstance(n, TerminalArgument)}
 
 
 @dataclass
-class ParameterizedTreeGrammar(Generic[NT, T]):
+class Grammar(Generic[NT, T]):
     _rules: dict[NT, deque[RHSRule[NT, T]]] = field(default_factory=lambda: defaultdict(deque))
 
     def get(self, nonterminal: NT) -> Optional[deque[RHSRule[NT, T]]]:
@@ -122,105 +77,195 @@ class ParameterizedTreeGrammar(Generic[NT, T]):
             for nt, rule in self._rules.items()
         )
 
-    def annotations(self) -> tuple[dict[NT, deque[tuple[RHSRule[NT, T], int]]], dict[NT, int]]:
+    def prune(self) -> Grammar[NT, T]:
+        """Keep only productive rules."""
+
+        ground_types: set[NT] = set()
+        queue: set[NT] = set()
+        inverse_grammar: dict[NT, set[tuple[NT, frozenset[NT]]]] = defaultdict(set)
+
+        for n, exprs in self._rules.items():
+            for expr in exprs:
+                non_terminals = expr.non_terminals
+                for m in non_terminals:
+                    inverse_grammar[m].add((n, non_terminals))
+                if not non_terminals:
+                    queue.add(n)
+
+        while queue:
+            n = queue.pop()
+            if n not in ground_types:
+                ground_types.add(n)
+                for m, non_terminals in inverse_grammar[n]:
+                    if m not in ground_types and all(t in ground_types for t in non_terminals):
+                        queue.add(m)
+
+        result = Grammar[NT, T]({
+                target: deque(
+                    possibility
+                    for possibility in self._rules[target]
+                    if all(t in ground_types for t in possibility.non_terminals)
+                )
+                for target in ground_types
+            })
+        return result
+    
+    def _enumerate_tree_vectors(
+        self,
+        non_terminals: Sequence[NT | None],
+        existing_terms: Mapping[NT, set[Tree[T]]],
+        nt_term: tuple[NT, Tree[T]] | None = None,
+    ) -> Iterable[tuple[Tree[T] | None, ...]]:
+        """Enumerate possible term vectors for a given list of non-terminals and existing terms. Use nt_term at least once (if given)."""
+        if nt_term is None:
+            yield from product(*([n] if n is None else existing_terms[n] for n in non_terminals))
+        else:
+            nt, term = nt_term
+            for i, n in enumerate(non_terminals):
+                if n == nt:
+                    arg_lists: Iterable[Iterable[Tree[T] | None]] = ([None] if m is None else [term] if i == j else existing_terms[m] for j, m in enumerate(non_terminals))
+                    yield from product(*arg_lists)
+
+    def _generate_new_trees(
+        self,
+        rule: RHSRule[NT, T],
+        existing_terms: Mapping[NT, set[Tree[T]]],
+        max_count: Optional[int] = None,
+        nt_old_term: Optional[tuple[NT, Tree[T]]] = None,
+    ) -> set[Tree[T]]:
+        # Genererate new terms for rule `rule` from existing terms up to `max_count`
+        # the term `old_term` should be a subterm of all resulting terms, at a position, that corresponds to `nt`
+
+        output_set: set[Tree[T]] = set()
+        if max_count == 0:
+            return output_set
+        
+        named_non_terminals = [a.value if isinstance(a, NamedNonTerminalArgument) else None for a in rule.arguments]
+        unnamed_non_terminals = [a.value if isinstance(a, NonTerminalArgument) and not isinstance(a, NamedNonTerminalArgument) else None for a in rule.arguments]
+        literal_arguments = [Tree(a.value) if isinstance(a, TerminalArgument) else None for a in rule.arguments]
+
+        def interleave(
+            parameters: Sequence[Tree[T] | None],
+            literal_arguments: Sequence[Tree[T] | None],
+            arguments: Sequence[Tree[T] | None],
+        ) -> Iterable[Tree[T]]:
+            """Interleave parameters, literal arguments and arguments."""
+            for parameter, literal_argument, argument in zip(parameters, literal_arguments, arguments):
+                if parameter is not None:
+                    yield parameter
+                elif literal_argument is not None:
+                    yield literal_argument
+                elif argument is not None:
+                    yield argument
+                else:
+                    raise ValueError("All arguments of interleave are None")
+
+        specific_substitution = lambda parameters: {a.name: p for p, a in zip(parameters, rule.arguments) if isinstance(a, NamedNonTerminalArgument)} | rule.literal_substitution
+        if nt_old_term is None:
+            for parameters in self._enumerate_tree_vectors(named_non_terminals, existing_terms):
+                substitution = specific_substitution(parameters)
+                if all(predicate(substitution) for predicate in rule.predicates):
+                    for arguments in self._enumerate_tree_vectors(unnamed_non_terminals, existing_terms):
+                        output_set.add(Tree(
+                            rule.terminal,
+                            tuple(interleave(parameters, literal_arguments, arguments)),
+                            child_names=rule.argument_names,
+                        ))
+                        if max_count is not None and len(output_set) >= max_count:
+                            return output_set
+        else:
+            for parameters in self._enumerate_tree_vectors(named_non_terminals, existing_terms, nt_old_term):
+                substitution = specific_substitution(parameters)
+                if all(predicate(substitution) for predicate in rule.predicates):
+                    for arguments in self._enumerate_tree_vectors(unnamed_non_terminals, existing_terms):
+                        output_set.add(Tree(
+                            rule.terminal,
+                            tuple(interleave(parameters, literal_arguments, arguments)),
+                            child_names=rule.argument_names,
+                        ))
+                        if max_count is not None and len(output_set) >= max_count:
+                            return output_set
+            all_parameters: deque[tuple[Tree[T] | None, ...]] | None = None
+            for arguments in self._enumerate_tree_vectors(unnamed_non_terminals, existing_terms):
+                if all_parameters is None:
+                    all_parameters = deque()
+                    for parameters in self._enumerate_tree_vectors(named_non_terminals, existing_terms):
+                        substitution = specific_substitution(parameters)
+                        if all(predicate(substitution) for predicate in rule.predicates):
+                            all_parameters.append(parameters)
+                for parameters in all_parameters:
+                    output_set.add(Tree(
+                        rule.terminal,
+                        tuple(interleave(parameters, literal_arguments, arguments)),
+                        child_names=rule.argument_names,
+                    ))
+                    if max_count is not None and len(output_set) >= max_count:
+                        return output_set
+        return output_set
+
+    def enumerate_trees(
+        self,
+        start: NT,
+        max_count: Optional[int] = None,
+        max_bucket_size: Optional[int] = None,
+    ) -> Iterable[Tree[T]]:
         """
-        Following the grammar based initialization method (GBIM) for context free grammars,
-        we annotate terminals, nonterminals and rules with the expected minimum depth of generated terms.
-        In contrast to context free grammars, these depths are overapproximation, because we can not include the
-        evaluation of predicates in the computation of the expected depth.
-        But even this lower bounds of an expected depth should be a good enough approximation to compute an
-        initial population of terms with a suitable distribution of term depths.
-
-        The length of a terminal symbol is always 0, therefore we don't need to return annotations for terminals.
+        Enumerate terms as an iterator efficiently - all terms are enumerated, no guaranteed term order.
         """
+        if start not in self.nonterminals():
+            return
 
-        # Because annotated and symbol_depths needs to be hashable, I wasn't able to use a dict for each of them...
-        # annotated: tuple[tuple[tuple[NT, RHSRule[NT, T]], int],...] = tuple()
-        annotated: dict[NT, deque[tuple[RHSRule[NT, T], int]]] = dict()
+        queues: dict[NT, PriorityQueue[Tree[T]]] = {n: PriorityQueue() for n in self.nonterminals()}
+        existing_terms: dict[NT, set[Tree[T]]] = {n: set() for n in self.nonterminals()}
+        inverse_grammar: dict[NT, deque[tuple[NT, RHSRule[NT, T]]]] = {
+            n: deque() for n in self.nonterminals()
+        }
+        all_results: set[Tree[T]] = set()
 
-        not_annotated: list[tuple[NT, RHSRule[NT, T]]] = [
-            (nt, rhs)
-            for nt, rules in self._rules.items()
-            for rhs in rules
-        ]
+        for n, exprs in self._rules.items():
+            for expr in exprs:
+                for m in expr.non_terminals:
+                    inverse_grammar[m].append((n, expr))
+                for new_term in self._generate_new_trees(expr, existing_terms):
+                    queues[n].put(new_term)
+                    if n == start and new_term not in all_results:
+                        if max_count is not None and len(all_results) >= max_count:
+                            return
+                        yield new_term
+                        all_results.add(new_term)
 
-        symbol_depths: dict[NT, int] = {}
+        current_bucket_size = 1
 
-        nts: list[NT] = []
+        while (max_bucket_size is None or current_bucket_size <= max_bucket_size) and any(
+            not queue.empty() for queue in queues.values()
+        ):
+            non_terminals = {n for n in self.nonterminals() if not queues[n].empty()}
 
-        check = not_annotated.copy()
-        # every rule that only derives nonterminals has length 1
-        for nt, rhs in check:
-            if not list(rhs.non_terminals()):
-                # rule only derives terminals
-                rs: deque[tuple[RHSRule[NT, T], int]] | None = annotated.get(nt)
-                # add the rule to the annotated rules
-                if rs is None:  # this if might be ommited, since there are no rules with the same rhs annotated yet
-                    rs = deque()
-                    rs.append((rhs, 1))
-                # the next block can be ommited, since there are no rules with the same rhs annotated yet
-                # else:
-                #    for r, i in rs:
-                #        if r == rhs:
-                #            rs.remove((r, i))
-                #            rs.append((r, 1))
-                #            break
-                annotated[nt] = rs
-                not_annotated.remove((nt, rhs))
-                nts.append(nt)
-
-        assert len(annotated) > 0
-        assert all([list(rhs.non_terminals()) for _, rhs in not_annotated])
-
-        for nt in nts:
-            # if a right hand side has the minmal length 1, the symbol also has this length
-            symbol_depths[nt] = 1
-
-        while not_annotated:
-            termination_check = not_annotated.copy()
-            for nt, rhs in termination_check:
-                assert (list(rhs.non_terminals()))
-                # check if all nonterminals in rhs are already annotated
-                if all(s in symbol_depths.keys() for s in rhs.non_terminals()):
-                    # the length of a rule is the maximum of its nonterminal lenghts + 1
-                    ris: deque[tuple[RHSRule[NT, T], int]] | None = annotated.get(nt)
-                    new_depth = max(symbol_depths[t] for t in rhs.non_terminals()) + 1
-                    if ris is None:
-                        ris = deque()
-                    if rhs not in map(lambda x: x[0], ris):
-                        ris.append((rhs, new_depth))
-                    else:
-                        for r, i in ris:
-                            if r == rhs:
-                                ris.remove((r, i))
-                                ris.append((r, new_depth))
-                                break
-                    annotated[nt] = ris
-                    not_annotated.remove((nt, rhs))
-                    # The first time we derive a length for a right hand side, we can assume, that it is the minimum length and therefore set the symbol depth
-                    sd = symbol_depths.get(nt)
-                    if sd is None:
-                        symbol_depths[nt] = new_depth
-                    # rs == annotated[nt] and therefore corresponds to the annoted rules for nonterminal nt
-                    if all(rule in map(lambda x: x[0], ris) for rule in self._rules[nt]):
-                        # all rules of this nonterminal are already annotated
-                        # the length of a terminal symbol is the minimum of the length of its rules
-                        symbol_depths[nt] = min(map(lambda x: x[1], ris))
-            if termination_check == not_annotated:
-                # no more rules can be annotated
-                break
-
-        # if there are still rules that are not annotated, we have a problem with the grammar
-        if not_annotated:
-            raise ValueError(
-                f"Grammar contains problems. The following rules could not be annotated: {not_annotated} \n These rules have been annotated: {annotated} \n These symbols have been annotated: {symbol_depths}"
-            )
-
-        return annotated, symbol_depths
-
-    def minimum_tree_depth(self, start: NT) -> int:
-        """
-        Compute a lower bound for the minimum depth of a tree generated by the grammar from the given nonterminal.
-        """
-        _, nt_length = self.annotations()
-        return nt_length[start]
+            while non_terminals:
+                n = non_terminals.pop()
+                results = existing_terms[n]
+                while len(results) < current_bucket_size and not queues[n].empty():
+                    term = queues[n].get()
+                    if term in results:
+                        continue
+                    results.add(term)
+                    for m, expr in inverse_grammar[n]:
+                        if len(existing_terms[m]) < current_bucket_size:
+                            non_terminals.add(m)
+                        if m == start:
+                            for new_term in self._generate_new_trees(
+                                expr, existing_terms, max_count, (n, term)
+                            ):
+                                if new_term not in all_results:
+                                    if max_count is not None and len(all_results) >= max_count:
+                                        return
+                                    yield new_term
+                                    all_results.add(new_term)
+                                    queues[start].put(new_term)
+                        else:
+                            for new_term in self._generate_new_trees(
+                                expr, existing_terms, max_bucket_size, (n, term)
+                            ):
+                                queues[m].put(new_term)
+            current_bucket_size += 1
+        return

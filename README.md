@@ -34,7 +34,7 @@ Once you specified a repository `gamma`, a literal environment `delta` and a que
 
 `results` contains a representation of solutions that were build by the inhabitation procedure. You can access the terms, that inhabit `q` by
 
-    terms = enumerate_terms(q, results)
+    terms = enumerate_trees(q, results)
 
 **Note:** Since the enumerated results are potentially infinite, `enumerated_results` returns a lazy `Generator`.
 

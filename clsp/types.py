@@ -1,15 +1,12 @@
 """
-Definitions of `Type`, that can be
+Definition of intersection types `Type` and parameterized abstractions `Abstraction`.
 """
 
 from __future__ import annotations
-
-import itertools
 from abc import ABC, abstractmethod
-from collections.abc import Callable, MutableMapping, MutableSequence, Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, cast
-
+from typing import Any
 
 @dataclass(frozen=True)
 class Type(ABC):
@@ -76,9 +73,6 @@ class Type(ABC):
     def __pow__(self, other: Type) -> Type:
         return Arrow(self, other)
 
-    def __mul__(self, other: Type) -> Type:
-        return Product(self, other)
-
     def __and__(self, other: Type) -> Type:
         return Intersection(self, other)
 
@@ -89,7 +83,7 @@ class Type(ABC):
 @dataclass(frozen=True)
 class Omega(Type):
     is_omega: bool = field(init=False, compare=False)
-    size: bool = field(init=False, compare=False)
+    size: int = field(init=False, compare=False)
     organized: set[Type] = field(init=False, compare=False)
     free_vars: set[str] = field(init=False, compare=False)
 
@@ -162,62 +156,6 @@ class Constructor(Type):
         if not any(var in substitution for var in self.free_vars):
             return self
         return Constructor(self.name, self.arg.subst(substitution))
-
-
-@dataclass(frozen=True)
-class Product(Type):
-    left: Type = field(init=True)
-    right: Type = field(init=True)
-    is_omega: bool = field(init=False, compare=False)
-    size: int = field(init=False, compare=False)
-    organized: set[Type] = field(init=False, compare=False)
-    free_vars: set[str] = field(init=False, compare=False)
-
-    def __post_init__(self) -> None:
-        super().__init__(
-            is_omega=self._is_omega(),
-            size=self._size(),
-            organized=self._organized(),
-            free_vars=self._free_vars(),
-        )
-
-    def _is_omega(self) -> bool:
-        return False
-
-    def _size(self) -> int:
-        return 1 + self.left.size + self.right.size
-
-    def _organized(self) -> set[Type]:
-        if len(self.left.organized) + len(self.right.organized) <= 1:
-            return {self}
-        else:
-            return set(
-                itertools.chain(
-                    (Product(lp, Omega()) for lp in self.left.organized),
-                    (Product(Omega(), rp) for rp in self.right.organized),
-                )
-            )
-
-    def _free_vars(self) -> set[str]:
-        return set.union(self.left.free_vars, self.right.free_vars)
-
-    def _str_prec(self, prec: int) -> str:
-        product_prec: int = 9
-
-        def product_str_prec(other: Type) -> str:
-            match other:
-                case Product(_, _):
-                    return other._str_prec(product_prec)
-                case _:
-                    return other._str_prec(product_prec + 1)
-
-        result: str = f"{product_str_prec(self.left)} * {self.right._str_prec(product_prec + 1)}"
-        return Type._parens(result) if prec > product_prec else result
-
-    def subst(self, substitution: dict[str, Literal]) -> Type:
-        if not any(var in substitution for var in self.free_vars):
-            return self
-        return Product(self.left.subst(substitution), self.right.subst(substitution))
 
 
 @dataclass(frozen=True)
@@ -361,7 +299,7 @@ class Literal(Type):
 
 
 @dataclass(frozen=True)
-class LVar(Type):
+class Var(Type):
     name: str
     is_omega: bool = field(init=False, compare=False)
     size: int = field(init=False, compare=False)
@@ -392,72 +330,42 @@ class LVar(Type):
         return f"<{str(self.name)}>"
 
     def subst(self, substitution: dict[str, Literal]) -> Type:
-        if not any(var in substitution for var in self.free_vars):
-            return self
         if self.name in substitution:
             return substitution[self.name]
         else:
             return self
 
 
-# @dataclass(frozen=True)
-@dataclass
-class LitParamSpec:
+@dataclass(frozen=True)
+class Parameter(ABC):
+    """Abstract base class for parameter specification."""
     name: str
-    group: str
-    predicate: MutableSequence[Callable[[MutableMapping[str, Any]], bool] | SetTo]
-    cache: bool
-    infer: bool
-
-
-@dataclass
-class TermParamSpec:
-    name: str
-    group: Type
-    predicate: MutableSequence[Callable[[MutableMapping[str, Any]], bool]]
-
-
-@dataclass
-class SetTo:
-    compute: Callable[[dict[str, Any]], Any]
-    override: bool = field(default=False)
-    multi_value: bool = field(default=False)
-
-
-# @dataclass(frozen=True)
-@dataclass
-class Param:
-    name: str
-    group: Type | str
-    predicate: (
-        Sequence[Callable[[MutableMapping[str, Any]], bool] | SetTo]
-        | Callable[[dict[str, Any]], bool]
-        | SetTo
-    )
-    inner: Param | Type
-    cache: bool = field(default=False)
-    infer: bool = field(default=True)
-
-    def get_spec(self) -> LitParamSpec | TermParamSpec:
-        predicates: MutableSequence[Callable[[MutableMapping[str, Any]], bool] | SetTo] = []
-        if isinstance(self.predicate, list):
-            predicates = self.predicate
-        elif not isinstance(self.predicate, list):
-            predicates = cast(
-                MutableSequence[Callable[[MutableMapping[str, Any]], bool] | SetTo],
-                [self.predicate],
-            )  # :(
-        if isinstance(self.group, Type):
-            for pred in predicates:
-                if isinstance(pred, SetTo):
-                    raise RuntimeError("Term parameters cannot have SetTo/As")
-
-            casted_predicates = cast(
-                MutableSequence[Callable[[MutableMapping[str, Any]], bool]], predicates
-            )
-            return TermParamSpec(self.name, self.group, casted_predicates)
-        else:
-            return LitParamSpec(self.name, self.group, predicates, self.cache, self.infer)
+    group: str | Type
+    predicate: Callable[[dict[str, Any]], bool]
 
     def __str__(self) -> str:
-        return f"<{self.name}, {self.group}, {self.predicate}>.{self.inner}"
+        return f"<{self.name}, {self.group}, {self.predicate}>"
+
+
+@dataclass(frozen=True)
+class LiteralParameter(Parameter):
+    """Specification of a literal parameter."""
+
+    group: str
+    #  Specification of literal assignment from a collection
+    values: Callable[[dict[str, Literal]], Sequence[Literal]] | None = field(default=None)
+
+@dataclass(frozen=True)
+class TermParameter(Parameter):
+    """Specification of a term parameter."""
+
+    group: Type
+
+@dataclass(frozen=True)
+class Abstraction():
+    """Abstraction of a term parameter or a literal parameter."""
+    parameter: Parameter
+    body: Abstraction | Type
+
+    def __str__(self) -> str:
+        return f"{self.parameter}.{self.body}"
