@@ -43,6 +43,5 @@ class TestParamGrammar(unittest.TestCase):
         ]
         self.assertCountEqual(enumeration, expected_results)
 
-
 if __name__ == "__main__":
     unittest.main()

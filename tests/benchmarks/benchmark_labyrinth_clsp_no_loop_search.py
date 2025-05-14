@@ -1,12 +1,14 @@
 from collections.abc import Callable, Iterable, Mapping
 import timeit
 from itertools import product
-from clsp.dsl import DSL
-from clsp.enumeration import Tree, enumerate_terms, interpret_term
-from clsp.fcl import FiniteCombinatoryLogic
 from typing import Any
 
+from clsp.dsl import DSL
+from clsp.enumeration import Tree, interpret_term
+
 from clsp.types import Constructor, Literal, Param, LVar, Type
+
+from clsp.search import TournamentSelection, SimpleEA
 
 
 def plus_one(a: str) -> Callable[[Mapping[str, Literal]], int]:
@@ -94,22 +96,45 @@ def main(solutions: int = 10000, output: bool = True) -> float:
 
     fin = "pos" @ (Literal((SIZE - 1, SIZE - 1), "int2"))
 
-    fcl: FiniteCombinatoryLogic[Callable[[int, int, str], str] | str] = FiniteCombinatoryLogic(
-        repo, literals=literals
-    )
 
     start = timeit.default_timer()
-    grammar = fcl.inhabit(fin)
 
-    for term in enumerate_terms(fin, grammar, solutions):
-        positions = list(getpath(term))
-        if len(positions) != len(set(positions)):
-            continue
+    def shortest_loop_free_path(tree: Tree[Any, Any]) -> int:
+        path = list(getpath(tree))
+        length = len(path)
+        if length != len(set(path)):
+            return -100000000
+        else:
+            return length*(-1)
 
-        t = interpret_term(term)
-        if output:
-            print(t)
+    def longest_loop_free_path(tree: Tree[Any, Any]) -> int:
+        path = list(getpath(tree))
+        length = len(path)
+        if length != len(set(path)):
+            return -1
+        else:
+            return length
 
+    tournament_selection: TournamentSelection[Callable[[int, int, str], str] | str, int] = TournamentSelection(4, 1000)
+
+    tournament_search = SimpleEA[Callable[[int, int, str], str] | str, int](repo, literals, fin, selection_strategy=tournament_selection, generations=4).search_fittest
+
+
+    final_population = list(tournament_search(longest_loop_free_path, 1000)) # 500 overwrites 1000 from above
+
+    #for term in final_population[:10]:
+    #    positions = list(getpath(term))
+    #    t = interpret_term(term)
+    #    print(t)
+    #    print(f"Path length: {len(positions)}")
+    #    print("#######################################")
+
+    print("maximum:")
+    winner = final_population[0]
+    print(interpret_term(winner))
+    win_path = list(getpath(winner))
+    print(f"Path: {win_path}")
+    print(f"Path set length: {len(set(win_path))}")
     return timeit.default_timer() - start
 
 

@@ -14,7 +14,7 @@ def startc(visited: set[tuple[int, int]]) -> str:
     return "START"
 
 
-def visited(path: Tree[Any]) -> set[tuple[int, int]]:
+def visited(path: Tree[Any, Any]) -> set[tuple[int, int]]:
     if path.root == startc:
         return {(0, 0)}
     return {cast(tuple[int, int], path.parameters["a"].root)} | visited(path.parameters["pos"])

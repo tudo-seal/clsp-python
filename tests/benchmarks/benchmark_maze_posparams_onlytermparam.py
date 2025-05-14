@@ -1,7 +1,7 @@
 from collections.abc import Callable, Mapping
 from functools import cache
 import timeit
-from typing import Optional
+from typing import Optional, Any
 from clsp.dsl import DSL
 from clsp.enumeration import Tree, enumerate_terms, interpret_term
 from clsp.fcl import FiniteCombinatoryLogic
@@ -17,7 +17,7 @@ def plus_one(a: str) -> Callable[[Mapping[str, Literal]], int]:
 
 
 @cache
-def current_position(pos: Tree[str]) -> tuple[int, int]:
+def current_position(pos: Tree[Any, str]) -> tuple[int, int]:
     curr_pos = (0, 0)
     while pos.root != "START":
         if pos.root == "D":

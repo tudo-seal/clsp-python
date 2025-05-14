@@ -1,6 +1,8 @@
 from collections.abc import Callable, Iterable, Mapping
 import timeit
 from itertools import product
+from typing import Any
+
 from clsp.dsl import DSL
 from clsp.enumeration import Tree, enumerate_terms, interpret_term
 from clsp.fcl import FiniteCombinatoryLogic
@@ -25,12 +27,13 @@ def is_free(pos: tuple[int, int]) -> bool:
 
 
 def getpath(
-    path: Tree[Callable[[int, int, str], str] | tuple[int, int] | str],
+    path : Tree[Any, Any]
 ) -> Iterable[tuple[int, int]]:
+    position_arg = path.parameters["b"].root
     while path.root != "START":
-        position_arg = path.parameters["a"].root
         if isinstance(position_arg, tuple):
             yield position_arg
+        position_arg = path.parameters["a"].root
         path = path.parameters["pos"]
 
 

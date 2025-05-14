@@ -12,7 +12,7 @@ from clsp.types import Constructor, Literal, Param, LVar, Type
 
 
 @cache
-def visited(path: Tree[Any]) -> set[tuple[int, int]]:
+def visited(path: Tree[Any, Any]) -> set[tuple[int, int]]:
     if path.root == "START":
         return {(0, 0)}
     return {cast(tuple[int, int], path.parameters["a"].root)} | visited(path.parameters["pos"])

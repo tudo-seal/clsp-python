@@ -21,7 +21,7 @@ class TestList(unittest.TestCase):
             "steps": [2],
         }
 
-        def test_input(step: int, input: Tree[str]) -> bool:
+        def test_input(step: int, input: Tree[Any, str]) -> bool:
             return True
 
         exampleRepo = {
