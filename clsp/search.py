@@ -94,15 +94,15 @@ class RandomSample(Sample[T]):
 
     def __init__(self, gamma: Mapping[T, Param | Type], delta: Mapping[str, Iterable[Any] | Contains], target: Type,
                  subtypes: Subtypes = Subtypes({}),
-                 tree_depth_delta: int =-1, max_tree_depth: int =-1
+                 tree_depth_delta: int = -1, max_tree_depth: int = -1
                  ):
         super().__init__(gamma, delta, target, subtypes)
         self.min_size: int = self.grammar.minimum_tree_depth(self.target)
-        if tree_depth_delta is -1:
+        if tree_depth_delta == -1:
             self.tree_depth_delta = 100
         else:
             self.tree_depth_delta = tree_depth_delta
-        if max_tree_depth is -1:
+        if max_tree_depth == -1:
             self.max_tree_depth = self.min_size + self.tree_depth_delta
         else:
             self.max_tree_depth = max_tree_depth

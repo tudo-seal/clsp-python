@@ -115,12 +115,12 @@ def main(solutions: int = 10000, output: bool = True) -> float:
         else:
             return length
 
-    tournament_selection: TournamentSelection[Callable[[int, int, str], str] | str, int] = TournamentSelection(3, 1000)
+    tournament_selection: TournamentSelection[Callable[[int, int, str], str] | str, int] = TournamentSelection(4, 1000)
 
     tournament_search = SimpleEA[Callable[[int, int, str], str] | str, int](repo, literals, fin, selection_strategy=tournament_selection, generations=4).search_fittest
 
 
-    final_population = list(tournament_search(longest_loop_free_path, 500)) # 500 overwrites 1000 from above
+    final_population = list(tournament_search(longest_loop_free_path, 1000)) # 500 overwrites 1000 from above
 
     #for term in final_population[:10]:
     #    positions = list(getpath(term))

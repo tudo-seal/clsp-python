@@ -42,6 +42,7 @@ class Tree(Generic[NT, T]):
     derived_from: NT | None = field(default=None)
     rhs_rule: RHSRule[NT, T] | None = field(default=None)
     is_literal: bool = field(default=False)
+    literal_group: str = field(default="")
     frozen: bool = field(default=False)
 
     size: int = field(init=False, compare=True, repr=False)
@@ -150,20 +151,23 @@ class Tree(Generic[NT, T]):
         """
         substitution = p_subtree[3]
         if p_subtree[0].is_literal and s_subtree.is_literal:
-            df: NT | None = p_subtree[0].derived_from
-            if df is None:
-                return False, s_subtree
-            rules = grammar[df]
-            for r in rules:
-                for name, para in zip(r.variable_names, r.parameters):
-                    if not isinstance(para, Literal):
-                        raise ValueError("Only literals should be considered at that point")
-                    # TODO yeah, this is bullshit. I don't know, what I did here, but to assume that different rules use the same variable name makes no sense
-                    if name == p_subtree[2] and para.value == s_subtree.root:
-                        substitution.update({p_subtree[2]: s_subtree})
-                        s_subtree.rhs_rule = r
-                        return all(pred.eval(substitution) for pred in r.predicates), s_subtree
-            return False, s_subtree
+            return p_subtree[0].literal_group == s_subtree.literal_group, s_subtree
+
+            # df: NT | None = p_subtree[0].derived_from
+            # if df is None:
+            #     return False, s_subtree
+            # rules = grammar[df]
+            # for r in rules:
+            #    for name, para in zip(r.variable_names, r.parameters):
+            #         if not isinstance(para, Literal):
+            #             raise ValueError("Only literals should be considered at that point")
+            #         # TODO yeah, this is bullshit. I don't know, what I did here, but to assume that different rules use the same variable name makes no sense
+            #         if name == p_subtree[2] and para.value == s_subtree.root:
+            #             substitution.update({p_subtree[2]: s_subtree})
+            #             s_subtree.rhs_rule = r
+            #             return all(pred.eval(substitution) for pred in r.predicates), s_subtree
+            # return False, s_subtree
+
         elif p_subtree[0].is_literal != s_subtree.is_literal:
             return False, s_subtree
         else:
@@ -330,7 +334,7 @@ def generate_new_terms(
 
     names, param_nts = zip(*rule.binder.items()) if len(rule.binder) > 0 else ((), ())
     literals: list[Tree[NT, T] | str] = [
-        Tree(p.value, derived_from=lhs, rhs_rule=rule, is_literal=True) if isinstance(p, Literal) else p.name for p in rule.parameters
+        Tree(p.value, derived_from=lhs, rhs_rule=rule, is_literal=True, literal_group=p.group) if isinstance(p, Literal) else p.name for p in rule.parameters
     ]
     interleave: Callable[[Mapping[str, Tree[NT, T]]], tuple[Tree[NT, T], ...]] = lambda substitution: tuple(
         substitution[t] if isinstance(t, str) else t for t in literals
