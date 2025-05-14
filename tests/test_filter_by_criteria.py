@@ -2,16 +2,15 @@ from __future__ import annotations
 
 import logging
 import unittest
-from typing import Any
 
-from clsp.enumeration import enumerate_terms, interpret_term, Tree
-from clsp.fcl import FiniteCombinatoryLogic, Contains
+from clsp.tree import Tree
+from clsp.synthesizer import Synthesizer, Contains
 from clsp.dsl import DSL
 from clsp.types import (
     Constructor,
     Literal,
-    Param,
-    LVar,
+    Abstraction,
+    Var,
     Type,
 )
 
@@ -34,7 +33,7 @@ class Part:
 class TestFilterByCriteria(unittest.TestCase):
     """
     Provides a best practice example for efficiently filtering results of an inhabitation request based on
-    properties that need to be computed on the terms, meaning they can not be modeled by literal variables.
+    properties that need to be computed on the trees, meaning they can not be modeled by literal variables.
 
     Weight is used as an example, as this computes inefficiently when using an infinite literal context, as this
     prevents efficient pre-computation.
@@ -46,14 +45,14 @@ class TestFilterByCriteria(unittest.TestCase):
         # level=logging.INFO,
     )
 
-    def compute_weight(self, tree: Tree[Any, Part]) -> float:
+    def compute_weight(self, tree: Tree[Part]) -> float:
         """
-        Recursively computes the weight of the given term.
+        Recursively computes the weight of the given tree.
         This is used in conjunction with type predicates to ensure that target weight is not exceeded.
-        As terms are constructed bottom-up, this leads to efficient filtering on terms.
+        As trees are constructed bottom-up, this leads to efficient filtering on trees.
 
-        :param tree: The uninterpreted term.
-        :return: The computed weight of the term.
+        :param tree: The uninterpreted tree.
+        :return: The computed weight of the tree.
         """
         match tree.root.name:
             case "Branching Part":
@@ -86,40 +85,40 @@ class TestFilterByCriteria(unittest.TestCase):
 
         :return:
         """
-        repo: dict[Part, Type | Param] = {
+        repo: dict[Part, Type | Abstraction] = {
             Part("Branching Part", 1): DSL()
             .Use("target_weight", "float")
-            .Use("left_part", Constructor("Structural") & ("c" @ LVar("target_weight")))
-            .Use("right_part", Constructor("Structural") & ("c" @ LVar("target_weight")))
+            .Use("left_part", Constructor("Structural") & ("c" @ Var("target_weight")))
+            .Use("right_part", Constructor("Structural") & ("c" @ Var("target_weight")))
             .With(
-                lambda target_weight, left_part, right_part,: target_weight
-                > self.compute_weight(left_part) + self.compute_weight(right_part) + 1
+                lambda vars: vars["target_weight"]
+                > self.compute_weight(vars["left_part"]) + self.compute_weight(vars["right_part"]) + 1
             )
-            .In(Constructor("Structural") & ("c" @ LVar("target_weight"))),
+            .In(Constructor("Structural") & ("c" @ Var("target_weight"))),
             Part("Extending Part", 0.5): DSL()
             .Use("target_weight", "float")
-            .Use("next_part", Constructor("Structural") & ("c" @ LVar("target_weight")))
+            .Use("next_part", Constructor("Structural") & ("c" @ Var("target_weight")))
             .With(
-                lambda target_weight, next_part: target_weight
-                > self.compute_weight(next_part) + 0.5
+                lambda vars: vars["target_weight"]
+                > self.compute_weight(vars["next_part"]) + 0.5
             )
-            .In(Constructor("Structural") & ("c" @ LVar("target_weight"))),
+            .In(Constructor("Structural") & ("c" @ Var("target_weight"))),
             Part("Effector", 0.1): DSL()
             .Use("target_weight", "float")
-            .With(lambda target_weight: target_weight > 0.1)
-            .In(Constructor("Structural") & ("c" @ LVar("target_weight"))),
+            .With(lambda vars: vars["target_weight"] > 0.1)
+            .In(Constructor("Structural") & ("c" @ Var("target_weight"))),
         }
 
         class Float(Contains):
             def __contains__(self, value: object) -> bool:
                 return isinstance(value, float) and value >= 0.0
 
-        literals = {"float": Float()}
+        parameterSpace = {"float": Float()}
 
-        fcl = FiniteCombinatoryLogic(repo, literals=literals)
+        synthesizer = Synthesizer(repo, parameterSpace)
         self.query = Constructor("Structural") & ("c" @ (Literal(2.0, "float")))
-        self.grammar = fcl.inhabit(self.query)
-        self.terms = list(enumerate_terms(self.query, self.grammar, max_count=1249))
+        self.grammar = synthesizer.constructSolutionSpace(self.query)
+        self.trees = list(self.grammar.enumerate_trees(self.query, max_count=1249))
 
     def test_count(self) -> None:
         """
@@ -127,11 +126,11 @@ class TestFilterByCriteria(unittest.TestCase):
 
         :return:
         """
-        self.assertEqual(8, len(self.terms))
+        self.assertEqual(8, len(self.trees))
 
     def test_elements(self) -> None:
         """
-        Tests if the interpreted terms are as expected.
+        Tests if the interpreted trees are as expected.
 
         :return:
         """
@@ -149,23 +148,23 @@ class TestFilterByCriteria(unittest.TestCase):
             "Extending Part params: (2.0, 'Extending Part params: (2.0, \"Extending Part params: (2.0, 'Effector "
             "params: (2.0,)')\")')",
         ]
-        for term in self.terms:
-            self.logger.info(interpret_term(term))
-            self.assertIn(interpret_term(term), results)
+        for tree in self.trees:
+            self.logger.info(tree.interpret())
+            self.assertIn(tree.interpret(), results)
 
     def test_compute_weight(self) -> None:
         """
-        Tests if the weights of the terms are feasible.
+        Tests if the weights of the trees are feasible.
         Tests if unknown parts lead to an exception.
 
         :return:
         """
         weights = [0.1, 0.6, 1.1, 1.2, 1.6, 1.7]
-        for term in self.terms:
-            self.logger.info(term)
-            self.assertIn(self.compute_weight(term), weights)
+        for tree in self.trees:
+            self.logger.info(tree)
+            self.assertIn(self.compute_weight(tree), weights)
 
-        unhandled_tree: Tree[Any,Part] = Tree(Part("Unhandled Part", 0))
+        unhandled_tree: Tree[Part] = Tree(Part("Unhandled Part", 0))
         self.assertRaises(RuntimeError, self.compute_weight, unhandled_tree)
 
 

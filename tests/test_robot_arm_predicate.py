@@ -1,21 +1,9 @@
-################################################
-# THIS DOES NOT WORK (BUT IT SHOULD IN FUTURE) #
-################################################
-
 import logging
 from typing import Any
 import unittest
 from clsp.dsl import DSL
-from clsp.enumeration import enumerate_terms, interpret_term
-from clsp.fcl import FiniteCombinatoryLogic
-from clsp.types import (
-    Constructor,
-    Literal,
-    Param,
-    LVar,
-    Type,
-)
-
+from clsp.synthesizer import Synthesizer, Specification
+from clsp.types import Constructor, Literal, Var
 
 def motorcount(robot: Any) -> Any:
     # self.logger.info("Robot")
@@ -51,7 +39,7 @@ class TestRobotArm(unittest.TestCase):
     )
 
     def setUp(self) -> None:
-        repo: dict[Part, Param | Type] = {
+        componentSpecifications: dict[Part, Specification] = {
             Part("Motor"): Constructor("Structural") ** Constructor("Motor"),
             Part("Link"): Constructor("Motor") ** Constructor("Structural"),
             Part("ShortLink"): Constructor("Motor") ** Constructor("Structural"),
@@ -60,22 +48,22 @@ class TestRobotArm(unittest.TestCase):
             .Use("current_motor_count", "int")
             .Use("Robot", Constructor("Motor"))
             .With(
-                lambda current_motor_count, Robot: current_motor_count
-                == motorcount(interpret_term(Robot))
+                lambda vars: vars["current_motor_count"]
+                == motorcount(vars["Robot"].interpret())
             )
-            .In(Constructor("Base") & ("c" @ LVar("current_motor_count"))),
+            .In(Constructor("Base") & ("c" @ Var("current_motor_count"))),
         }
 
-        literals = {"int": list(range(10))}
+        parameterSpace = {"int": list(range(10))}
 
-        fcl: FiniteCombinatoryLogic[Part] = FiniteCombinatoryLogic(repo, literals=literals)
+        synthesizer: Synthesizer[Part] = Synthesizer(componentSpecifications, parameterSpace)
         query = Constructor("Base") & ("c" @ Literal(3, "int"))
-        grammar = fcl.inhabit(query)
-        self.terms = list(enumerate_terms(query, grammar, 5, 10))
+        grammar = synthesizer.constructSolutionSpace(query)
+        self.trees = list(grammar.enumerate_trees(query, 5, 10))
         # self.logger.info(grammar.show())
 
     def test_count(self) -> None:
-        self.assertEqual(4, len(self.terms))
+        self.assertEqual(4, len(self.trees))
 
     def test_elements(self) -> None:
         results = [
@@ -84,9 +72,9 @@ class TestRobotArm(unittest.TestCase):
             "Base (Motor (Link (Motor (ShortLink (Motor (Effector)))))){motorcount=3}",
             "Base (Motor (ShortLink (Motor (Link (Motor (Effector)))))){motorcount=3}",
         ]
-        for term in self.terms:
-            self.logger.info(interpret_term(term))
-            self.assertIn(str(interpret_term(term)), results)
+        for tree in self.trees:
+            self.logger.info(tree.interpret())
+            self.assertIn(str(tree.interpret()), results)
 
 
 if __name__ == "__main__":
