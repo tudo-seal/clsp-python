@@ -35,7 +35,7 @@ Besides enumerating terms, different sampling methods are implemented.
 """
 
 
-class Sample(ABC, Generic[T, V]):
+class Sample(ABC, Generic[T]):
     """
     Abstract base class for sampling methods.
     """
@@ -58,7 +58,7 @@ class Sample(ABC, Generic[T, V]):
         raise NotImplementedError("sample() must be implemented")
 
 
-class Enumerate(Sample[T, V]):
+class Enumerate(Sample[T]):
     """
     Enumeration as a sampling method.
     """
@@ -70,7 +70,7 @@ class Enumerate(Sample[T, V]):
         return enumerate_terms(self.target, self.grammar, max_count=size)
 
 
-class SampleFromEnumeration(Sample[T, V]):
+class SampleFromEnumeration(Sample[T]):
     """
     Sample from a finite enumeration of the grammar.
     """
@@ -84,7 +84,7 @@ class SampleFromEnumeration(Sample[T, V]):
         return initial
 
 
-class RandomSample(Sample[T, V]):
+class RandomSample(Sample[T]):
     """
     Random sampling method.
     This sampling methods annotates the grammar with the minimum tree depth of each rule.
@@ -197,7 +197,7 @@ class RandomSample(Sample[T, V]):
         return sample
 
 
-class Search(Sample[T, V]):
+class Search(Sample[T], Generic[T, V]):
     """
     Abstract base class for search strategies.
     """
@@ -298,7 +298,7 @@ class EvolutionaryAlgorithm(Search[T, V]):
         self.generations = generations
 
 
-class SimpleEA(EvolutionaryAlgorithm[T, V], RandomSample[T, V]):
+class SimpleEA(EvolutionaryAlgorithm[T, V], RandomSample[T]):
     """
     This class implements a very simple evolutionary algorithm with tournament selection.
     """

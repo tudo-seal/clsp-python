@@ -157,7 +157,7 @@ n = 100
 print(f"target: {target}")
 print("start enumerate")
 start_enum = timeit.default_timer()
-enum = Enumerate(gamma, delta, target)
+enum: Enumerate[str] = Enumerate(gamma, delta, target)
 print(f"Inhabitation took {timeit.default_timer() - start_enum} seconds")
 grammar = [(nt, rhs) for nt, deque in enum.grammar.as_tuples() for rhs in deque]
 print(f"The grammar has {len(grammar)} rules")
@@ -182,7 +182,7 @@ The minimum distance between enumerated terms is {min(enum_distances)}.
 
 print("start random")
 start_random = timeit.default_timer()
-random = RandomSample(gamma, delta, target)
+random: RandomSample[str] = RandomSample(gamma, delta, target)
 print(f"Inhabitation + grammar annotations took {timeit.default_timer() - start_random} seconds")
 start_random = timeit.default_timer()
 result_random: list[Tree[Any, str]] = list(random.sample(n))
