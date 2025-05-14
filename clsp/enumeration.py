@@ -83,6 +83,15 @@ class Tree(Generic[NT, T]):
     def __lt__(self, other: "Tree[NT, T]") -> bool:
         return self.size < other.size
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Tree):
+            return False
+        if self.root != other.root:
+            return False
+        if self.children != other.children:
+            return False
+        return True
+
     def __rec_to_str__(self, outermost: bool) -> str:
         str_root = [f"{str(self.root)}"]
         str_params = [
@@ -107,9 +116,7 @@ class Tree(Generic[NT, T]):
             edges.update(child.to_adjacency_dict())
         return edges
 
-    def subtrees(self, prefix: list[int]) -> typing.Generator[
-        tuple["Tree[NT, T]", list[int], str, dict[str, "Tree[NT, T]"], list[Predicate]]
-    ]:
+    def subtrees(self, prefix: list[int]) -> typing.Generator[tuple["Tree[NT, T]", list[int], str, dict[str, "Tree[NT, T]"], list[Predicate]], None, None]:
         """
         subtrees() returns a list of all subtrees and their contexts.
         The context is its path in the primary tree, the variable name of the subtree,

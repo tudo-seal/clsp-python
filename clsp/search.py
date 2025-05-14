@@ -119,7 +119,7 @@ class RandomSample(Sample[T]):
                 return None
             # rule only derives terminals, therefore all_args has no nonterminals, but to silence the type checker:
             # TODO: how to avoid this unnecessary iteration of all_args AND make mypy happy?
-            params: list[Literal] = [l for l in candidate.all_args()if isinstance(l, Literal)]
+            params: list[Literal] = [lit for lit in candidate.all_args()if isinstance(lit, Literal)]
             cands: tuple[Tree[Type, T], ...] = tuple(
                 map(lambda p: Tree(p.value, derived_from=nt, rhs_rule=candidate, is_literal=True), params))
             if candidate.check([]):

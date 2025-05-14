@@ -4,7 +4,7 @@ from itertools import product
 from typing import Any
 
 from clsp.dsl import DSL
-from clsp.enumeration import Tree, enumerate_terms, interpret_term
+from clsp.enumeration import Tree, interpret_term
 from clsp.fcl import FiniteCombinatoryLogic
 
 from clsp.types import Constructor, Literal, Param, LVar, Type
@@ -90,19 +90,15 @@ def main(solutions: int = 10000, output: bool = True) -> float:
         for row in range(SIZE):
             for col in range(SIZE):
                 if is_free((row, col)):
-                    print(f"-", end="")
+                    print("-", end="")
                 else:
                     print("#", end="")
             print("")
 
     fin = "pos" @ (Literal((SIZE - 1, SIZE - 1), "int2"))
 
-    fcl: FiniteCombinatoryLogic[Callable[[int, int, str], str] | str] = FiniteCombinatoryLogic(
-        repo, literals=literals
-    )
 
     start = timeit.default_timer()
-    grammar = fcl.inhabit(fin)
 
     def shortest_loop_free_path(tree: Tree[Any, Any]) -> int:
         path = list(getpath(tree))
