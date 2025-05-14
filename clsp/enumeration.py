@@ -200,7 +200,7 @@ class Tree(Generic[NT, T]):
             return Tree(self.root, tuple(
                 (child.replace(path, new_subtree)) if j == i else child
                 for j, child in enumerate(self.children)), self.variable_names,
-                        self.derived_from, self.rhs_rule, self.is_literal, self.frozen)
+                        self.derived_from, self.rhs_rule, self.is_literal, self.literal_group, self.frozen)
         else:
             return self
 
