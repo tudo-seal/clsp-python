@@ -5,7 +5,6 @@ from typing import Any
 
 from clsp.dsl import DSL
 from clsp.enumeration import Tree, interpret_term
-from clsp.fcl import FiniteCombinatoryLogic
 
 from clsp.types import Constructor, Literal, Param, LVar, Type
 
