@@ -23,10 +23,10 @@ from gpytorch.likelihoods import _GaussianLikelihoodBase
 from gpytorch.models import ExactGP
 from gpytorch.models.exact_prediction_strategies import prediction_strategy
 from gpytorch import Module
-import networkx as nx
+#import networkx as nx
 from botorch import fit_gpytorch_mll
 
-from grakel import graph_from_networkx
+from grakel import Graph
 from grakel.kernels import (
     RandomWalk,
 )
@@ -374,11 +374,11 @@ class SIGP(ExactGP):
     performing those checks.
     """
 
-    def __init__(self, train_inputs: list[nx.Graph], train_targets: torch.Tensor,
+    def __init__(self, train_inputs: list[Graph], train_targets: torch.Tensor,
                  likelihood: gpytorch.likelihoods.Likelihood):
         if (
             train_inputs is not None
-            and type(train_inputs) is list[nx.Graph]
+            and type(train_inputs) is list[Graph]
         ):
             train_inputs = (train_inputs,)
         if not isinstance(likelihood, _GaussianLikelihoodBase):
@@ -391,7 +391,7 @@ class SIGP(ExactGP):
         if train_inputs is not None:
             self.train_inputs = tuple(
                 (
-                    i.unsqueeze(-1)
+                    i.unsqueeze(-1)   # this case will never be entered, so maybe we just skip it?
                     if torch.is_tensor(i) and i.ndimension() == 1
                     else i
                 )
@@ -570,14 +570,14 @@ class RandomWalkKernel(GraphKernel):
         super().__init__(dtype=dtype)
 
     # @lru_cache(maxsize=5)
-    def kernel(self, X: list[nx.Graph], **grakel_kwargs) -> torch.Tensor:
+    def kernel(self, X: list[Graph], **grakel_kwargs) -> torch.Tensor:
         # extract required data from the networkx graphs
         # constructed with the Graphein utilities
         # this is cheap and will be cached
         # print(X)
-        X = graph_from_networkx(
-            X, node_labels_tag=self.node_label, edge_labels_tag=self.edge_label
-        )
+        #X = graph_from_networkx(
+        #    X, node_labels_tag=self.node_label, edge_labels_tag=self.edge_label
+        #)
         # print(X)
         return torch.tensor(
             RandomWalk(**grakel_kwargs).fit_transform(X)
@@ -587,7 +587,7 @@ class RandomWalkKernel(GraphKernel):
 class GraphGP(SIGP):
     def __init__(
         self,
-        train_x: list[nx.Graph],
+        train_x: list[Graph],
         train_y: torch.Tensor,
         likelihood: gpytorch.likelihoods.Likelihood,
         kernel: GraphKernel,
@@ -627,22 +627,23 @@ class GraphGP(SIGP):
         covariance += torch.eye(len(x)) * jitter
         return gpytorch.distributions.MultivariateNormal(mean, covariance)
 
-class BayesianOptimization(Search):
+
+class BayesianOptimization(Search[T,V]):
     """
     Bayesian optimization for searching trees.
     """
 
     def __init__(self, model: GraphGP,
-                 acquisition_function: Callable[tuple[GraphGP, Tree[NT, T]], V],
+                 acquisition_function: Callable[tuple[GraphGP, Tree[Type, T]], V],
                  acquisition_optimizer: Search,
-                 gamma: Mapping[T, NT], delta: Mapping[str, Iterable[Any] | Contains], target: NT,
+                 gamma: Mapping[T, Type], delta: Mapping[str, Iterable[Any] | Contains], target: Type,
                  subtypes: Subtypes = Subtypes({})):
         super().__init__(gamma, delta, target, subtypes)
         self.model = model
         self.acquisition_function = acquisition_function
         self.acquisition_optimizer = acquisition_optimizer
-        self.train_x: Sequence[nx.Graph] = model.train_inputs
-        self.train_y: torch.Tensor = model.train_targets
+        self.train_x: list[Graph] = model.train_inputs
+        self.train_y: torch.Tensor = torch.tensor(model.train_targets)  # nope, type mismatch!
 
 
     def toTensor(self, y: V) -> torch.Tensor:
@@ -656,18 +657,18 @@ class BayesianOptimization(Search):
         else:
             raise ValueError(f"Cannot convert {y} to tensor")
 
-def tree_expected_improvement(model: GraphGP, tree: Tree[NT, T]) -> torch.Tensor:
+def tree_expected_improvement(model: GraphGP, tree: Tree[Type, T]) -> torch.Tensor:
     """
     Compute the negative expected improvement of a tree with respect to the model.
     """
     # xi: float: manual exploration-exploitation trade-off parameter.
     xi: float = 0.0
-    x = nx.Graph(tree.to_adjacency_dict())
+    x = Graph(tree.to_adjacency_dict())
     from torch.distributions import Normal
     try:
         mu, cov = model.predict(x)
     except:
-        return -1.  # in case of error. return ei of -1
+        return torch.tensor(-1.)  # in case of error. return ei of -1
     std = torch.sqrt(torch.diag(cov))
     mu_star = torch.max(model.y_)
     gauss = Normal(torch.zeros(1, device=mu.device), torch.ones(1, device=mu.device))
@@ -677,18 +678,18 @@ def tree_expected_improvement(model: GraphGP, tree: Tree[NT, T]) -> torch.Tensor
     ei = std * updf + (mu - mu_star - xi) * ucdf
     return ei
 
-def tree_augmented_expected_improvement(model: GraphGP, tree: Tree[NT, T]) -> torch.Tensor:
+def tree_augmented_expected_improvement(model: GraphGP, tree: Tree[Type, T]) -> torch.Tensor:
     """
     Compute the negative expected improvement of a tree with respect to the model.
     """
     # xi: float: manual exploration-exploitation trade-off parameter.
     xi: float = 0.0
-    x = nx.Graph(tree.to_adjacency_dict())
+    x = Graph(tree.to_adjacency_dict())
     from torch.distributions import Normal
     try:
         mu, cov = model.predict(x)
     except:
-        return -1.  # in case of error. return ei of -1
+        return torch.tensor(-1.)  # in case of error. return ei of -1
     std = torch.sqrt(torch.diag(cov))
     mu_star = torch.max(model.y_)
     gauss = Normal(torch.zeros(1, device=mu.device), torch.ones(1, device=mu.device))
@@ -696,11 +697,11 @@ def tree_augmented_expected_improvement(model: GraphGP, tree: Tree[NT, T]) -> to
     ucdf = gauss.cdf(u)
     updf = torch.exp(gauss.log_prob(u))
     ei = std * updf + (mu - mu_star - xi) * ucdf
-    sigma_n = model.likelihood
-    ei *= (1. - torch.sqrt(torch.tensor(sigma_n, device=mu.device)) / torch.sqrt(sigma_n + torch.diag(cov)))
+    sigma_n = model.likelihood # type???
+    ei *= (1. - torch.sqrt(torch.tensor(sigma_n, device=mu.device)) / torch.sqrt(sigma_n + torch.diag(cov))) # mypy complains about the type of sigma_n!
     return ei
 
-def propose_location(ei_func, surrogate_model: GraphGP, candidates: list[Tree[NT, T]], top_n: int):
+def propose_location(ei_func, surrogate_model: GraphGP, candidates: list[Tree[Type, T]], top_n: int):
     """top_n: return the top n candidates wrt the acquisition function."""
     eis = torch.tensor([ei_func(surrogate_model, candidate) for candidate in candidates])
     _, indicies = eis.topk(top_n)
@@ -739,19 +740,19 @@ class SimpleBO(BayesianOptimization, RandomSample):
 
         return mll, model
 
-    def search_max(self, fitness: Callable[[Tree[NT, T]], V]) -> Tree[NT, T]:
+    def search_max(self, fitness: Callable[[Tree[Type, T]], V]) -> Tree[Type, T]:
         """
         Simple Bayesian Optimization loop.
         """
         init_population = self.sample(5)
-        evaluated_trees: dict[Tree[NT, T], V] = {tree: fitness(tree) for tree in init_population}
+        evaluated_trees: dict[Tree[Type, T], V] = {tree: fitness(tree) for tree in init_population}
         # initialize the model with the initial population
         # Define the marginal log likelihood used to optimise the model hyperparameters
         likelihood = self.model.likelihood
         for tree in evaluated_trees.keys():
             print(f'as tree: {tree}')
             print(f'as dict {tree.to_adjacency_dict()}')
-        train_x = list(self.train_x) + [nx.from_dict_of_lists(tree.to_adjacency_dict()) for tree in evaluated_trees.keys()]
+        train_x = list(self.train_x) + [Graph(tree.to_adjacency_dict()) for tree in evaluated_trees.keys()]
         train_y = torch.cat((self.train_y, torch.tensor([self.toTensor(y) for y in evaluated_trees.values()])))
         # print(train_x)
         # print(train_y)
@@ -772,12 +773,12 @@ class SimpleBO(BayesianOptimization, RandomSample):
                 optim.step()
 
             # Get the next point to sample
-            x_next: Tree[NT, T] = self.acquisition_optimizer.search_max(
+            x_next: Tree[Type, T] = self.acquisition_optimizer.search_max(
                 lambda tree: tree_expected_improvement(model_ei, tree)
             )
             # Evaluate the next point
             y_next: V = fitness(x_next)
-            train_x.append(nx.Graph(x_next.to_adjacency_dict()))
+            train_x.append(Graph(x_next.to_adjacency_dict()))
             train_y = torch.cat([train_y, self.toTensor(y_next)])
             # Add the new point to the model
             mll_ei, model_ei = self.initialize_model(evaluated_trees.keys(), evaluated_trees.values(),
@@ -788,8 +789,5 @@ class SimpleBO(BayesianOptimization, RandomSample):
         self.train_y = train_y
         return x_next
 
-    def search_min(self, fitness: Callable[[Tree[NT, T]], V]) -> Tree[NT, T]:
-        pass
-
-    def search_fittest(self, fitness: Callable[[Tree[NT, T]], V], size: int) -> Iterable[Tree[NT, T]]:
+    def search_fittest(self, fitness: Callable[[Tree[Type, T]], V], size: int) -> Iterable[Tree[Type, T]]:
         pass
