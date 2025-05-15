@@ -643,7 +643,7 @@ class BayesianOptimization(Search[T,V]):
         self.acquisition_function = acquisition_function
         self.acquisition_optimizer = acquisition_optimizer
         self.train_x: list[Graph] = model.train_inputs
-        self.train_y: torch.Tensor = torch.tensor(model.train_targets)  # nope, type mismatch!
+        self.train_y: torch.Tensor = model.train_targets  # nope, type mismatch!
 
 
     def toTensor(self, y: V) -> torch.Tensor:
