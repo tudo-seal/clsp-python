@@ -13,6 +13,24 @@ from .grammar import ParameterizedTreeGrammar, RHSRule
 from .subtypes import Subtypes
 from .types import Literal, Type, Param
 
+from copy import deepcopy
+# TODO edit pyproject.toml, or use setup.py or whatever to manage dependencies
+import torch
+import gpytorch
+from gpytorch import settings
+from gpytorch.distributions import MultivariateNormal
+from gpytorch.likelihoods import _GaussianLikelihoodBase
+from gpytorch.models import ExactGP
+from gpytorch.models.exact_prediction_strategies import prediction_strategy
+from gpytorch import Module
+import networkx as nx
+from botorch import fit_gpytorch_mll
+
+from grakel import graph_from_networkx
+from grakel.kernels import (
+    RandomWalk,
+)
+
 @runtime_checkable
 class Comparable(Protocol):
     @abstractmethod
@@ -28,7 +46,7 @@ T = TypeVar("T", bound=Hashable)
 V = TypeVar("V", bound=Comparable)  # codomain of fitness-function. needs to be a poset! which means that compare methods are defined.
 
 """
-This module contains classes and functions for treating 
+This module contains classes and functions for treating
 the inhabitation results (parameterized tree grammars/ sets of horn clauses)  as search spaces.
 Searching will be enabled by genetic operations on combinatory terms.
 Besides enumerating terms, different sampling methods are implemented.
@@ -551,15 +569,16 @@ class RandomWalkKernel(GraphKernel):
     def __init__(self, dtype=torch.float):
         super().__init__(dtype=dtype)
 
-    @lru_cache(maxsize=5)
+    # @lru_cache(maxsize=5)
     def kernel(self, X: list[nx.Graph], **grakel_kwargs) -> torch.Tensor:
         # extract required data from the networkx graphs
         # constructed with the Graphein utilities
         # this is cheap and will be cached
+        # print(X)
         X = graph_from_networkx(
             X, node_labels_tag=self.node_label, edge_labels_tag=self.edge_label
         )
-
+        # print(X)
         return torch.tensor(
             RandomWalk(**grakel_kwargs).fit_transform(X)
         ).float()
@@ -729,9 +748,14 @@ class SimpleBO(BayesianOptimization, RandomSample):
         # initialize the model with the initial population
         # Define the marginal log likelihood used to optimise the model hyperparameters
         likelihood = self.model.likelihood
-        train_x = list(self.train_x) + [nx.Graph(tree.to_adjacency_dict()) for tree in evaluated_trees.keys()]
-        train_y = torch.cat(self.train_y + [self.toTensor(y) for y in evaluated_trees.values()])
-        mll_ei, model_ei = self.initialize_model(evaluated_trees.keys(), evaluated_trees.values())
+        for tree in evaluated_trees.keys():
+            print(f'as tree: {tree}')
+            print(f'as dict {tree.to_adjacency_dict()}')
+        train_x = list(self.train_x) + [nx.from_dict_of_lists(tree.to_adjacency_dict()) for tree in evaluated_trees.keys()]
+        train_y = torch.cat((self.train_y, torch.tensor([self.toTensor(y) for y in evaluated_trees.values()])))
+        # print(train_x)
+        # print(train_y)
+        mll_ei, model_ei = self.initialize_model(train_x=train_x, train_obj=train_y) #self.initialize_model(evaluated_trees.keys(), evaluated_trees.values())
 
         x_next = max(evaluated_trees, key=lambda x: evaluated_trees[x])
 
@@ -746,7 +770,7 @@ class SimpleBO(BayesianOptimization, RandomSample):
                 loss = -mll_ei(output, train_y)
                 loss.backward()
                 optim.step()
-            
+
             # Get the next point to sample
             x_next: Tree[NT, T] = self.acquisition_optimizer.search_max(
                 lambda tree: tree_expected_improvement(model_ei, tree)

@@ -1,7 +1,7 @@
 from collections.abc import Callable, Iterable, Mapping
 import timeit
 from itertools import product
-
+from typing import Any
 import torch
 from gpytorch.likelihoods import GaussianLikelihood
 
@@ -132,7 +132,7 @@ def main(solutions: int = 10000, output: bool = True) -> float:
 
 
     #final_population = list(tournament_search(longest_loop_free_path, 100))
-    final_population = list(bo_search(longest_loop_free_path, 100))
+    final_population = list(bo_search(longest_loop_free_path))
 
     #for term in final_population[:10]:
     #    positions = list(getpath(term))
