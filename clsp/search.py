@@ -10,27 +10,6 @@ from .subtypes import Subtypes
 from .types import Literal
 from abc import ABC, abstractmethod
 
-from copy import deepcopy
-# TODO edit pyproject.toml, or use setup.py or whatever to manage dependencies
-import torch
-from gpytorch import settings
-from gpytorch.distributions import MultivariateNormal
-from gpytorch.likelihoods import _GaussianLikelihoodBase
-from gpytorch.models import ExactGP
-from gpytorch.models.exact_prediction_strategies import prediction_strategy
-from gpytorch import Module
-import networkx as nx
-from botorch import fit_gpytorch_model
-
-from grakel import graph_from_networkx
-from grakel.kernels import (
-    RandomWalk,
-)
-
-
-NT = TypeVar("NT")  # non-terminals
-T = TypeVar("T", covariant=True, bound=Hashable)
-V = TypeVar("V")  # codomain of fitness-function. needs to be a poset! which means that compare methods are defined.
 
 class Sample(ABC):
     """
@@ -339,11 +318,11 @@ class SIGP(ExactGP):
     performing those checks.
     """
 
-    def __init__(self, train_inputs: Sequence[nx.Graph], train_targets: torch.Tensor,
+    def __init__(self, train_inputs: list[nx.Graph], train_targets: torch.Tensor,
                  likelihood: gpytorch.likelihoods.Likelihood):
         if (
             train_inputs is not None
-            and type(train_inputs) is Sequence[nx.Graph]
+            and type(train_inputs) is list[nx.Graph]
         ):
             train_inputs = (train_inputs,)
         if not isinstance(likelihood, _GaussianLikelihoodBase):
@@ -372,7 +351,7 @@ class SIGP(ExactGP):
 
     def __call__(self, *args, **kwargs):
         train_inputs = (
-            list(self.train_inputs) if self.train_inputs is not None else []
+            self.train_inputs if self.train_inputs is not None else []
         )
 
         inputs = [
@@ -535,7 +514,7 @@ class RandomWalkKernel(GraphKernel):
         super().__init__(dtype=dtype)
 
     @lru_cache(maxsize=5)
-    def kernel(self, X: Sequence[nx.Graph], **grakel_kwargs) -> torch.Tensor:
+    def kernel(self, X: list[nx.Graph], **grakel_kwargs) -> torch.Tensor:
         # extract required data from the networkx graphs
         # constructed with the Graphein utilities
         # this is cheap and will be cached
@@ -551,7 +530,7 @@ class RandomWalkKernel(GraphKernel):
 class GraphGP(SIGP):
     def __init__(
         self,
-        train_x: Sequence[nx.Graph],
+        train_x: list[nx.Graph],
         train_y: torch.Tensor,
         likelihood: gpytorch.likelihoods.Likelihood,
         kernel: GraphKernel,
@@ -562,7 +541,7 @@ class GraphGP(SIGP):
 
         Parameters:
         -----------
-        train_x: NonTensorialInputs
+        train_x: list of Graphs
             The training inputs for the model. These are graph objects.
         train_y: torch.Tensor
             The training labels for the model.
@@ -587,8 +566,8 @@ class GraphGP(SIGP):
 
         # because graph kernels operate over discrete inputs it might be beneficial
         # to add some jitter for numerical stability
-        #jitter = max(covariance.diag().mean().detach().item() * 1e-4, 1e-4)
-        #covariance += torch.eye(len(x)) * jitter
+        jitter = max(covariance.diag().mean().detach().item() * 1e-4, 1e-4)
+        covariance += torch.eye(len(x)) * jitter
         return gpytorch.distributions.MultivariateNormal(mean, covariance)
 
 class BayesianOptimization(Search):
@@ -664,6 +643,16 @@ def tree_augmented_expected_improvement(model: GraphGP, tree: Tree[NT, T]) -> to
     ei *= (1. - torch.sqrt(torch.tensor(sigma_n, device=mu.device)) / torch.sqrt(sigma_n + torch.diag(cov)))
     return ei
 
+def propose_location(ei_func, surrogate_model: GraphGP, candidates: list[Tree[NT, T]], top_n: int):
+    """top_n: return the top n candidates wrt the acquisition function."""
+    eis = torch.tensor([ei_func(surrogate_model, candidate) for candidate in candidates])
+    _, indicies = eis.topk(top_n)
+    xs = [candidates[int(i)] for i in indicies]
+    return xs
+
+TRAIN_EPOCHS = 20
+LR = 1e-3
+
 class SimpleBO(BayesianOptimization, RandomSample):
     """
     Simple Bayesian optimization for searching trees.
@@ -689,8 +678,7 @@ class SimpleBO(BayesianOptimization, RandomSample):
         )
         mll = gpytorch.mlls.ExactMarginalLogLikelihood(model.likelihood, model)
         # load state dict if it is passed
-        if state_dict is not None:
-            model.load_state_dict(state_dict)
+        model.load_state_dict(self.model.state_dict())
 
         return mll, model
 
@@ -701,8 +689,8 @@ class SimpleBO(BayesianOptimization, RandomSample):
         init_population = self.sample(5)
         evaluated_trees: dict[Tree[NT, T], V] = {tree: fitness(tree) for tree in init_population}
         # initialize the model with the initial population
-        likelihood = self.model.likelihood
         # Define the marginal log likelihood used to optimise the model hyperparameters
+        likelihood = self.model.likelihood
         train_x = list(self.train_x) + [nx.Graph(tree.to_adjacency_dict()) for tree in evaluated_trees.keys()]
         train_y = torch.cat(self.train_y + [self.toTensor(y) for y in evaluated_trees.values()])
         mll_ei, model_ei = self.initialize_model(evaluated_trees.keys(), evaluated_trees.values())
@@ -711,8 +699,16 @@ class SimpleBO(BayesianOptimization, RandomSample):
 
         for i in range(100):
             # Use the BoTorch utility for fitting GPs in order
-            # to use the LBFGS-B optimiser (recommended)
-            fit_gpytorch_model(mll_ei)
+            # to use the LBFGS-B optimiser (recommended), but did not work properly with the non-tensorial inputs
+            # fit_gpytorch_model(mll_ei)
+            optim = torch.optim.Adam(model_ei.parameters(), lr=LR)
+            for j in range(TRAIN_EPOCHS):
+                optim.zero_grad()
+                output = model_ei(train_x)
+                loss = -mll_ei(output, train_y)
+                loss.backward()
+                optim.step()
+            
             # Get the next point to sample
             x_next: Tree[NT, T] = self.acquisition_optimizer.search_max(
                 lambda tree: tree_expected_improvement(model_ei, tree)

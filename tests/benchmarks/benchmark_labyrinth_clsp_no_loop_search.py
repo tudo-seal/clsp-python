@@ -1,13 +1,18 @@
 from collections.abc import Callable, Iterable, Mapping
 import timeit
 from itertools import product
+
+import torch
+from gpytorch.likelihoods import GaussianLikelihood
+
+
 from clsp.dsl import DSL
 from clsp.enumeration import Tree, enumerate_terms, interpret_term
 from clsp.fcl import FiniteCombinatoryLogic
 
 from clsp.types import Constructor, Literal, Param, LVar, Type
 
-from clsp.search import SimpleEA
+from clsp.search import SimpleEA, SimpleBO, tree_expected_improvement, GraphGP, RandomWalkKernel, tree_expected_improvement
 
 
 def plus_one(a: str) -> Callable[[Mapping[str, Literal]], int]:
@@ -118,10 +123,21 @@ def main(solutions: int = 10000, output: bool = True) -> float:
         else:
             return length
 
-    tournament_search = SimpleEA(repo, literals, fin, generations=4).search_fittest
+    #tournament_search = SimpleEA(repo, literals, fin, generations=4).search_fittest
+
+    # TODO model = GraphGP()
+
+    model = GraphGP(
+        train_x=list(),
+        train_y=torch.empty((1,)),
+        likelihood=GaussianLikelihood(),
+        kernel=RandomWalkKernel()
+    )
+    bo_search = SimpleBO(model, tree_expected_improvement, SimpleEA(repo, literals, fin, generations=4), repo, literals, fin).search_max
 
 
-    final_population = list(tournament_search(longest_loop_free_path, 100))
+    #final_population = list(tournament_search(longest_loop_free_path, 100))
+    final_population = list(bo_search(longest_loop_free_path, 100))
 
     #for term in final_population[:10]:
     #    positions = list(getpath(term))
