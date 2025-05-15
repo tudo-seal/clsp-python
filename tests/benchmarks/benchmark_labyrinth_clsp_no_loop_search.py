@@ -11,8 +11,13 @@ from clsp.enumeration import Tree, interpret_term
 
 from clsp.types import Constructor, Literal, Param, LVar, Type
 
-from clsp.search import SimpleEA, SimpleBO, tree_expected_improvement, GraphGP, RandomWalkKernel, tree_expected_improvement
+from clsp.search import SimpleEA, SimpleBO, tree_expected_improvement, GraphGP, RandomWalkKernel, tree_expected_improvement, Enumerate
 
+from grakel import Graph
+from grakel.kernels import (
+    RandomWalk,
+)
+from grakel.graph import is_edge_dictionary
 
 def plus_one(a: str) -> Callable[[Mapping[str, Literal]], int]:
     def _inner(vars: Mapping[str, Literal]) -> int:
@@ -119,6 +124,55 @@ def main(solutions: int = 10000, output: bool = True) -> float:
             return length
 
     #tournament_search = SimpleEA(repo, literals, fin, generations=4).search_fittest
+
+    test_trees: list[Tree[Type, Any]] = list(Enumerate(repo, literals, fin).sample(100))
+    evaluations: list[int] = [longest_loop_free_path(t) for t in test_trees]
+
+    X: list[Graph] = [Graph(t.to_adjacency_dict()) for t in test_trees]
+    Y: list[int] = evaluations
+
+    class MyGraph(Graph):
+        def __repr__(self) -> str:
+            output = ["#vertices"]
+            output += [','.join(map(str, self.get_vertices(self._format)))]
+
+            output += ["#edges"]
+            output += ['\n'.join(map(lambda x: str(x[0]) + ',' + str(x[1]), self.get_edges(self._format)))]
+
+            def list_repr(x):
+                # convert numpy to list
+                if type(x) in [np.array, np.ndarray]:
+                    x = x.tolist()
+                elif isinstance(x, Iterable):
+                    x = list(x)
+                else:
+                    return str(x)
+                return '[' + ','.join(map(str, x)) + ']'
+
+            if bool(self.node_labels):
+                output += ["#node_labels"]
+                output += ['\n'.join(map(lambda x: str(x[0]) + '->' + list_repr(x[1]), self.node_labels.items()))]
+
+            if bool(self.edge_labels):
+                output += ["#edge_labels"]
+                output += ['\n'.join(map(lambda x: str(x[0][0]) + ',' + str(x[0][1]) + '->' + list_repr(x[1]),
+                                         self.edge_labels.items()))]
+
+            return '\n'.join(output)
+
+    for g in test_trees:
+        d = g.to_adjacency_dict()
+        print(d)
+        print(is_edge_dictionary(d))
+        #print(Graph(d, graph_format="dictionary"))  # der Fehler, der hier kommt ist ein Grakel-Bug und kein Fehler meinerseits!!!!! -.-
+        print(MyGraph(d, graph_format="dictionary"))
+
+    #print(X)
+    test = RandomWalkKernel()
+    print(test.kernel(X)) #ok, der Fehler liegt bei uns und zwar daran, dass unsere Graphen Knoten eines beliebigen Typs < Hashable haben und diese nicht übersetzbar in adjazenzmatrizen sind -.-
+
+
+    # Grakel ist eine scheiß library!!!!!!!!!!!!!
 
     # TODO model = GraphGP()
 
