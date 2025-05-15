@@ -4,6 +4,7 @@ from itertools import product
 from clsp.dsl import DSL
 from clsp.enumeration import Tree, enumerate_terms, interpret_term
 from clsp.fcl import FiniteCombinatoryLogic
+from typing import Any
 
 from clsp.types import Constructor, Literal, Param, LVar, Type
 
@@ -25,7 +26,7 @@ def is_free(pos: tuple[int, int]) -> bool:
 
 
 def getpath(
-    path
+    path: Tree[Any, Any]
 ) -> Iterable[tuple[int, int]]:
     position_arg = path.parameters["b"].root
     while path.root != "START":

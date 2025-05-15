@@ -1,9 +1,10 @@
 from __future__ import annotations
+
 from collections import defaultdict, deque
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from typing import Generic, TypeVar, Any, Optional
 from itertools import chain
+from typing import Generic, TypeVar, Any, Optional
 
 from .types import Literal
 
@@ -121,7 +122,7 @@ class ParameterizedTreeGrammar(Generic[NT, T]):
             for nt, rule in self._rules.items()
         )
 
-    def annotations(self) -> tuple[tuple[tuple[tuple[NT, RHSRule[NT, T]], int],...], tuple[tuple[NT, int],...]]:
+    def annotations(self) -> tuple[dict[NT, deque[tuple[RHSRule[NT, T], int]]], dict[NT, int]]:
         """
         Following the grammar based initialization method (GBIM) for context free grammars,
         we annotate terminals, nonterminals and rules with the expected minimum depth of generated terms.
@@ -133,7 +134,9 @@ class ParameterizedTreeGrammar(Generic[NT, T]):
         The length of a terminal symbol is always 0, therefore we don't need to return annotations for terminals.
         """
 
-        annotated: tuple[tuple[tuple[NT, RHSRule[NT, T]], int],...] = tuple()
+        # Because annotated and symbol_depths needs to be hashable, I wasn't able to use a dict for each of them...
+        # annotated: tuple[tuple[tuple[NT, RHSRule[NT, T]], int],...] = tuple()
+        annotated: dict[NT, deque[tuple[RHSRule[NT, T], int]]] = dict()
 
         not_annotated: list[tuple[NT, RHSRule[NT, T]]] = [
             (nt, rhs)
@@ -141,61 +144,68 @@ class ParameterizedTreeGrammar(Generic[NT, T]):
             for rhs in rules
         ]
 
-        symbol_depths: tuple[tuple[NT, int],...] = tuple()
+        symbol_depths: dict[NT, int] = {}
 
         nts: list[NT] = []
 
+        check = not_annotated.copy()
         # every rule that only derives nonterminals has length 1
-        for nt, rhs in not_annotated:
+        for nt, rhs in check:
             if not list(rhs.non_terminals()):
                 # rule only derives terminals
-                for ((l, r), _) in annotated:
-                    if l == nt and r == rhs:
-                        # rule already annotated
-                        new = list(annotated)
-                        new.remove(((l, r), _))
-                        annotated = tuple(new)
-                annotated = annotated + (((nt, rhs), 1),)
+                rs: deque[tuple[RHSRule[NT, T], int]] | None = annotated.get(nt)
+                # add the rule to the annotated rules
+                if rs is None:  # this if might be ommited, since there are no rules with the same rhs annotated yet
+                    rs = deque()
+                    rs.append((rhs, 1))
+                # the next block can be ommited, since there are no rules with the same rhs annotated yet
+                # else:
+                #    for r, i in rs:
+                #        if r == rhs:
+                #            rs.remove((r, i))
+                #            rs.append((r, 1))
+                #            break
+                annotated[nt] = rs
                 not_annotated.remove((nt, rhs))
                 nts.append(nt)
 
+        assert len(annotated) > 0
+        assert all([list(rhs.non_terminals()) for _, rhs in not_annotated])
+
         for nt in nts:
             # if a right hand side has the minmal length 1, the symbol also has this length
-            symbol_depths = symbol_depths + ((nt, 1),)
+            symbol_depths[nt] = 1
 
         while not_annotated:
             termination_check = not_annotated.copy()
-            for nt, rhs in not_annotated:
+            for nt, rhs in termination_check:
+                assert (list(rhs.non_terminals()))
                 # check if all nonterminals in rhs are already annotated
-                if all(s in map(lambda t: t[0], symbol_depths) for s in rhs.non_terminals()):
+                if all(s in symbol_depths.keys() for s in rhs.non_terminals()):
                     # the length of a rule is the maximum of its nonterminal lenghts + 1
-                    for ((l, r), _) in annotated:
-                        if l == nt and r == rhs:
-                            # rule already annotated
-                            new = list(annotated)
-                            new.remove(((l, r), _))
-                            annotated = tuple(new)
-                    new_depth = max(r for t in rhs.non_terminals() for (l, r) in symbol_depths if l == t) + 1
-                    annotated = annotated + (((nt, rhs), new_depth),)
+                    ris: deque[tuple[RHSRule[NT, T], int]] | None = annotated.get(nt)
+                    new_depth = max(symbol_depths[t] for t in rhs.non_terminals()) + 1
+                    if ris is None:
+                        ris = deque()
+                    if rhs not in map(lambda x: x[0], ris):
+                        ris.append((rhs, new_depth))
+                    else:
+                        for r, i in ris:
+                            if r == rhs:
+                                ris.remove((r, i))
+                                ris.append((r, new_depth))
+                                break
+                    annotated[nt] = ris
                     not_annotated.remove((nt, rhs))
                     # The first time we derive a length for a right hand side, we can assume, that it is the minimum length and therefore set the symbol depth
-                    for (l, r) in symbol_depths:
-                        if l == nt and new_depth < r:
-                            # symbol already annotated
-                            new = list(symbol_depths)
-                            new.remove((l, r))
-                            symbol_depths = tuple(new)
-                    symbol_depths = symbol_depths + ((nt, new_depth),)
-                    if all((nt, rule) in map(lambda t: t[0], annotated) for rule in self._rules[nt]):
+                    sd = symbol_depths.get(nt)
+                    if sd is None:
+                        symbol_depths[nt] = new_depth
+                    # rs == annotated[nt] and therefore corresponds to the annoted rules for nonterminal nt
+                    if all(rule in map(lambda x: x[0], ris) for rule in self._rules[nt]):
                         # all rules of this nonterminal are already annotated
                         # the length of a terminal symbol is the minimum of the length of its rules
-                        for (l, r) in symbol_depths:
-                            if l == nt:
-                                # rule already annotated
-                                new = list(symbol_depths)
-                                new.remove((l, r))
-                                symbol_depths = tuple(new)
-                        symbol_depths = symbol_depths + ((nt, min(n for (s, _), n in annotated if s == nt)),)
+                        symbol_depths[nt] = min(map(lambda x: x[1], ris))
             if termination_check == not_annotated:
                 # no more rules can be annotated
                 break
@@ -213,7 +223,4 @@ class ParameterizedTreeGrammar(Generic[NT, T]):
         Compute a lower bound for the minimum depth of a tree generated by the grammar from the given nonterminal.
         """
         _, nt_length = self.annotations()
-        for nt, length in nt_length:
-            if nt == start:
-                return length
-        return -1
+        return nt_length[start]

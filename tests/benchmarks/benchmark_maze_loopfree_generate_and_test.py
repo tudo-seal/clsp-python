@@ -12,13 +12,13 @@ from clsp.types import Constructor, Literal, Param, LVar, Type
 
 
 @cache
-def visited(path: Tree[Any]) -> list[tuple[int, int]]:
+def visited(path: Tree[Any, Any]) -> list[tuple[int, int]]:
     if path.root == "START":
         return []
     return [cast(tuple[int, int], path.parameters["a"].root)] + visited(path.parameters["pos"])
 
 
-def loopfree(term: Tree[Any]) -> bool:
+def loopfree(term: Tree[Any, Any]) -> bool:
     visited_positions = visited(term)
     return len(visited_positions) == len(set(visited_positions))
 

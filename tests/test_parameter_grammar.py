@@ -35,7 +35,6 @@ class TestParamGrammar(unittest.TestCase):
             self.grammar.show(),
         )
 
-    """
     def test_enum(self) -> None:
         enumeration = enumerate_terms("X", self.grammar)
         expected_results = [
@@ -43,7 +42,6 @@ class TestParamGrammar(unittest.TestCase):
             Tree("x", (Tree("y2", ()), Tree("y2", ())), ["y", "y"]),
         ]
         self.assertCountEqual(enumeration, expected_results)
-    """
 
 if __name__ == "__main__":
     unittest.main()
