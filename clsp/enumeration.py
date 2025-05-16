@@ -109,13 +109,20 @@ class Tree(Generic[NT, T]):
     def __str__(self) -> str:
         return self.__rec_to_str__(True)
 
-    def to_adjacency_dict(self) -> dict[T, list[T]]:
-        """Convert the tree to a dictionary, mapping combinators to their argument roots."""
-        edges: dict[T, list[T]] = {self.root: []}
+    def to_labeled_adjacency_dict(self, next_index: int = 0) -> tuple[dict[int, list[int]], dict[int, T], int]:
+        """Convert the tree to a tuple of a dictionary, mapping node indices to their argument indices, a dictionary
+        mapping node indices to combinators, and the highest index from the mapping."""
+        edges: dict[int, list[int]] = {next_index: []}
+        labels: dict[int, T] = {next_index: self.root}
+        i = next_index + 1
         for child in self.children:
-            edges[self.root].append(child.root)
-            edges.update(child.to_adjacency_dict())
-        return edges
+            edges[next_index].append(i)
+            labels[i] = child.root
+            child_edges, child_labels, n = child.to_labeled_adjacency_dict(i)
+            edges.update(child_edges)
+            labels.update(child_labels)
+            i = n
+        return edges, labels, i
 
     def subtrees(self, prefix: list[int]) -> typing.Generator[tuple["Tree[NT, T]", list[int], str, dict[str, "Tree[NT, T]"], list[Predicate]], None, None]:
         """

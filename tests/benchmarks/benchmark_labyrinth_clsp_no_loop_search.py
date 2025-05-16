@@ -13,6 +13,8 @@ from clsp.types import Constructor, Literal, Param, LVar, Type
 
 from clsp.search import SimpleEA, SimpleBO, tree_expected_improvement, GraphGP, RandomWalkKernel, tree_expected_improvement, Enumerate
 
+import numpy as np
+
 from grakel import Graph
 from grakel.kernels import (
     RandomWalk,
@@ -128,7 +130,7 @@ def main(solutions: int = 10000, output: bool = True) -> float:
     test_trees: list[Tree[Type, Any]] = list(Enumerate(repo, literals, fin).sample(100))
     evaluations: list[int] = [longest_loop_free_path(t) for t in test_trees]
 
-    X: list[Graph] = [Graph(t.to_adjacency_dict()) for t in test_trees]
+    X: list[Graph] = [Graph(e, l) for t in test_trees for e, l, _ in (t.to_labeled_adjacency_dict(),)]
     Y: list[int] = evaluations
 
     class MyGraph(Graph):
@@ -161,11 +163,12 @@ def main(solutions: int = 10000, output: bool = True) -> float:
             return '\n'.join(output)
 
     for g in test_trees:
-        d = g.to_adjacency_dict()
-        print(d)
-        print(is_edge_dictionary(d))
+        edges, labels, _ = g.to_labeled_adjacency_dict()
+        print(edges)
+        print(labels)
+        print(is_edge_dictionary(edges))
         #print(Graph(d, graph_format="dictionary"))  # der Fehler, der hier kommt ist ein Grakel-Bug und kein Fehler meinerseits!!!!! -.-
-        print(MyGraph(d, graph_format="dictionary"))
+        print(MyGraph(edges, node_labels=labels, graph_format="dictionary"))  # der Fehler, der hier kommt ist ein Grakel-Bug und kein Fehler meinerseits!!!!! -.-
 
     #print(X)
     test = RandomWalkKernel()
