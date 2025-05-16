@@ -162,24 +162,24 @@ def main(solutions: int = 10000, output: bool = True) -> float:
 
             return '\n'.join(output)
 
-    for g in test_trees:
-        edges, labels, _ = g.to_labeled_adjacency_dict()
-        print(edges)
-        print(labels)
-        print(is_edge_dictionary(edges))
-        #print(Graph(d, graph_format="dictionary"))  # der Fehler, der hier kommt ist ein Grakel-Bug und kein Fehler meinerseits!!!!! -.-
-        print(MyGraph(edges, node_labels=labels, graph_format="dictionary"))  # der Fehler, der hier kommt ist ein Grakel-Bug und kein Fehler meinerseits!!!!! -.-
+    #for g in test_trees:
+    #    edges, labels, _ = g.to_labeled_adjacency_dict()
+    #    print(edges)
+    #    print(labels)
+    #    print(is_edge_dictionary(edges))
+    #    #print(Graph(d, graph_format="dictionary"))  # der Fehler, der hier kommt ist ein Grakel-Bug und kein Fehler meinerseits!!!!! -.-
+    #    print(MyGraph(edges, node_labels=labels, graph_format="dictionary"))  # der Fehler, der hier kommt ist ein Grakel-Bug und kein Fehler meinerseits!!!!! -.-
 
     #print(X)
-    test = RandomWalkKernel()
-    print(test.kernel(X))
+    #test = RandomWalkKernel()
+    #print(test.kernel(X))
 
 
     # TODO model = GraphGP()
 
     model = GraphGP(
         train_x=list(),
-        train_y=torch.empty((1,)),
+        train_y=torch.tensor([]),
         likelihood=GaussianLikelihood(),
         kernel=RandomWalkKernel()
     )

@@ -752,9 +752,9 @@ class SimpleBO(BayesianOptimization, RandomSample):
         # initialize the model with the initial population
         # Define the marginal log likelihood used to optimise the model hyperparameters
         likelihood = self.model.likelihood
-        for tree in evaluated_trees.keys():
-            print(f'as tree: {tree}')
-            print(f'as dict {tree.to_labeled_adjacency_dict()}')
+        #for tree in evaluated_trees.keys():
+        #    print(f'as tree: {tree}')
+        #    print(f'as dict {tree.to_labeled_adjacency_dict()}')
         train_x = list(self.train_x) + [Graph(e, node_labels=l,graph_format="dictionary") for tree in evaluated_trees.keys() for e, l, _ in (tree.to_labeled_adjacency_dict(),)]
         train_y = torch.cat((self.train_y, torch.tensor([self.toTensor(y) for y in evaluated_trees.values()])))
         # print(train_x)
@@ -763,7 +763,7 @@ class SimpleBO(BayesianOptimization, RandomSample):
 
         x_next = max(evaluated_trees, key=lambda x: evaluated_trees[x])
 
-        for i in range(100):
+        for i in range(10):
             # Use the BoTorch utility for fitting GPs in order
             # to use the LBFGS-B optimiser (recommended), but did not work properly with the non-tensorial inputs
             # fit_gpytorch_model(mll_ei)
@@ -785,7 +785,7 @@ class SimpleBO(BayesianOptimization, RandomSample):
             train_x.append(Graph(edge_dict, node_labels=labels, graph_format="dictionary"))
             train_y = torch.cat([train_y, self.toTensor(y_next)])
             # Add the new point to the model
-            mll_ei, model_ei = self.initialize_model(evaluated_trees.keys(), evaluated_trees.values(),
+            mll_ei, model_ei = self.initialize_model(train_x, train_y,
                                                      model_ei.state_dict())
 
         self.model = model_ei
