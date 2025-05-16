@@ -4,8 +4,7 @@ import random
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
 from collections import deque
-from typing import  Protocol, runtime_checkable, Any, TypeVar, Generic
-
+from typing import Protocol, runtime_checkable, Any, TypeVar, Generic
 
 from .enumeration import Tree, enumerate_terms
 from .fcl import Contains, FiniteCombinatoryLogic
@@ -44,7 +43,8 @@ class Comparable(Protocol):
 
 
 T = TypeVar("T", bound=Hashable)
-V = TypeVar("V", bound=Comparable)  # codomain of fitness-function. needs to be a poset! which means that compare methods are defined.
+V = TypeVar("V",
+            bound=Comparable)  # codomain of fitness-function. needs to be a poset! which means that compare methods are defined.
 
 """
 This module contains classes and functions for treating
@@ -138,7 +138,7 @@ class RandomSample(Sample[T]):
                 return None
             # rule only derives terminals, therefore all_args has no nonterminals, but to silence the type checker:
             # TODO: how to avoid this unnecessary iteration of all_args AND make mypy happy?
-            params: list[Literal] = [lit for lit in candidate.all_args()if isinstance(lit, Literal)]
+            params: list[Literal] = [lit for lit in candidate.all_args() if isinstance(lit, Literal)]
             cands: tuple[Tree[Type, T], ...] = tuple(
                 map(lambda p: Tree(p.value, derived_from=nt, rhs_rule=candidate, is_literal=True), params))
             if candidate.check([]):
@@ -268,6 +268,7 @@ class SelectionStrategy(ABC, Generic[T, V]):
     """
     Abstract base class for selection strategies.
     """
+
     def __init__(self, population_size: int | None = None):
         self.size: int = population_size if population_size is not None else 0
 
@@ -360,6 +361,7 @@ class SimpleEA(EvolutionaryAlgorithm[T, V], RandomSample[T]):
         population = sorted(population, key=fitness, reverse=True)
         return population
 
+
 class SIGP(ExactGP):
     """
     A reimplementation of gpytorch's ExactGP that allows for tree inputs.
@@ -378,8 +380,8 @@ class SIGP(ExactGP):
     def __init__(self, train_inputs: list[Graph], train_targets: torch.Tensor,
                  likelihood: gpytorch.likelihoods.Likelihood):
         if (
-            train_inputs is not None
-            and type(train_inputs) is list[Graph]
+                train_inputs is not None
+                and type(train_inputs) is list[Graph]
         ):
             train_inputs = (train_inputs,)
         if not isinstance(likelihood, _GaussianLikelihoodBase):
@@ -392,7 +394,7 @@ class SIGP(ExactGP):
         if train_inputs is not None:
             self.train_inputs = tuple(
                 (
-                    i.unsqueeze(-1)   # this case will never be entered, so maybe we just skip it?
+                    i.unsqueeze(-1)  # this case will never be entered, so maybe we just skip it?
                     if torch.is_tensor(i) and i.ndimension() == 1
                     else i
                 )
@@ -432,9 +434,9 @@ class SIGP(ExactGP):
 
         # Prior mode
         elif (
-            settings.prior_mode.on()
-            or self.train_inputs is None
-            or self.train_targets is None
+                settings.prior_mode.on()
+                or self.train_inputs is None
+                or self.train_targets is None
         ):
             full_inputs = args
             full_output = super(ExactGP, self).__call__(*full_inputs, **kwargs)
@@ -526,6 +528,7 @@ class SIGP(ExactGP):
             ).contiguous()
             return full_output.__class__(predictive_mean, predictive_covar)
 
+
 class GraphKernel(Module):
     """
     A base class supporting external graph kernels.
@@ -538,8 +541,8 @@ class GraphKernel(Module):
     """
 
     def __init__(
-        self,
-        dtype=torch.float,
+            self,
+            dtype=torch.float,
     ) -> None:
         super().__init__()
         self.node_label = None
@@ -556,6 +559,7 @@ class GraphKernel(Module):
 
     def kernel(self, X: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError("Subclasses must implement this method.")
+
 
 class RandomWalkKernel(GraphKernel):
     """
@@ -587,11 +591,11 @@ class RandomWalkKernel(GraphKernel):
 
 class GraphGP(SIGP):
     def __init__(
-        self,
-        train_x: list[Graph],
-        train_y: torch.Tensor,
-        likelihood: gpytorch.likelihoods.Likelihood,
-        kernel: GraphKernel,
+            self,
+            train_x: list[Graph],
+            train_y: torch.Tensor,
+            likelihood: gpytorch.likelihoods.Likelihood,
+            kernel: GraphKernel,
     ):
         """
         A subclass of the SIGP class that allows us to use kernels over
@@ -629,103 +633,117 @@ class GraphGP(SIGP):
         return gpytorch.distributions.MultivariateNormal(mean, covariance)
 
 
-class BayesianOptimization(Search[T,V]):
+class BayesianOptimization(Search[T, torch.Tensor]):
     """
     Bayesian optimization for searching trees.
     """
 
     def __init__(self, model: GraphGP,
-                 acquisition_function: Callable[tuple[GraphGP, Tree[Type, T]], V],
-                 acquisition_optimizer: Search,
+                 # acquisition_function: Callable[tuple[GraphGP, Tree[Type, T]], torch.Tensor],
+                 acquisition_optimizer: Search[T, torch.Tensor],
                  gamma: Mapping[T, Type], delta: Mapping[str, Iterable[Any] | Contains], target: Type,
                  subtypes: Subtypes = Subtypes({})):
         super().__init__(gamma, delta, target, subtypes)
-        self.model = model
-        self.acquisition_function = acquisition_function
-        self.acquisition_optimizer = acquisition_optimizer
+        self.model: GraphGP = model
+        # self.acquisition_function: Callable[tuple[GraphGP, Tree[Type, T]], torch.Tensor] = acquisition_function
+        self.acquisition_optimizer: Search[T, torch.Tensor] = acquisition_optimizer
         self.train_x: list[Graph] = model.train_inputs
-        self.train_y: torch.Tensor = model.train_targets  # nope, type mismatch!
-
-
-    def toTensor(self, y: V) -> torch.Tensor:
-        """
-        Convert the fitness value to a tensor.
-        """
-        if isinstance(y, torch.Tensor):
-            return y
-        elif isinstance(y, (int, float)):
-            return torch.tensor([y], dtype=torch.float)
+        if model.train_targets is None:
+            self.train_y = torch.tensor([])
         else:
-            raise ValueError(f"Cannot convert {y} to tensor")
+            self.train_y: torch.Tensor = model.train_targets
 
-def tree_expected_improvement(model: GraphGP, tree: Tree[Type, T]) -> torch.Tensor:
-    """
-    Compute the negative expected improvement of a tree with respect to the model.
-    """
-    # xi: float: manual exploration-exploitation trade-off parameter.
-    xi: float = 0.0
-    edge_dict, labels, _ = tree.to_labeled_adjacency_dict()
-    x = Graph(edge_dict, node_labels=labels, graph_format="dictionary")
-    from torch.distributions import Normal
-    try:
-        mu, cov = model.predict(x)
-    except:
-        return torch.tensor(-1.)  # in case of error. return ei of -1
-    std = torch.sqrt(torch.diag(cov))
-    mu_star = torch.max(model.y_)
-    gauss = Normal(torch.zeros(1, device=mu.device), torch.ones(1, device=mu.device))
-    u = (mu - mu_star - xi) / std
-    ucdf = gauss.cdf(u)
-    updf = torch.exp(gauss.log_prob(u))
-    ei = std * updf + (mu - mu_star - xi) * ucdf
-    return ei
+    def tree_expected_improvement(self, tree: Tree[Type, T]) -> torch.Tensor:
+        """
+        Compute the negative expected improvement of a tree with respect to the model.
+        """
+        # xi: float: manual exploration-exploitation trade-off parameter.
+        xi: float = 0.0
+        edge_dict, labels, _ = tree.to_labeled_adjacency_dict()
+        x = Graph(edge_dict, node_labels=labels, graph_format="dictionary")
+        from torch.distributions import Normal
+        try:
+            mu, cov = self.model.predict(x)
+        except:
+            return torch.tensor(-1.)  # in case of error. return ei of -1
+        std = torch.sqrt(torch.diag(cov))
+        mu_star = torch.max(self.model.y_)
+        gauss = Normal(torch.zeros(1, device=mu.device), torch.ones(1, device=mu.device))
+        u = (mu - mu_star - xi) / std
+        ucdf = gauss.cdf(u)
+        updf = torch.exp(gauss.log_prob(u))
+        ei = std * updf + (mu - mu_star - xi) * ucdf
+        return ei
 
-def tree_augmented_expected_improvement(model: GraphGP, tree: Tree[Type, T]) -> torch.Tensor:
-    """
-    Compute the negative expected improvement of a tree with respect to the model.
-    """
-    # xi: float: manual exploration-exploitation trade-off parameter.
-    xi: float = 0.0
-    edge_dict, labels, _ = tree.to_labeled_adjacency_dict()
-    x = Graph(edge_dict, node_labels=labels, graph_format="dictionary")
-    from torch.distributions import Normal
-    try:
-        mu, cov = model.predict(x)
-    except:
-        return torch.tensor(-1.)  # in case of error. return ei of -1
-    std = torch.sqrt(torch.diag(cov))
-    mu_star = torch.max(model.y_)
-    gauss = Normal(torch.zeros(1, device=mu.device), torch.ones(1, device=mu.device))
-    u = (mu - mu_star - xi) / std
-    ucdf = gauss.cdf(u)
-    updf = torch.exp(gauss.log_prob(u))
-    ei = std * updf + (mu - mu_star - xi) * ucdf
-    sigma_n = model.likelihood # type???
-    ei *= (1. - torch.sqrt(torch.tensor(sigma_n, device=mu.device)) / torch.sqrt(sigma_n + torch.diag(cov))) # mypy complains about the type of sigma_n!
-    return ei
+    def tree_augmented_expected_improvement(self, tree: Tree[Type, T]) -> torch.Tensor:
+        """
+        Compute the negative expected improvement of a tree with respect to the model.
+        """
+        # xi: float: manual exploration-exploitation trade-off parameter.
+        xi: float = 0.0
+        edge_dict, labels, _ = tree.to_labeled_adjacency_dict()
+        x = Graph(edge_dict, node_labels=labels, graph_format="dictionary")
+        from torch.distributions import Normal
+        try:
+            mu, cov = self.model.predict(x)
+        except:
+            return torch.tensor(-1.)  # in case of error. return ei of -1
+        std = torch.sqrt(torch.diag(cov))
+        mu_star = torch.max(self.model.y_)
+        gauss = Normal(torch.zeros(1, device=mu.device), torch.ones(1, device=mu.device))
+        u = (mu - mu_star - xi) / std
+        ucdf = gauss.cdf(u)
+        updf = torch.exp(gauss.log_prob(u))
+        ei = std * updf + (mu - mu_star - xi) * ucdf
+        sigma_n = self.model.likelihood  # type???
+        ei *= (1. - torch.sqrt(torch.tensor(sigma_n, device=mu.device)) / torch.sqrt(
+            sigma_n + torch.diag(cov)))  # mypy complains about the type of sigma_n!
+        return ei
 
-def propose_location(ei_func, surrogate_model: GraphGP, candidates: list[Tree[Type, T]], top_n: int):
-    """top_n: return the top n candidates wrt the acquisition function."""
-    eis = torch.tensor([ei_func(surrogate_model, candidate) for candidate in candidates])
-    _, indicies = eis.topk(top_n)
-    xs = [candidates[int(i)] for i in indicies]
-    return xs
 
-TRAIN_EPOCHS = 20
-LR = 1e-3
+#def propose_location(ei_func, surrogate_model: GraphGP, candidates: list[Tree[Type, T]], top_n: int):
+#    """top_n: return the top n candidates wrt the acquisition function."""
+#    eis = torch.tensor([ei_func(surrogate_model, candidate) for candidate in candidates])
+#    _, indicies = eis.topk(top_n)
+#    xs = [candidates[int(i)] for i in indicies]
+#    return xs
 
-class SimpleBO(BayesianOptimization, RandomSample):
+
+class SimpleBO(BayesianOptimization[T], RandomSample[T]):
     """
     Simple Bayesian optimization for searching trees.
     """
-    def initialize_model(self, train_x, train_obj, state_dict=None):
+
+    def __init__(self, model: GraphGP,
+                 # acquisition_function: Callable[tuple[GraphGP, Tree[Type, T]], torch.Tensor],
+                 acquisition_optimizer: Search[T, torch.Tensor],
+                 gamma: Mapping[T, Type], delta: Mapping[str, Iterable[Any] | Contains], target: Type,
+                 subtypes: Subtypes = Subtypes({}),
+                 train_epochs: int = 20, learning_rate: float = 1e-3,
+                 cost: int = 10, init_population_size: int = 5,
+                 training_data: Mapping[Tree[Type, T], torch.Tensor] = None):
+        super().__init__(model, acquisition_optimizer, gamma, delta, target, subtypes)
+        self.TRAIN_EPOCHS: int = train_epochs
+        self.LR: float = learning_rate
+        self.COST: int = cost
+        self.INIT_POPULATION: int = init_population_size
+        if training_data is None:
+            self.train_x: list[Graph] = []
+            self.train_y: torch.Tensor = torch.tensor([])
+        else:
+            train_x: list[Graph] = [Graph(e, node_labels=l, graph_format="dictionary") for tree in
+                                    training_data.keys() for e, l, _ in (tree.to_labeled_adjacency_dict(),)]
+            train_y: torch.Tensor = torch.tensor(training_data.values())
+            self.train_x: list[Graph] = train_x
+            self.train_y: torch.Tensor = train_y
+
+    def initialize_model(self, train_x: list[Graph], train_obj: torch.Tensor) -> tuple[gpytorch.mlls.ExactMarginalLogLikelihood, GraphGP]:
         """
         Initialise model and loss function.
 
         Args:
             train_x: tensor of inputs
             train_obj: tensor of outputs
-            state_dict: current state dict used to speed up fitting
 
         Returns: mll object, model object
         """
@@ -739,58 +757,57 @@ class SimpleBO(BayesianOptimization, RandomSample):
         )
         mll = gpytorch.mlls.ExactMarginalLogLikelihood(model.likelihood, model)
         # load state dict if it is passed
+        # why after computing the likelihood? the order is taken from gauche example...
         model.load_state_dict(self.model.state_dict())
 
         return mll, model
 
-    def search_max(self, fitness: Callable[[Tree[Type, T]], V]) -> Tree[Type, T]:
+    def search_max(self, fitness: Callable[[Tree[Type, T]], torch.Tensor]) -> Tree[Type, T]:
         """
         Simple Bayesian Optimization loop.
         """
-        init_population = self.sample(5)
-        evaluated_trees: dict[Tree[Type, T], V] = {tree: fitness(tree) for tree in init_population}
+        init_population: Iterable[Tree[Type, T]] = self.sample(self.INIT_POPULATION)
+        y_values: torch.Tensor = torch.stack([fitness(tree) for tree in init_population])
         # initialize the model with the initial population
         # Define the marginal log likelihood used to optimise the model hyperparameters
-        likelihood = self.model.likelihood
-        #for tree in evaluated_trees.keys():
-        #    print(f'as tree: {tree}')
-        #    print(f'as dict {tree.to_labeled_adjacency_dict()}')
-        train_x = list(self.train_x) + [Graph(e, node_labels=l,graph_format="dictionary") for tree in evaluated_trees.keys() for e, l, _ in (tree.to_labeled_adjacency_dict(),)]
-        train_y = torch.cat((self.train_y, torch.tensor([self.toTensor(y) for y in evaluated_trees.values()])))
-        # print(train_x)
-        # print(train_y)
-        mll_ei, model_ei = self.initialize_model(train_x=train_x, train_obj=train_y) #self.initialize_model(evaluated_trees.keys(), evaluated_trees.values())
+        self.train_x: list[Graph] = self.train_x + [Graph(e, node_labels=l, graph_format="dictionary") for tree in
+                                                    init_population for e, l, _ in (tree.to_labeled_adjacency_dict(),)]
+        self.train_y: torch.Tensor = torch.cat((self.train_y, y_values))
+        mll_ei, self.model = self.initialize_model(train_x=self.train_x,
+                                                   train_obj=self.train_y)  
 
-        x_next = max(evaluated_trees, key=lambda x: evaluated_trees[x])
+        x_next: Tree[Type, T] = list(init_population)[0]
 
-        for i in range(10):
-            # Use the BoTorch utility for fitting GPs in order
-            # to use the LBFGS-B optimiser (recommended), but did not work properly with the non-tensorial inputs
-            # fit_gpytorch_model(mll_ei)
-            optim = torch.optim.Adam(model_ei.parameters(), lr=LR)
-            for j in range(TRAIN_EPOCHS):
+        for i in range(self.COST):
+            optim = torch.optim.Adam(self.model.parameters(), lr=self.LR)
+            for j in range(self.TRAIN_EPOCHS):
                 optim.zero_grad()
-                output = model_ei(train_x)
-                loss = -mll_ei(output, train_y)
+                output = self.model(self.train_x)
+                loss = -mll_ei(output, self.train_y)
                 loss.backward()
                 optim.step()
 
             # Get the next point to sample
             x_next: Tree[Type, T] = self.acquisition_optimizer.search_max(
-                lambda tree: tree_expected_improvement(model_ei, tree)
+                self.tree_expected_improvement
             )
             # Evaluate the next point
-            y_next: V = fitness(x_next)
+            y_next: torch.Tensor = fitness(x_next)
             edge_dict, labels, _ = x_next.to_labeled_adjacency_dict()
-            train_x.append(Graph(edge_dict, node_labels=labels, graph_format="dictionary"))
-            train_y = torch.cat([train_y, self.toTensor(y_next)])
+            self.train_x.append(Graph(edge_dict, node_labels=labels, graph_format="dictionary"))
+            new_y = list(
+                (
+                    i.unsqueeze(-1)
+                    if torch.is_tensor(i) and i.ndimension() == 1
+                    else i
+                )
+                for i in self.train_y
+            )
+            new_y.append(y_next)
+            self.train_y = torch.stack(new_y)
             # Add the new point to the model
-            mll_ei, model_ei = self.initialize_model(train_x, train_y,
-                                                     model_ei.state_dict())
+            mll_ei, self.model = self.initialize_model(self.train_x, self.train_y)
 
-        self.model = model_ei
-        self.train_x = train_x
-        self.train_y = train_y
         return x_next
 
     def search_fittest(self, fitness: Callable[[Tree[Type, T]], V], size: int) -> Iterable[Tree[Type, T]]:

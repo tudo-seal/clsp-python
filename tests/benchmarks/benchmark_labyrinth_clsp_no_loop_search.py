@@ -11,7 +11,7 @@ from clsp.enumeration import Tree, interpret_term
 
 from clsp.types import Constructor, Literal, Param, LVar, Type
 
-from clsp.search import SimpleEA, SimpleBO, tree_expected_improvement, GraphGP, RandomWalkKernel, tree_expected_improvement, Enumerate
+from clsp.search import SimpleEA, SimpleBO, GraphGP, RandomWalkKernel, Enumerate
 
 import numpy as np
 
@@ -117,65 +117,15 @@ def main(solutions: int = 10000, output: bool = True) -> float:
         else:
             return length*(-1)
 
-    def longest_loop_free_path(tree: Tree[Any, Any]) -> int:
+    def longest_loop_free_path(tree: Tree[Any, Any]) -> torch.Tensor:
         path = list(getpath(tree))
         length = len(path)
         if length != len(set(path)):
-            return -1
+            return torch.tensor(-1)
         else:
-            return length
+            return torch.tensor(length)
 
     #tournament_search = SimpleEA(repo, literals, fin, generations=4).search_fittest
-
-    test_trees: list[Tree[Type, Any]] = list(Enumerate(repo, literals, fin).sample(100))
-    evaluations: list[int] = [longest_loop_free_path(t) for t in test_trees]
-
-    X: list[Graph] = [Graph(e, l) for t in test_trees for e, l, _ in (t.to_labeled_adjacency_dict(),)]
-    Y: list[int] = evaluations
-
-    class MyGraph(Graph):
-        def __repr__(self) -> str:
-            output = ["#vertices"]
-            output += [','.join(map(str, self.get_vertices(self._format)))]
-
-            output += ["#edges"]
-            output += ['\n'.join(map(lambda x: str(x[0]) + ',' + str(x[1]), self.get_edges(self._format)))]
-
-            def list_repr(x):
-                # convert numpy to list
-                if type(x) in [np.array, np.ndarray]:
-                    x = x.tolist()
-                elif isinstance(x, Iterable):
-                    x = list(x)
-                else:
-                    return str(x)
-                return '[' + ','.join(map(str, x)) + ']'
-
-            if bool(self.node_labels):
-                output += ["#node_labels"]
-                output += ['\n'.join(map(lambda x: str(x[0]) + '->' + list_repr(x[1]), self.node_labels.items()))]
-
-            if bool(self.edge_labels):
-                output += ["#edge_labels"]
-                output += ['\n'.join(map(lambda x: str(x[0][0]) + ',' + str(x[0][1]) + '->' + list_repr(x[1]),
-                                         self.edge_labels.items()))]
-
-            return '\n'.join(output)
-
-    #for g in test_trees:
-    #    edges, labels, _ = g.to_labeled_adjacency_dict()
-    #    print(edges)
-    #    print(labels)
-    #    print(is_edge_dictionary(edges))
-    #    #print(Graph(d, graph_format="dictionary"))  # der Fehler, der hier kommt ist ein Grakel-Bug und kein Fehler meinerseits!!!!! -.-
-    #    print(MyGraph(edges, node_labels=labels, graph_format="dictionary"))  # der Fehler, der hier kommt ist ein Grakel-Bug und kein Fehler meinerseits!!!!! -.-
-
-    #print(X)
-    #test = RandomWalkKernel()
-    #print(test.kernel(X))
-
-
-    # TODO model = GraphGP()
 
     model = GraphGP(
         train_x=list(),
@@ -183,11 +133,11 @@ def main(solutions: int = 10000, output: bool = True) -> float:
         likelihood=GaussianLikelihood(),
         kernel=RandomWalkKernel()
     )
-    bo_search = SimpleBO(model, tree_expected_improvement, SimpleEA(repo, literals, fin, generations=4), repo, literals, fin).search_max
+    bo_search = SimpleBO(model, SimpleEA(repo, literals, fin, generations=4), repo, literals, fin).search_max
 
 
     #final_population = list(tournament_search(longest_loop_free_path, 100))
-    final_population = list(bo_search(longest_loop_free_path))
+    winner: Tree[Any, Any] = bo_search(longest_loop_free_path)
 
     #for term in final_population[:10]:
     #    positions = list(getpath(term))
@@ -197,7 +147,7 @@ def main(solutions: int = 10000, output: bool = True) -> float:
     #    print("#######################################")
 
     print("maximum:")
-    winner = final_population[0]
+    #winner = final_population[0]
     print(interpret_term(winner))
     win_path = list(getpath(winner))
     print(f"Path: {win_path}")
