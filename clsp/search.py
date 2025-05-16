@@ -31,6 +31,7 @@ from grakel.kernels import (
     RandomWalk,
 )
 
+
 @runtime_checkable
 class Comparable(Protocol):
     @abstractmethod
@@ -663,7 +664,8 @@ def tree_expected_improvement(model: GraphGP, tree: Tree[Type, T]) -> torch.Tens
     """
     # xi: float: manual exploration-exploitation trade-off parameter.
     xi: float = 0.0
-    x = Graph(tree.to_adjacency_dict())
+    edge_dict, labels, _ = tree.to_labeled_adjacency_dict()
+    x = Graph(edge_dict, node_labels=labels, graph_format="dictionary")
     from torch.distributions import Normal
     try:
         mu, cov = model.predict(x)
@@ -684,7 +686,8 @@ def tree_augmented_expected_improvement(model: GraphGP, tree: Tree[Type, T]) -> 
     """
     # xi: float: manual exploration-exploitation trade-off parameter.
     xi: float = 0.0
-    x = Graph(tree.to_adjacency_dict())
+    edge_dict, labels, _ = tree.to_labeled_adjacency_dict()
+    x = Graph(edge_dict, node_labels=labels, graph_format="dictionary")
     from torch.distributions import Normal
     try:
         mu, cov = model.predict(x)
@@ -751,8 +754,8 @@ class SimpleBO(BayesianOptimization, RandomSample):
         likelihood = self.model.likelihood
         for tree in evaluated_trees.keys():
             print(f'as tree: {tree}')
-            print(f'as dict {tree.to_adjacency_dict()}')
-        train_x = list(self.train_x) + [Graph(tree.to_adjacency_dict()) for tree in evaluated_trees.keys()]
+            print(f'as dict {tree.to_labeled_adjacency_dict()}')
+        train_x = list(self.train_x) + [Graph(e, node_labels=l,graph_format="dictionary") for tree in evaluated_trees.keys() for e, l, _ in (tree.to_labeled_adjacency_dict(),)]
         train_y = torch.cat((self.train_y, torch.tensor([self.toTensor(y) for y in evaluated_trees.values()])))
         # print(train_x)
         # print(train_y)
@@ -778,7 +781,8 @@ class SimpleBO(BayesianOptimization, RandomSample):
             )
             # Evaluate the next point
             y_next: V = fitness(x_next)
-            train_x.append(Graph(x_next.to_adjacency_dict()))
+            edge_dict, labels, _ = x_next.to_labeled_adjacency_dict()
+            train_x.append(Graph(edge_dict, node_labels=labels, graph_format="dictionary"))
             train_y = torch.cat([train_y, self.toTensor(y_next)])
             # Add the new point to the model
             mll_ei, model_ei = self.initialize_model(evaluated_trees.keys(), evaluated_trees.values(),

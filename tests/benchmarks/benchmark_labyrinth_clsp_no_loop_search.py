@@ -172,10 +172,8 @@ def main(solutions: int = 10000, output: bool = True) -> float:
 
     #print(X)
     test = RandomWalkKernel()
-    print(test.kernel(X)) #ok, der Fehler liegt bei uns und zwar daran, dass unsere Graphen Knoten eines beliebigen Typs < Hashable haben und diese nicht übersetzbar in adjazenzmatrizen sind -.-
+    print(test.kernel(X))
 
-
-    # Grakel ist eine scheiß library!!!!!!!!!!!!!
 
     # TODO model = GraphGP()
 
