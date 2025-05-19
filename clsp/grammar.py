@@ -127,8 +127,8 @@ class Grammar(Generic[NT, T]):
         self,
         rule: RHSRule[NT, T],
         existing_terms: Mapping[NT, set[Tree[T]]],
-        max_count: Optional[int] = None,
-        nt_old_term: Optional[tuple[NT, Tree[T]]] = None,
+        max_count: int | None = None,
+        nt_old_term: tuple[NT, Tree[T]] | None = None,
     ) -> set[Tree[T]]:
         # Genererate new terms for rule `rule` from existing terms up to `max_count`
         # the term `old_term` should be a subterm of all resulting terms, at a position, that corresponds to `nt`
@@ -169,30 +169,24 @@ class Grammar(Generic[NT, T]):
                         child_names=rule.argument_names)
         
         specific_substitution = lambda parameters: {a.name: p for p, a in zip(parameters, rule.arguments) if isinstance(a, NonTerminalArgument) and a.name is not None} | rule.literal_substitution
-        if nt_old_term is None:
-            for parameters in self._enumerate_tree_vectors(named_non_terminals, existing_terms):
+        
+        def validParameters(nt_term: tuple[NT, Tree[T]] | None) -> Iterable[tuple[Tree[T] | None, ...]]:
+            """Enumerate all valid parameters for the rule."""
+            for parameters in self._enumerate_tree_vectors(named_non_terminals, existing_terms, nt_term):
                 substitution = specific_substitution(parameters)
                 if all(predicate(substitution) for predicate in rule.predicates):
-                    for arguments in self._enumerate_tree_vectors(unnamed_non_terminals, existing_terms):
-                        output_set.add(constructTree(rule, parameters, literal_arguments, arguments))
-                        if max_count is not None and len(output_set) >= max_count:
-                            return output_set
-        else:
-            for parameters in self._enumerate_tree_vectors(named_non_terminals, existing_terms, nt_old_term):
-                substitution = specific_substitution(parameters)
-                if all(predicate(substitution) for predicate in rule.predicates):
-                    for arguments in self._enumerate_tree_vectors(unnamed_non_terminals, existing_terms):
-                        output_set.add(constructTree(rule, parameters, literal_arguments, arguments))
-                        if max_count is not None and len(output_set) >= max_count:
-                            return output_set
+                    yield parameters
+
+        for parameters in validParameters(nt_old_term):
+            for arguments in self._enumerate_tree_vectors(unnamed_non_terminals, existing_terms):
+                output_set.add(constructTree(rule, parameters, literal_arguments, arguments))
+                if max_count is not None and len(output_set) >= max_count:
+                    return output_set
+
+        if nt_old_term is not None:
             all_parameters: deque[tuple[Tree[T] | None, ...]] | None = None
             for arguments in self._enumerate_tree_vectors(unnamed_non_terminals, existing_terms):
-                if all_parameters is None:
-                    all_parameters = deque()
-                    for parameters in self._enumerate_tree_vectors(named_non_terminals, existing_terms):
-                        substitution = specific_substitution(parameters)
-                        if all(predicate(substitution) for predicate in rule.predicates):
-                            all_parameters.append(parameters)
+                all_parameters = all_parameters if all_parameters is not None else deque(validParameters(None))
                 for parameters in all_parameters:
                     output_set.add(constructTree(rule, parameters, literal_arguments, arguments))
                     if max_count is not None and len(output_set) >= max_count:
