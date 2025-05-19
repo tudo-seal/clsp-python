@@ -8,9 +8,12 @@ from collections.abc import Mapping
 
 from .types import Arrow, Constructor, Intersection, Literal, Var, Type
 
+#TODO SetOfSubtypes = set[str] 
+Taxonomy = Mapping[str, set[str]]
+
 class Subtypes:
-    def __init__(self, environment: Mapping[str, set[str]]):
-        self.environment = self._transitive_closure(self._reflexive_closure(environment))
+    def __init__(self, taxonomy: Taxonomy):
+        self.taxonomy = self._transitive_closure(self._reflexive_closure(taxonomy))
 
     def _check_subtype_rec(
         self,
@@ -38,7 +41,7 @@ class Subtypes:
                 while subtypes:
                     match subtypes.pop():
                         case Constructor(name1, arg1):
-                            if name2 == name1 or name2 in self.environment.get(name1, {}):
+                            if name2 == name1 or name2 in self.taxonomy.get(name1, {}):
                                 casted_constr.append(arg1)
                         case Intersection(l, r):
                             subtypes.extend((l, r))
@@ -98,7 +101,7 @@ class Subtypes:
             case Constructor(name1, arg1):
                 match path:
                     case Constructor(name2, arg2):
-                        if name2 == name1 or name2 in self.environment.get(name1, {}):
+                        if name2 == name1 or name2 in self.taxonomy.get(name1, {}):
                             if arg2.is_omega:
                                 return {}
                             return self.infer_substitution(arg1, arg2, groups)

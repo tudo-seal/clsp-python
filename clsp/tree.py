@@ -20,6 +20,7 @@ T = TypeVar("T", bound=Hashable)
 class Tree(Generic[T]):
     root: T
     children: tuple["Tree[T]", ...] = field(default=())
+    # has exactly the same length as children and contains the names of the children
     child_names: tuple[str | None, ...] = field(default=())
 
     size: int = field(init=False, compare=True, repr=False)

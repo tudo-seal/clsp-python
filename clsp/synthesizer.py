@@ -23,13 +23,13 @@ from typing import (
     TypeVar,
 )
 
-from .grammar import Grammar, RHSRule, TerminalArgument, NonTerminalArgument
+from .solution_space import SolutionSpace, RHSRule, TerminalArgument, NonTerminalArgument
 
 from .combinatorics import (
     maximal_elements,
     minimal_covers,
 )
-from .subtypes import Subtypes
+from .subtypes import Subtypes, Taxonomy
 from .types import (
     Arrow,
     Intersection,
@@ -85,14 +85,14 @@ class Synthesizer(Generic[C]):
         self,
         componentSpecifications: Mapping[C, Specification],
         parameterSpace: ParameterSpace | None = None,
-        taxonomy: Subtypes = Subtypes({}),
+        taxonomy: Taxonomy = {},
     ):
         self.literals: ParameterSpace = {} if parameterSpace is None else parameterSpace
         self.repository: MutableMapping[
             C,
             tuple[ParamInfo, list[dict[str, Literal]] | None, list[list[MultiArrow]]],
         ] = {c: Synthesizer._function_types(ty) for c, ty in componentSpecifications.items()}
-        self.subtypes = taxonomy
+        self.subtypes = Subtypes(taxonomy)
 
     @staticmethod
     def _function_types(
@@ -258,12 +258,12 @@ class Synthesizer(Generic[C]):
 
         return return_subsitution
 
-    def constructSolutionSpace(self, *targets: Type) -> Grammar[Type, C]:
+    def constructSolutionSpace(self, *targets: Type) -> SolutionSpace[Type, C]:
         """Constructs a logic program in the current environment for the given target types."""
         type_targets = deque(targets)
 
         # constructed logic program
-        memo: Grammar[Type, C] = Grammar()
+        memo: SolutionSpace[Type, C] = SolutionSpace()
 
         seen: set[Type] = set()
 

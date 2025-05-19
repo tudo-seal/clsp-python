@@ -22,7 +22,7 @@ class DSL:
             .Use("x", int)
             .Use("y", int, lambda vars: vars["x"] + 1)
             .Use("z", str)
-            .With(lambda vars: len(vars["z"]) == vars["x"] + vars["y"])
+            .SuchThat(lambda vars: len(vars["z"]) == vars["x"] + vars["y"])
             .In(<Type using Var("x"), Var("y") and Var("z")>)
 
         constructs a specification for a function with three parameters:
@@ -62,7 +62,7 @@ class DSL:
 
         return lambda vars: [Literal(value, group) for value in values({k: v.value for k, v in vars.items()})]
     
-    def Use(self, name: str, group: str | Type, values: Callable[[dict[str, Any]], Sequence[Any]] | None = None) -> DSL:
+    def Use(self, name: str, group: str | Type, candidates: Callable[[dict[str, Any]], Sequence[Any]] | None = None) -> DSL:
         """
         Introduce a new variable.
 
@@ -97,15 +97,15 @@ class DSL:
         :rtype: DSL
         """
 
-        if not isinstance(group, str) and values is not None:
+        if not isinstance(group, str) and candidates is not None:
             raise ValueError(f"{name} is a term variable and does not support predefined values.")
-        if isinstance(group, str) and values is not None:
-            self._accumulator.append((name, group, DSL._wrap_sequence(group, values), []))
+        if isinstance(group, str) and candidates is not None:
+            self._accumulator.append((name, group, DSL._wrap_sequence(group, candidates), []))
         else:
             self._accumulator.append((name, group, None, []))
         return self
 
-    def With(self, predicate: Callable[[Mapping[str, Any]], bool], /) -> DSL:
+    def SuchThat(self, predicate: Callable[[Mapping[str, Any]], bool], /) -> DSL:
         """
         Predicate on the previously defined variables.
 
@@ -120,7 +120,7 @@ class DSL:
         :rtype: DSL
         """
         if len(self._accumulator) == 0:
-            raise ValueError("No variable defined. Please define a variable before using With.")
+            raise ValueError("No variable defined. Please define a variable before using SuchThat.")
 
         self._accumulator[-1][3].append(predicate)
         return self

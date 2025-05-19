@@ -47,7 +47,7 @@ class TestRobotArm(unittest.TestCase):
             Part("Base"): DSL()
             .Use("current_motor_count", "int")
             .Use("Robot", Constructor("Motor"))
-            .With(
+            .SuchThat(
                 lambda vars: vars["current_motor_count"]
                 == motorcount(vars["Robot"].interpret())
             )

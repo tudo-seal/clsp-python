@@ -4,16 +4,14 @@ import logging
 import unittest
 
 from clsp.tree import Tree
-from clsp.synthesizer import Synthesizer, Contains
+from clsp.synthesizer import Contains, Specification, ParameterSpace
 from clsp.dsl import DSL
 from clsp.types import (
     Constructor,
     Literal,
-    Abstraction,
     Var,
-    Type,
 )
-
+from clsp import CoSy
 
 class Part:
     """
@@ -85,48 +83,45 @@ class TestFilterByCriteria(unittest.TestCase):
 
         :return:
         """
-        repo: dict[Part, Type | Abstraction] = {
+        componentSpecifications: dict[Part, Specification] = {
             Part("Branching Part", 1): DSL()
             .Use("target_weight", "float")
-            .Use("left_part", Constructor("Structural") & ("c" @ Var("target_weight")))
-            .Use("right_part", Constructor("Structural") & ("c" @ Var("target_weight")))
-            .With(
+            .Use("left_part", Constructor("Structural") & Var("target_weight"))
+            .Use("right_part", Constructor("Structural") & Var("target_weight"))
+            .SuchThat(
                 lambda vars: vars["target_weight"]
                 > self.compute_weight(vars["left_part"]) + self.compute_weight(vars["right_part"]) + 1
             )
-            .In(Constructor("Structural") & ("c" @ Var("target_weight"))),
+            .In(Constructor("Structural") & Var("target_weight")),
             Part("Extending Part", 0.5): DSL()
             .Use("target_weight", "float")
-            .Use("next_part", Constructor("Structural") & ("c" @ Var("target_weight")))
-            .With(
+            .Use("next_part", Constructor("Structural") & Var("target_weight"))
+            .SuchThat(
                 lambda vars: vars["target_weight"]
                 > self.compute_weight(vars["next_part"]) + 0.5
             )
-            .In(Constructor("Structural") & ("c" @ Var("target_weight"))),
+            .In(Constructor("Structural") & Var("target_weight")),
             Part("Effector", 0.1): DSL()
             .Use("target_weight", "float")
-            .With(lambda vars: vars["target_weight"] > 0.1)
-            .In(Constructor("Structural") & ("c" @ Var("target_weight"))),
+            .SuchThat(lambda vars: vars["target_weight"] > 0.1)
+            .In(Constructor("Structural") & Var("target_weight")),
         }
 
         class Float(Contains):
             def __contains__(self, value: object) -> bool:
                 return isinstance(value, float) and value >= 0.0
 
-        parameterSpace = {"float": Float()}
-
-        synthesizer = Synthesizer(repo, parameterSpace)
-        self.query = Constructor("Structural") & ("c" @ (Literal(2.0, "float")))
-        self.grammar = synthesizer.constructSolutionSpace(self.query)
-        self.trees = list(self.grammar.enumerate_trees(self.query, max_count=1249))
-
+        parameterSpace: ParameterSpace = {"float": Float()}
+        cosy = CoSy(componentSpecifications, parameterSpace)
+        self.solutions = list(cosy.solve(Constructor("Structural") & Literal(2.0, "float"), max_count=1249))
+        
     def test_count(self) -> None:
         """
         Tests if the number of results is as expected.
 
         :return:
         """
-        self.assertEqual(8, len(self.trees))
+        self.assertEqual(8, len(self.solutions))
 
     def test_elements(self) -> None:
         """
@@ -148,9 +143,9 @@ class TestFilterByCriteria(unittest.TestCase):
             "Extending Part params: (2.0, 'Extending Part params: (2.0, \"Extending Part params: (2.0, 'Effector "
             "params: (2.0,)')\")')",
         ]
-        for tree in self.trees:
-            self.logger.info(tree.interpret())
-            self.assertIn(tree.interpret(), results)
+        for solution in self.solutions:
+            self.logger.info(solution)
+            self.assertIn(solution, results)
 
     def test_compute_weight(self) -> None:
         """
@@ -160,9 +155,9 @@ class TestFilterByCriteria(unittest.TestCase):
         :return:
         """
         weights = [0.1, 0.6, 1.1, 1.2, 1.6, 1.7]
-        for tree in self.trees:
-            self.logger.info(tree)
-            self.assertIn(self.compute_weight(tree), weights)
+        for solution in self.solutions:
+            self.logger.info(solution)
+            self.assertIn(solution, weights)
 
         unhandled_tree: Tree[Part] = Tree(Part("Unhandled Part", 0))
         self.assertRaises(RuntimeError, self.compute_weight, unhandled_tree)

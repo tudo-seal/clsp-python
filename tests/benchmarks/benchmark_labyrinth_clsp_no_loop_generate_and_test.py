@@ -44,25 +44,25 @@ def main(solutions: int = 10000, output: bool = True) -> float:
         U: DSL()
         .Use("a", "int2")
         .Use("b", "int2", lambda vars: [(vars["a"][0], vars["a"][1] - 1)])
-        .With(lambda vars: is_free(vars["b"]))
+        .SuchThat(lambda vars: is_free(vars["b"]))
         .Use("pos", pos("a"))
         .In(pos("b")),
         D: DSL()
         .Use("a", "int2")
         .Use("b", "int2", lambda vars: [(vars["a"][0], vars["a"][1] + 1)])
-        .With(lambda vars: is_free(vars["b"]))
+        .SuchThat(lambda vars: is_free(vars["b"]))
         .Use("pos", pos("a"))
         .In(pos("b")),
         L: DSL()
         .Use("a", "int2")
         .Use("b", "int2", lambda vars: [(vars["a"][0] - 1, vars["a"][1])])
-        .With(lambda vars: is_free(vars["b"]))
+        .SuchThat(lambda vars: is_free(vars["b"]))
         .Use("pos", pos("a"))
         .In(pos("b")),
         R: DSL()
         .Use("a", "int2")
         .Use("b", "int2", lambda vars: [(vars["a"][0] + 1, vars["a"][1])])
-        .With(lambda vars: is_free(vars["b"]))
+        .SuchThat(lambda vars: is_free(vars["b"]))
         .Use("pos", pos("a"))
         .In(pos("b")),
         "START": "pos" @ (Literal((0, 0), "int2")),

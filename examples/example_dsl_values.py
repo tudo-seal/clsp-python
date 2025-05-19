@@ -23,7 +23,7 @@ class TestDSLUse(unittest.TestCase):
         componentSpecifications = {
             X: DSL()
             .Use("x", "bool")
-            .With(lambda vars: vars["x"] == True) # x is True
+            .SuchThat(lambda vars: vars["x"] == True) # x is True
             .Use("y", "bool", lambda vars: [False]) # y is False
             .Use("z", "bool", lambda vars: [vars["x"]]) # z is equal to x
             .In(

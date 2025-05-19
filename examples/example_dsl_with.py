@@ -1,4 +1,4 @@
-# demonstration of predicates on literals using the "With" method
+# demonstration of predicates on literals using the "SuchThat" method
 
 import logging
 import unittest
@@ -6,7 +6,7 @@ from clsp.dsl import DSL
 from clsp.synthesizer import Synthesizer
 from clsp.types import Constructor
 
-class TestDSLWith(unittest.TestCase):
+class TestDSLSuchThat(unittest.TestCase):
     logger = logging.getLogger(__name__)
     logging.basicConfig(
         format="%(module)s %(levelname)s: %(message)s",
@@ -23,8 +23,8 @@ class TestDSLWith(unittest.TestCase):
         specification1 = (
             DSL()
             .Use("x", "int")
-            .With(lambda vars: vars["x"] > 1)
-            .With(lambda vars: vars["x"] < 4)
+            .SuchThat(lambda vars: vars["x"] > 1)
+            .SuchThat(lambda vars: vars["x"] < 4)
             .Use("y", "int", lambda vars: [vars["x"] + 1])
             .In(self.a)
         )
@@ -32,7 +32,7 @@ class TestDSLWith(unittest.TestCase):
         specification2 = (
             DSL()
             .Use("x", "int")
-            .With(lambda vars: vars["x"] < 4 and vars["x"] > 1)
+            .SuchThat(lambda vars: vars["x"] < 4 and vars["x"] > 1)
             .Use("y", "int", lambda vars: [vars["x"] + 1])
             .In(self.a)
         )
@@ -41,7 +41,7 @@ class TestDSLWith(unittest.TestCase):
             DSL()
             .Use("x", "int")
             .Use("y", "int", lambda vars: [vars["x"] + 1])
-            .With(lambda vars: vars["x"] < 4 and vars["x"] > 1)
+            .SuchThat(lambda vars: vars["x"] < 4 and vars["x"] > 1)
             .In(self.a)
         )
 

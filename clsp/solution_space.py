@@ -44,7 +44,7 @@ class RHSRule(Generic[NT, T]):
 
 
 @dataclass
-class Grammar(Generic[NT, T]):
+class SolutionSpace(Generic[NT, T]):
     _rules: dict[NT, deque[RHSRule[NT, T]]] = field(default_factory=lambda: defaultdict(deque))
 
     def get(self, nonterminal: NT) -> Optional[deque[RHSRule[NT, T]]]:
@@ -74,7 +74,7 @@ class Grammar(Generic[NT, T]):
             for nt, rule in self._rules.items()
         )
 
-    def prune(self) -> Grammar[NT, T]:
+    def prune(self) -> SolutionSpace[NT, T]:
         """Keep only productive rules."""
 
         ground_types: set[NT] = set()
@@ -97,7 +97,7 @@ class Grammar(Generic[NT, T]):
                     if m not in ground_types and all(t in ground_types for t in non_terminals):
                         queue.add(m)
 
-        result = Grammar[NT, T]({
+        result = SolutionSpace[NT, T]({
                 target: deque(
                     possibility
                     for possibility in self._rules[target]
