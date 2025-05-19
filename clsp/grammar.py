@@ -156,18 +156,25 @@ class Grammar(Generic[NT, T]):
                     yield argument
                 else:
                     raise ValueError("All arguments of interleave are None")
-
+                
+        def constructTree(
+            rule: RHSRule[NT, T],
+            parameters: Sequence[Tree[T] | None],
+            literal_arguments: Sequence[Tree[T] | None],
+            arguments: Sequence[Tree[T] | None],
+        ) -> Tree[T]:
+            """Construct a new tree from the rule and the given specific arguments."""
+            return Tree(rule.terminal,
+                        tuple(interleave(parameters, literal_arguments, arguments)),
+                        child_names=rule.argument_names)
+        
         specific_substitution = lambda parameters: {a.name: p for p, a in zip(parameters, rule.arguments) if isinstance(a, NonTerminalArgument) and a.name is not None} | rule.literal_substitution
         if nt_old_term is None:
             for parameters in self._enumerate_tree_vectors(named_non_terminals, existing_terms):
                 substitution = specific_substitution(parameters)
                 if all(predicate(substitution) for predicate in rule.predicates):
                     for arguments in self._enumerate_tree_vectors(unnamed_non_terminals, existing_terms):
-                        output_set.add(Tree(
-                            rule.terminal,
-                            tuple(interleave(parameters, literal_arguments, arguments)),
-                            child_names=rule.argument_names,
-                        ))
+                        output_set.add(constructTree(rule, parameters, literal_arguments, arguments))
                         if max_count is not None and len(output_set) >= max_count:
                             return output_set
         else:
@@ -175,11 +182,7 @@ class Grammar(Generic[NT, T]):
                 substitution = specific_substitution(parameters)
                 if all(predicate(substitution) for predicate in rule.predicates):
                     for arguments in self._enumerate_tree_vectors(unnamed_non_terminals, existing_terms):
-                        output_set.add(Tree(
-                            rule.terminal,
-                            tuple(interleave(parameters, literal_arguments, arguments)),
-                            child_names=rule.argument_names,
-                        ))
+                        output_set.add(constructTree(rule, parameters, literal_arguments, arguments))
                         if max_count is not None and len(output_set) >= max_count:
                             return output_set
             all_parameters: deque[tuple[Tree[T] | None, ...]] | None = None
@@ -191,11 +194,7 @@ class Grammar(Generic[NT, T]):
                         if all(predicate(substitution) for predicate in rule.predicates):
                             all_parameters.append(parameters)
                 for parameters in all_parameters:
-                    output_set.add(Tree(
-                        rule.terminal,
-                        tuple(interleave(parameters, literal_arguments, arguments)),
-                        child_names=rule.argument_names,
-                    ))
+                    output_set.add(constructTree(rule, parameters, literal_arguments, arguments))
                     if max_count is not None and len(output_set) >= max_count:
                         return output_set
         return output_set
