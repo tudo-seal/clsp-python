@@ -20,7 +20,7 @@ class NonTerminalArgument(Generic[NT]):
     name: str | None
     value: NT
 
-Argument = TerminalArgument | NonTerminalArgument[NT]
+Argument = TerminalArgument[T] | NonTerminalArgument[NT]
 
 @dataclass(frozen=True)
 class RHSRule(Generic[NT, T]):
