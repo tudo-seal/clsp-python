@@ -8,7 +8,7 @@ from collections.abc import Mapping
 
 from .types import Arrow, Constructor, Intersection, Literal, Var, Type
 
-#TODO SetOfSubtypes = set[str] 
+# a mapping from a concept to the set it its subconcepts
 Taxonomy = Mapping[str, set[str]]
 
 class Subtypes:
