@@ -23,7 +23,7 @@ from typing import (
     TypeVar,
 )
 
-from .grammar import Grammar, RHSRule, TerminalArgument, NonTerminalArgument, NamedNonTerminalArgument
+from .grammar import Grammar, RHSRule, TerminalArgument, NonTerminalArgument
 
 from .combinatorics import (
     maximal_elements,
@@ -332,7 +332,7 @@ class Synthesizer(Generic[C]):
                                 type_targets.extend(specific_params.values())
                             if not parameter_arguments: # do this only once for each instantiation
                                     parameter_arguments = tuple(TerminalArgument(n.name, instantiation[n.name].value)
-                                                           if isinstance(n, Var) else NamedNonTerminalArgument[Type](specific_params[n], n)
+                                                           if isinstance(n, Var) else NonTerminalArgument[Type](n, specific_params[n])
                                                            for n in parameters.param_names)
 
                             term_predicates = tuple(term_param.predicate for term_param in parameters.term_params)
@@ -343,7 +343,7 @@ class Synthesizer(Generic[C]):
                                 memo.add_rule(
                                     current_target,
                                     RHSRule(
-                                        parameter_arguments + tuple(NonTerminalArgument(ty) for ty in subquery),
+                                        parameter_arguments + tuple(NonTerminalArgument(None, ty) for ty in subquery),
                                         term_predicates,
                                         combinator,
                                     ),

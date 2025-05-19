@@ -17,11 +17,8 @@ class TerminalArgument(Generic[T]):
     
 @dataclass(frozen=True)
 class NonTerminalArgument(Generic[NT]):
+    name: str | None
     value: NT
-
-@dataclass(frozen=True)
-class NamedNonTerminalArgument(NonTerminalArgument[NT]):
-    name: str
 
 Argument = TerminalArgument | NonTerminalArgument[NT]
 
@@ -39,7 +36,7 @@ class RHSRule(Generic[NT, T]):
     @property
     def argument_names(self) -> tuple[str | None, ...]:
         """Names of named arguments."""
-        return tuple(a.name if isinstance(a, NamedNonTerminalArgument) or isinstance(a, TerminalArgument) else None for a in self.arguments)
+        return tuple(a.name for a in self.arguments)
 
     @property
     def literal_substitution(self):
@@ -140,8 +137,8 @@ class Grammar(Generic[NT, T]):
         if max_count == 0:
             return output_set
         
-        named_non_terminals = [a.value if isinstance(a, NamedNonTerminalArgument) else None for a in rule.arguments]
-        unnamed_non_terminals = [a.value if isinstance(a, NonTerminalArgument) and not isinstance(a, NamedNonTerminalArgument) else None for a in rule.arguments]
+        named_non_terminals = [a.value if isinstance(a, NonTerminalArgument) and a.name is not None else None for a in rule.arguments]
+        unnamed_non_terminals = [a.value if isinstance(a, NonTerminalArgument) and a.name is None else None for a in rule.arguments]
         literal_arguments = [Tree(a.value) if isinstance(a, TerminalArgument) else None for a in rule.arguments]
 
         def interleave(
@@ -160,7 +157,7 @@ class Grammar(Generic[NT, T]):
                 else:
                     raise ValueError("All arguments of interleave are None")
 
-        specific_substitution = lambda parameters: {a.name: p for p, a in zip(parameters, rule.arguments) if isinstance(a, NamedNonTerminalArgument)} | rule.literal_substitution
+        specific_substitution = lambda parameters: {a.name: p for p, a in zip(parameters, rule.arguments) if isinstance(a, NonTerminalArgument) and a.name is not None} | rule.literal_substitution
         if nt_old_term is None:
             for parameters in self._enumerate_tree_vectors(named_non_terminals, existing_terms):
                 substitution = specific_substitution(parameters)
