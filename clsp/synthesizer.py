@@ -24,7 +24,7 @@ from typing import (
     TypeVar,
 )
 
-from .solution_space import SolutionSpace, RHSRule, TerminalArgument, NonTerminalArgument
+from .solution_space import SolutionSpace, TerminalArgument, NonTerminalArgument
 
 from .combinatorics import (
     maximal_elements,
@@ -35,6 +35,7 @@ from .types import (
     Arrow,
     Intersection,
     Literal,
+    Parameter,
     LiteralParameter,
     TermParameter,
     Abstraction,
@@ -75,15 +76,6 @@ class MultiArrow:
             return str(self.target)
 
 
-@dataclass
-class ParamInfo:
-    # information on parameters of a combinator
-    #literal_params: list[LiteralParameter]
-    #term_params: list[TermParameter]
-    prefix: list[LiteralParameter | TermParameter | Predicate]
-    lvar_to_group: dict[str, str]
-    param_names: list[Var | str]
-
 class Synthesizer(Generic[C]):
     def __init__(
         self,
@@ -94,7 +86,7 @@ class Synthesizer(Generic[C]):
         self.literals: ParameterSpace = {} if parameterSpace is None else parameterSpace
         self.repository: MutableMapping[
             C,
-            tuple[ParamInfo, list[dict[str, Literal]] | None, list[list[MultiArrow]]],
+            tuple[list[LiteralParameter | TermParameter | Predicate], dict[str, str], list[dict[str, Literal]] | None, list[list[MultiArrow]]],
         ] = {c: Synthesizer._function_types(ty) for c, ty in componentSpecifications.items()}
         self.subtypes = Subtypes(taxonomy)
 
@@ -102,7 +94,8 @@ class Synthesizer(Generic[C]):
     def _function_types(
         parameterizedType: Specification,
     ) -> tuple[
-        ParamInfo,
+        list[LiteralParameter | TermParameter | Predicate],
+        dict[str, str],
         None,
         list[list[MultiArrow]],
     ]:
@@ -117,20 +110,17 @@ class Synthesizer(Generic[C]):
                     case Intersection(sigma, tau):
                         tys.extend((sigma, tau))
 
-        parameters = ParamInfo([], {}, [])
+        prefix = []
+        lvar_to_group = {}
         while not isinstance(parameterizedType, Type):
             if isinstance(parameterizedType, Abstraction):
                 param = parameterizedType.parameter
+                prefix.append(param)
                 if isinstance(param, LiteralParameter):
-                    parameters.prefix.append(param)
-                    parameters.lvar_to_group[param.name] = param.group
-                    parameters.param_names.append(Var(param.name))
-                elif isinstance(param, TermParameter):
-                    parameters.prefix.append(param)
-                    parameters.param_names.append(param.name)
+                    lvar_to_group[param.name] = param.group
                 parameterizedType = parameterizedType.body
             elif isinstance(parameterizedType, Implication):
-                parameters.prefix.append(parameterizedType.predicate)
+                prefix.append(parameterizedType.predicate)
                 parameterizedType = parameterizedType.body
 
         current: list[MultiArrow] = [MultiArrow([], parameterizedType)]
@@ -143,11 +133,11 @@ class Synthesizer(Generic[C]):
                 for c in current
                 for (new_arg, new_tgt) in unary_function_types(c.target)
             ]
-        return (parameters, None, multiarrows)
+        return (prefix, lvar_to_group, None, multiarrows)
 
     def _enumerate_substitutions(
         self,
-        parameters: ParamInfo,
+        prefix: list[LiteralParameter | TermParameter | Predicate],
         initial_substitution: dict[str, Literal] = {},
     ) -> list[dict[str, Literal]]:
         """Enumerate all substitutions for the given parameters.
@@ -155,7 +145,7 @@ class Synthesizer(Generic[C]):
 
         substitutions: deque[dict[str, Literal]] = deque([{}])
 
-        for parameter in parameters.prefix:
+        for parameter in prefix:
             new_substitutions: deque[dict[str, Literal]] = deque()
             if isinstance(parameter, LiteralParameter):
                 if parameter.group not in self.literals:
@@ -294,12 +284,13 @@ class Synthesizer(Generic[C]):
 
                 # try each combinator
                 for combinator, (
-                    parameters,
+                    prefix,
+                    lvar_to_group,
                     instantiations,
                     combinator_type,
                 ) in self.repository.items():
                     # Compute necessary substitutions
-                    substitution = self._necessary_substitution(paths, combinator_type, parameters.lvar_to_group)
+                    substitution = self._necessary_substitution(paths, combinator_type, lvar_to_group)
 
                     # If there cannot be a suitable substitution, ignore this combinator
                     if substitution is None:
@@ -308,14 +299,15 @@ class Synthesizer(Generic[C]):
                     # If there is a unique substitution, use it directly
                     if substitution:
                         # Keep necessary substitutions and enumerate the rest
-                        selected_instantiations = self._enumerate_substitutions(parameters, substitution)
+                        selected_instantiations = self._enumerate_substitutions(prefix, substitution)
                     else:
                         # otherwise enumerate all substitutions (only the first time).
                         # update the repository with the enumerated substitutions.
                         if instantiations is None:
-                            selected_instantiations = self._enumerate_substitutions(parameters)
+                            selected_instantiations = self._enumerate_substitutions(prefix)
                             self.repository[combinator] = (
-                                parameters,
+                                prefix,
+                                lvar_to_group,
                                 selected_instantiations,
                                 combinator_type,
                             )
@@ -339,31 +331,24 @@ class Synthesizer(Generic[C]):
                             if not specific_params:  # do this only once for each instantiation
                                 specific_params = {
                                     param.name: param.group.subst(instantiation)
-                                    for param in parameters.prefix
+                                    for param in prefix
                                     if isinstance(param, TermParameter)
                                 }
 
                                 type_targets.extend(specific_params.values())
                             if not parameter_arguments: # do this only once for each instantiation
-                                    parameter_arguments = tuple(TerminalArgument(n.name, instantiation[n.name].value)
-                                                           if isinstance(n, Var) else NonTerminalArgument[Type](n, specific_params[n])
-                                                           for n in parameters.param_names)
+                                    parameter_arguments = tuple(TerminalArgument(param.name, instantiation[param.name].value)
+                                                           if isinstance(param, LiteralParameter) else NonTerminalArgument[Type](param.name, specific_params[param.name])
+                                                           for param in prefix
+                                                           if isinstance(param, Parameter))
 
-                            term_predicates = tuple(p.constraint for p in parameters.prefix if isinstance(p, Predicate) and not p.only_literals)
+                            term_predicates = tuple(p.constraint for p in prefix if isinstance(p, Predicate) and not p.only_literals)
                             for subquery in (
-                                [ty.subst(instantiation) for ty in query]
+                                tuple(NonTerminalArgument(None, ty.subst(instantiation)) for ty in query)
                                 for query in arguments
                             ):
-                                memo.add_rule(
-                                    current_target,
-                                    RHSRule(
-                                        parameter_arguments + tuple(NonTerminalArgument(None, ty) for ty in subquery),
-                                        term_predicates,
-                                        combinator,
-                                    ),
-                                )
-
-                                type_targets.extendleft(subquery)
+                                memo.add_rule(current_target, combinator, parameter_arguments + subquery, term_predicates)
+                                type_targets.extendleft(q.value for q in subquery)
 
         # prune not inhabited types
         return memo.prune()

@@ -65,8 +65,14 @@ class SolutionSpace(Generic[NT, T]):
     def __setitem__(self, nonterminal: NT, rhs: deque[RHSRule[NT, T]]) -> None:
         self._rules[nonterminal] = rhs
 
-    def add_rule(self, nonterminal: NT, rule: RHSRule[NT, T]) -> None:
-        self._rules[nonterminal].append(rule)
+    def add_rule(
+            self, 
+            nonterminal: NT,
+            terminal: T,
+            arguments: tuple[Argument, ...],
+            predicates: tuple[Callable[[dict[str, Any]], bool], ...],
+            ) -> None:
+        self._rules[nonterminal].append(RHSRule(arguments, predicates, terminal))
 
     def show(self) -> str:
         return "\n".join(
