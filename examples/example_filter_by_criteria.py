@@ -92,7 +92,88 @@ class TestFilterByCriteria(unittest.TestCase):
 
         :return:
         """
-        pass
+        # TODO private fields
+        componentSpecifications: dict[Part, Specification] = {
+            BranchingPart("Double Motor", 1): DSL()
+            .Argument("left_part", Constructor("Structural") & Var("target_weight"))
+            .Argument("right_part", Constructor("Structural") & Var("target_weight"))
+            .Parameter("target_weight", "float") # private = True
+            .Constraint(lambda vars: vars["target_weight"]
+                > self.compute_weight(vars["left_part"])
+                + self.compute_weight(vars["right_part"])
+                + 10)
+            .Suffix(Constructor("Structural") & Var("target_weight")),
+            ExtendingPart("Extrusion", 5): DSL()
+            .Parameter("target_weight", "float")
+            .Argument("next_part", Constructor("Structural") & Var("target_weight"))
+            .Constraint(
+                lambda vars: vars["target_weight"] > self.compute_weight(vars["next_part"]) + 5
+            )
+            .Suffix(Constructor("Structural") & Var("target_weight")),
+            TerminalPart("Effector", 1): DSL()
+            .Parameter("target_weight", "float")
+            .Constraint(lambda vars: vars["target_weight"] > 1)
+            .Suffix(Constructor("Structural") & Var("target_weight")),
+        }
+
+        class Float(Contains):
+            def __contains__(self, value: object) -> bool:
+                return isinstance(value, int) and value >= 0
+
+        parameterSpace: ParameterSpace = {"float": Float()}
+        cosy = CoSy(componentSpecifications, parameterSpace)
+        self.solutions = list(
+            cosy.solve(Constructor("Structural") & Literal(20, "float"), max_count=1249)
+        )
+
+    def test_count(self) -> None:
+        """
+        Tests if the number of results is as expected.
+
+        :return:
+        """
+        self.assertEqual(8, len(self.solutions))
+
+    def test_elements(self) -> None:
+        """
+        Tests if the interpreted trees are as expected.
+
+        :return:
+        """
+        results = [
+            "Effector params: (20,)",
+            "Branching Part params: (2.0, 'Effector params: (2.0,)', 'Effector params: (2.0,)')",
+            "Extending Part params: (2.0, 'Effector params: (2.0,)')",
+            "Branching Part params: (2.0, \"Extending Part params: (2.0, 'Effector params: (2.0,)')\", 'Effector "
+            "params: (2.0,)')",
+            "Branching Part params: (2.0, 'Effector params: (2.0,)', \"Extending Part params: (2.0, 'Effector params: "
+            "(2.0,)')\")",
+            "Extending Part params: (2.0, \"Extending Part params: (2.0, 'Effector params: (2.0,)')\")",
+            "Extending Part params: (2.0, \"Branching Part params: (2.0, 'Effector params: (2.0,)', 'Effector params: "
+            "(2.0,)')\")",
+            "Extending Part params: (2.0, 'Extending Part params: (2.0, \"Extending Part params: (2.0, 'Effector "
+            "params: (2.0,)')\")')",
+        ]
+        for solution in self.solutions:
+            print(solution)
+            self.logger.info(solution)
+            # self.assertIn(solution, results)
+
+    def test_compute_weight(self) -> None:
+        """
+        Tests if the weights of the trees are feasible.
+        Tests if unknown parts lead to an exception.
+
+        :return:
+        """
+        weights = [1, 6, 11, 12, 16, 17]
+        for solution in self.solutions:
+            self.logger.info(solution)
+            self.assertIn(solution, weights)
+
+        unhandled_tree: Tree[Part] = Tree(Part("Unhandled Part", 0))
+        self.assertRaises(RuntimeError, self.compute_weight, unhandled_tree)
+
 
 if __name__ == "__main__":
     t = DSL().Parameter("a", "float").Argument("x", Omega()).Parameter("b", "int").Argument("y", Omega()).Constraint(lambda vars: True).ParameterConstraint(lambda vars: True).Suffix(Var("target_weight"))

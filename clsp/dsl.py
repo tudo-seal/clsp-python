@@ -73,28 +73,6 @@ class DSL:
     
     
     def Parameter(self, name: str, group: str, candidates: Callable[[dict[str, Any]], Sequence[Any]] | None = None) -> DSL:
-        wrapped_candidates = DSL._wrap_sequence(group, candidates) if candidates else None
-        self._result = lambda suffix, result=self._result: result(Abstraction(LiteralParameter(name, group, wrapped_candidates), suffix))
-        return self
-    
-    def Argument(self, name: str, specification: Type) -> DSL:
-        self._result = lambda suffix, result=self._result: result(Abstraction(TermParameter(name, specification), suffix))
-        return self
-    
-    def ParameterConstraint(self, constraint: Callable[[Mapping[str, Any]], bool]) -> DSL:
-        wrapped_constraint = DSL._wrap_constraint(constraint)
-        self._result = lambda suffix, result=self._result: result(Implication(Predicate(wrapped_constraint, True), suffix))
-        return self
-    
-    def Constraint(self, constraint: Callable[[Mapping[str, Any]], bool]) -> DSL:
-        wrapped_constraint = DSL._wrap_constraint(constraint)
-        self._result = lambda suffix, result=self._result: result(Implication(Predicate(wrapped_constraint, False), suffix))
-        return self
-    
-    def Suffix(self, suffix: Type) -> Abstraction | Type:
-        return self._result(suffix)
-
-    def Use(self, name: str, group: str | Type, candidates: Callable[[dict[str, Any]], Sequence[Any]] | None = None) -> DSL:
         """
         Introduce a new variable.
 
@@ -128,9 +106,20 @@ class DSL:
         :return: The DSL object.
         :rtype: DSL
         """
+        wrapped_candidates = DSL._wrap_sequence(group, candidates) if candidates else None
+        self._result = lambda suffix, result=self._result: result(Abstraction(LiteralParameter(name, group, wrapped_candidates), suffix))
         return self
-
-    def SuchThat(self, predicate: Callable[[Mapping[str, Any]], bool], /) -> DSL:
+    
+    def Argument(self, name: str, specification: Type) -> DSL:
+        self._result = lambda suffix, result=self._result: result(Abstraction(TermParameter(name, specification), suffix))
+        return self
+    
+    def ParameterConstraint(self, constraint: Callable[[Mapping[str, Any]], bool]) -> DSL:
+        wrapped_constraint = DSL._wrap_constraint(constraint)
+        self._result = lambda suffix, result=self._result: result(Implication(Predicate(wrapped_constraint, True), suffix))
+        return self
+    
+    def Constraint(self, constraint: Callable[[Mapping[str, Any]], bool]) -> DSL:
         """
         Predicate on the previously defined variables.
 
@@ -144,16 +133,17 @@ class DSL:
         :return: The DSL object.
         :rtype: DSL
         """
+        wrapped_constraint = DSL._wrap_constraint(constraint)
+        self._result = lambda suffix, result=self._result: result(Implication(Predicate(wrapped_constraint, False), suffix))
         return self
-
-
-    def In(self, ty: Type) -> Abstraction | Type:
+    
+    def Suffix(self, suffix: Type) -> Abstraction | Implication | Type:
         """
-        Constructs the final specification wrapping the given `Type` `ty`.
+        Constructs the final specification wrapping the given `Type` `suffix`.
 
-        :param ty: The wrapped type.
-        :type ty: Type
+        :param suffix: The wrapped type.
+        :type suffix: Type
         :return: The constructed specification.
         :rtype: Abstraction | Type
         """
-        return ty
+        return self._result(suffix)

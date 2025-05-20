@@ -187,7 +187,7 @@ class Synthesizer(Generic[C]):
 
                         for value in values:
                             new_substitutions.append(substitution | {parameter.name: value})
-                        substitutions = new_substitutions
+                    substitutions = new_substitutions
 
             if isinstance(parameter, Predicate) and parameter.only_literals:
                 new_substitutions: deque[dict[str, Literal]] = deque()

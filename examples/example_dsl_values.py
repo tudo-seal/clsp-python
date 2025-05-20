@@ -22,11 +22,11 @@ class TestDSLUse(unittest.TestCase):
 
         componentSpecifications = {
             X: DSL()
-            .Use("x", "bool")
-            .SuchThat(lambda vars: vars["x"] == True) # x is True
-            .Use("y", "bool", lambda vars: [False]) # y is False
-            .Use("z", "bool", lambda vars: [vars["x"]]) # z is equal to x
-            .In(
+            .Parameter("x", "bool")
+            .ParameterConstraint(lambda vars: vars["x"] == True) # x is True
+            .Parameter("y", "bool", lambda vars: [False]) # y is False
+            .Parameter("z", "bool", lambda vars: [vars["x"]]) # z is equal to x
+            .Suffix(
                 Constructor("a", Var("x"))
                 & Constructor("b", Var("y"))
                 & Constructor("c", Var("z"))
@@ -62,9 +62,9 @@ class TestDSLUse(unittest.TestCase):
         parameterSpace = {"int": [0, 1, 2, 3]}
         componentSpecifications = {
             X: DSL()
-            .Use("a", "int") # a in [0, 1, 2, 3]
-            .Use("b", "int", lambda vars: [vars["a"] - 1, vars["a"] + 1]) # b in [a-1, a+1]
-            .In(Constructor("c", Var("a")))
+            .Parameter("a", "int") # a in [0, 1, 2, 3]
+            .Parameter("b", "int", lambda vars: [vars["a"] - 1, vars["a"] + 1]) # b in [a-1, a+1]
+            .Suffix(Constructor("c", Var("a")))
         }
 
         synthesizer = Synthesizer(componentSpecifications, parameterSpace)
@@ -83,9 +83,9 @@ class TestDSLUse(unittest.TestCase):
         parameterSpace = {"int": [0, 1, 2, 3]}
         componentSpecifications = {
             X: DSL()
-            .Use("a", "int")
-            .Use("b", "int", lambda vars: [vars["a"] - 1, vars["a"] + 1])
-            .In(Constructor("c", Var("a")))
+            .Parameter("a", "int")
+            .Parameter("b", "int", lambda vars: [vars["a"] - 1, vars["a"] + 1])
+            .Suffix(Constructor("c", Var("a")))
         }
 
         synthesizer = Synthesizer(componentSpecifications, parameterSpace)
@@ -111,9 +111,9 @@ class TestDSLUse(unittest.TestCase):
 
         componentSpecifications = {
             X: DSL()
-            .Use("a", "nat") # a in [0, 1, 2, ...]
-            .Use("b", "nat", lambda vars: [vars["a"] - 1]) # b in [a-1]
-            .In(("c" @ Var("b")) ** ("c" @ Var("a"))), # c(b) -> c(a)
+            .Parameter("a", "nat") # a in [0, 1, 2, ...]
+            .Parameter("b", "nat", lambda vars: [vars["a"] - 1]) # b in [a-1]
+            .Suffix(("c" @ Var("b")) ** ("c" @ Var("a"))), # c(b) -> c(a)
             "ZERO": "c" @ Literal(0, "nat"), # c(0)
         }
 
