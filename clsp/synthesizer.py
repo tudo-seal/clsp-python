@@ -155,13 +155,13 @@ class Synthesizer(Generic[C]):
         substitutions: deque[dict[str, Literal]] = deque([{}])
 
         for parameter in parameters.prefix:
+            new_substitutions: deque[dict[str, Literal]] = deque()
             if isinstance(parameter, LiteralParameter):
                 if parameter.group not in self.literals:
                     return []
                 if not substitutions:
                     return []
                 else:
-                    new_substitutions: deque[dict[str, Literal]] = deque()
                     for substitution in substitutions:
                         values: Sequence[Literal]
                         if parameter.name in initial_substitution:
@@ -190,7 +190,6 @@ class Synthesizer(Generic[C]):
                     substitutions = new_substitutions
 
             if isinstance(parameter, Predicate) and parameter.only_literals:
-                new_substitutions: deque[dict[str, Literal]] = deque()
                 for substitution in substitutions:
                     if parameter.constraint(substitution):
                         new_substitutions.append(substitution)
