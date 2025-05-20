@@ -366,7 +366,7 @@ class Predicate():
     only_literals: bool
 
     def __str__(self) -> str:
-        return "[literal predicate]" if self.only_literals else "[term predicate]"
+        return f"[{self.constraint.__name__}, only literals]" if self.only_literals else f"[{self.constraint.__name__}]"
 
 @dataclass(frozen=True)
 class Implication():
