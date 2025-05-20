@@ -45,13 +45,13 @@ class TestRobotArm(unittest.TestCase):
             Part("ShortLink"): Constructor("Motor") ** Constructor("Structural"),
             Part("Effector"): Constructor("Structural"),
             Part("Base"): DSL()
-            .Use("current_motor_count", "int")
-            .Use("Robot", Constructor("Motor"))
-            .SuchThat(
+            .Parameter("current_motor_count", "int")
+            .Argument("Robot", Constructor("Motor"))
+            .Constraint(
                 lambda vars: vars["current_motor_count"]
                 == motorcount(vars["Robot"].interpret())
             )
-            .In(Constructor("Base") & ("c" @ Var("current_motor_count"))),
+            .Suffix(Constructor("Base") & ("c" @ Var("current_motor_count"))),
         }
 
         parameterSpace = {"int": list(range(10))}

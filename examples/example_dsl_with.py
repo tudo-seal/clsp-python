@@ -22,27 +22,27 @@ class TestDSLSuchThat(unittest.TestCase):
 
         specification1 = (
             DSL()
-            .Use("x", "int")
-            .SuchThat(lambda vars: vars["x"] > 1)
-            .SuchThat(lambda vars: vars["x"] < 4)
-            .Use("y", "int", lambda vars: [vars["x"] + 1])
-            .In(self.a)
+            .Parameter("x", "int")
+            .ParameterConstraint(lambda vars: vars["x"] > 1)
+            .ParameterConstraint(lambda vars: vars["x"] < 4)
+            .Parameter("y", "int", lambda vars: [vars["x"] + 1])
+            .Suffix(self.a)
         )
 
         specification2 = (
             DSL()
-            .Use("x", "int")
-            .SuchThat(lambda vars: vars["x"] < 4 and vars["x"] > 1)
-            .Use("y", "int", lambda vars: [vars["x"] + 1])
-            .In(self.a)
+            .Parameter("x", "int")
+            .ParameterConstraint(lambda vars: vars["x"] < 4 and vars["x"] > 1)
+            .Parameter("y", "int", lambda vars: [vars["x"] + 1])
+            .Suffix(self.a)
         )
 
         specification3 = (
             DSL()
-            .Use("x", "int")
-            .Use("y", "int", lambda vars: [vars["x"] + 1])
-            .SuchThat(lambda vars: vars["x"] < 4 and vars["x"] > 1)
-            .In(self.a)
+            .Parameter("x", "int")
+            .Parameter("y", "int", lambda vars: [vars["x"] + 1])
+            .ParameterConstraint(lambda vars: vars["x"] < 4 and vars["x"] > 1)
+            .Suffix(self.a)
         )
 
         grammar1 = Synthesizer(

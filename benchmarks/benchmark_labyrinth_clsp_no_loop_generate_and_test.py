@@ -42,29 +42,29 @@ def main(solutions: int = 10000, output: bool = True) -> float:
         Specification,
     ] = {
         U: DSL()
-        .Use("a", "int2")
-        .Use("b", "int2", lambda vars: [(vars["a"][0], vars["a"][1] - 1)])
-        .SuchThat(lambda vars: is_free(vars["b"]))
-        .Use("pos", pos("a"))
-        .In(pos("b")),
+        .Parameter("a", "int2")
+        .Parameter("b", "int2", lambda vars: [(vars["a"][0], vars["a"][1] - 1)])
+        .ParameterConstraint(lambda vars: is_free(vars["b"]))
+        .Argument("pos", pos("a"))
+        .Suffix(pos("b")),
         D: DSL()
-        .Use("a", "int2")
-        .Use("b", "int2", lambda vars: [(vars["a"][0], vars["a"][1] + 1)])
-        .SuchThat(lambda vars: is_free(vars["b"]))
-        .Use("pos", pos("a"))
-        .In(pos("b")),
+        .Parameter("a", "int2")
+        .Parameter("b", "int2", lambda vars: [(vars["a"][0], vars["a"][1] + 1)])
+        .ParameterConstraint(lambda vars: is_free(vars["b"]))
+        .Argument("pos", pos("a"))
+        .Suffix(pos("b")),
         L: DSL()
-        .Use("a", "int2")
-        .Use("b", "int2", lambda vars: [(vars["a"][0] - 1, vars["a"][1])])
-        .SuchThat(lambda vars: is_free(vars["b"]))
-        .Use("pos", pos("a"))
-        .In(pos("b")),
+        .Parameter("a", "int2")
+        .Parameter("b", "int2", lambda vars: [(vars["a"][0] - 1, vars["a"][1])])
+        .ParameterConstraint(lambda vars: is_free(vars["b"]))
+        .Argument("pos", pos("a"))
+        .Suffix(pos("b")),
         R: DSL()
-        .Use("a", "int2")
-        .Use("b", "int2", lambda vars: [(vars["a"][0] + 1, vars["a"][1])])
-        .SuchThat(lambda vars: is_free(vars["b"]))
-        .Use("pos", pos("a"))
-        .In(pos("b")),
+        .Parameter("a", "int2")
+        .Parameter("b", "int2", lambda vars: [(vars["a"][0] + 1, vars["a"][1])])
+        .ParameterConstraint(lambda vars: is_free(vars["b"]))
+        .Argument("pos", pos("a"))
+        .Suffix(pos("b")),
         "START": "pos" @ (Literal((0, 0), "int2")),
     }
 

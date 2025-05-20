@@ -30,28 +30,28 @@ class TestRobotArm(unittest.TestCase):
     def setUp(self) -> None:
         componentSpecifications: dict[Part, Specification] = {
             Part("motor"): DSL()
-            .Use("new_motor_count", "int")
-            .Use("current_motor_count", "int", lambda vars: [vars["new_motor_count"] - 1])
-            .In(
+            .Parameter("new_motor_count", "int")
+            .Parameter("current_motor_count", "int", lambda vars: [vars["new_motor_count"] - 1])
+            .Suffix(
                 Constructor("Structural") ** Constructor("Motor")
                 & ("c" @ Var("current_motor_count")) ** ("c" @ Var("new_motor_count"))
             ),
             Part("Link"): DSL()
-            .Use("current_motor_count", "int")
-            .In(
+            .Parameter("current_motor_count", "int")
+            .Suffix(
                 Constructor("Motor") ** Constructor("Structural")
                 & (("c" @ Var("current_motor_count")) ** ("c" @ Var("current_motor_count")))
             ),
             Part("ShortLink"): DSL()
-            .Use("current_motor_count", "int")
-            .In(
+            .Parameter("current_motor_count", "int")
+            .Suffix(
                 Constructor("Motor") ** Constructor("Structural")
                 & (("c" @ Var("current_motor_count")) ** ("c" @ Var("current_motor_count")))
             ),
             Part("Effector"): Constructor("Structural") & ("c" @ Literal(0, "int")),
             Part("Base"): DSL()
-            .Use("current_motor_count", "int")
-            .In(
+            .Parameter("current_motor_count", "int")
+            .Suffix(
                 Constructor("Motor") ** Constructor("Base")
                 & (("c" @ Var("current_motor_count")) ** ("c" @ Var("current_motor_count")))
             ),

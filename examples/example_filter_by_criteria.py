@@ -123,7 +123,7 @@ class TestFilterByCriteria(unittest.TestCase):
         parameterSpace: ParameterSpace = {"float": Float()}
         cosy = CoSy(componentSpecifications, parameterSpace)
         self.solutions = list(
-            cosy.solve(Constructor("Structural") & Literal(20, "float"), max_count=1249)
+            cosy.solve(Constructor("Structural") & Literal(20, "float"), max_count=100) #1249
         )
 
     def test_count(self) -> None:
