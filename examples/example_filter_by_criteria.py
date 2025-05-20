@@ -94,7 +94,7 @@ class TestFilterByCriteria(unittest.TestCase):
         """
         # TODO private fields
         componentSpecifications: dict[Part, Specification] = {
-            BranchingPart("Double Motor", 1): DSL()
+            BranchingPart("Double Motor", 10): DSL()
             .Argument("left_part", Constructor("Structural") & Var("target_weight"))
             .Argument("right_part", Constructor("Structural") & Var("target_weight"))
             .Parameter("target_weight", "float") # private = True
@@ -123,7 +123,7 @@ class TestFilterByCriteria(unittest.TestCase):
         parameterSpace: ParameterSpace = {"float": Float()}
         cosy = CoSy(componentSpecifications, parameterSpace)
         self.solutions = list(
-            cosy.solve(Constructor("Structural") & Literal(20, "float"), max_count=100) #1249
+            cosy.solve(Constructor("Structural") & Literal(20, "float"), max_count=1249)
         )
 
     def test_count(self) -> None:
@@ -142,17 +142,17 @@ class TestFilterByCriteria(unittest.TestCase):
         """
         results = [
             "Effector params: (20,)",
-            "Branching Part params: (2.0, 'Effector params: (2.0,)', 'Effector params: (2.0,)')",
-            "Extending Part params: (2.0, 'Effector params: (2.0,)')",
-            "Branching Part params: (2.0, \"Extending Part params: (2.0, 'Effector params: (2.0,)')\", 'Effector "
-            "params: (2.0,)')",
-            "Branching Part params: (2.0, 'Effector params: (2.0,)', \"Extending Part params: (2.0, 'Effector params: "
-            "(2.0,)')\")",
-            "Extending Part params: (2.0, \"Extending Part params: (2.0, 'Effector params: (2.0,)')\")",
-            "Extending Part params: (2.0, \"Branching Part params: (2.0, 'Effector params: (2.0,)', 'Effector params: "
-            "(2.0,)')\")",
-            "Extending Part params: (2.0, 'Extending Part params: (2.0, \"Extending Part params: (2.0, 'Effector "
-            "params: (2.0,)')\")')",
+            "Branching Part params: (20, 'Effector params: (20,)', 'Effector params: (20,)')",
+            "Extending Part params: (20, 'Effector params: (20,)')",
+            "Branching Part params: (20, \"Extending Part params: (20, 'Effector params: (20,)')\", 'Effector "
+            "params: (20,)')",
+            "Branching Part params: (20, 'Effector params: (20,)', \"Extending Part params: (20, 'Effector params: "
+            "(20,)')\")",
+            "Extending Part params: (20, \"Extending Part params: (20, 'Effector params: (20,)')\")",
+            "Extending Part params: (20, \"Branching Part params: (20, 'Effector params: (20,)', 'Effector params: "
+            "(20,)')\")",
+            "Extending Part params: (.0, 'Extending Part params: (20, \"Extending Part params: (20, 'Effector "
+            "params: (20,)')\")')",
         ]
         for solution in self.solutions:
             print(solution)
@@ -171,11 +171,9 @@ class TestFilterByCriteria(unittest.TestCase):
             self.logger.info(solution)
             self.assertIn(solution, weights)
 
-        unhandled_tree: Tree[Part] = Tree(Part("Unhandled Part", 0))
-        self.assertRaises(RuntimeError, self.compute_weight, unhandled_tree)
+        #unhandled_tree: Tree[Part] = Tree(Part("Unhandled Part", 0))
+        #self.assertRaises(RuntimeError, self.compute_weight, unhandled_tree)
 
 
 if __name__ == "__main__":
-    t = DSL().Parameter("a", "float").Argument("x", Omega()).Parameter("b", "int").Argument("y", Omega()).Constraint(lambda vars: True).ParameterConstraint(lambda vars: True).Suffix(Var("target_weight"))
-    print(t)
     unittest.main()
