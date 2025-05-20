@@ -341,10 +341,9 @@ class Parameter(ABC):
     """Abstract base class for parameter specification."""
     name: str
     group: str | Type
-    predicate: Callable[[dict[str, Any]], bool]
 
     def __str__(self) -> str:
-        return f"<{self.name}, {self.group}, {self.predicate}>"
+        return f"<{self.name}, {self.group}>"
 
 
 @dataclass(frozen=True)
@@ -362,10 +361,27 @@ class TermParameter(Parameter):
     group: Type
 
 @dataclass(frozen=True)
+class Predicate():
+    constraint: Callable[[dict[str, Any]], bool]
+    only_literals: bool
+
+    def __str__(self) -> str:
+        return "[literal predicate]" if self.only_literals else "[term predicate]"
+
+@dataclass(frozen=True)
+class Implication():
+   
+    predicate: Predicate
+    body: Abstraction | Implication | Type
+
+    def __str__(self) -> str:
+        return f"{self.predicate} => {self.body}"
+
+@dataclass(frozen=True)
 class Abstraction():
     """Abstraction of a term parameter or a literal parameter."""
     parameter: Parameter
-    body: Abstraction | Type
+    body: Abstraction | Implication | Type
 
     def __str__(self) -> str:
         return f"{self.parameter}.{self.body}"

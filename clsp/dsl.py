@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
-from .types import Literal, LiteralParameter, TermParameter, Type, Abstraction
+from .types import Literal, LiteralParameter, TermParameter, Predicate, Type, Abstraction, Implication
 
 class DSL:
     """
@@ -36,9 +36,8 @@ class DSL:
         """
         Initialize the DSL object
         """
-        self._accumulator: list[
-            tuple[str, Any, Callable[[dict[str, Any]], Sequence[Literal]] | None, list[Callable[[Mapping[str, Literal]], bool]]]
-        ] = []
+
+        self._result = lambda suffix: suffix
 
     @staticmethod
     def _wrap_predicates(
@@ -49,6 +48,16 @@ class DSL:
         predicate that uses the `Literal` values of `vars` instead.
         """
         return lambda vars: all(p({k: v.value if isinstance(v, Literal) else v for k, v in vars.items()}) for p in predicates)
+
+    @staticmethod
+    def _wrap_constraint(
+        constraint: Callable[[Mapping[str, Any]], bool],
+    ) -> Callable[[Mapping[str, Literal]], bool]:
+        """
+        Transforms a sequence of predicate, that directly use the values of `vars` to one
+        predicate that uses the `Literal` values of `vars` instead.
+        """
+        return lambda vars: constraint({k: v.value if isinstance(v, Literal) else v for k, v in vars.items()})
 
     @staticmethod
     def _wrap_sequence(
@@ -62,6 +71,29 @@ class DSL:
 
         return lambda vars: [Literal(value, group) for value in values({k: v.value for k, v in vars.items()})]
     
+    
+    def Parameter(self, name: str, group: str, candidates: Callable[[dict[str, Any]], Sequence[Any]] | None = None) -> DSL:
+        wrapped_candidates = DSL._wrap_sequence(group, candidates) if candidates else None
+        self._result = lambda suffix, result=self._result: result(Abstraction(LiteralParameter(name, group, wrapped_candidates), suffix))
+        return self
+    
+    def Argument(self, name: str, specification: Type) -> DSL:
+        self._result = lambda suffix, result=self._result: result(Abstraction(TermParameter(name, specification), suffix))
+        return self
+    
+    def ParameterConstraint(self, constraint: Callable[[Mapping[str, Any]], bool]) -> DSL:
+        wrapped_constraint = DSL._wrap_constraint(constraint)
+        self._result = lambda suffix, result=self._result: result(Implication(Predicate(wrapped_constraint, True), suffix))
+        return self
+    
+    def Constraint(self, constraint: Callable[[Mapping[str, Any]], bool]) -> DSL:
+        wrapped_constraint = DSL._wrap_constraint(constraint)
+        self._result = lambda suffix, result=self._result: result(Implication(Predicate(wrapped_constraint, False), suffix))
+        return self
+    
+    def Suffix(self, suffix: Type) -> Abstraction | Type:
+        return self._result(suffix)
+
     def Use(self, name: str, group: str | Type, candidates: Callable[[dict[str, Any]], Sequence[Any]] | None = None) -> DSL:
         """
         Introduce a new variable.
@@ -96,13 +128,6 @@ class DSL:
         :return: The DSL object.
         :rtype: DSL
         """
-
-        if not isinstance(group, str) and candidates is not None:
-            raise ValueError(f"{name} is a term variable and does not support predefined values.")
-        if isinstance(group, str) and candidates is not None:
-            self._accumulator.append((name, group, DSL._wrap_sequence(group, candidates), []))
-        else:
-            self._accumulator.append((name, group, None, []))
         return self
 
     def SuchThat(self, predicate: Callable[[Mapping[str, Any]], bool], /) -> DSL:
@@ -119,10 +144,6 @@ class DSL:
         :return: The DSL object.
         :rtype: DSL
         """
-        if len(self._accumulator) == 0:
-            raise ValueError("No variable defined. Please define a variable before using SuchThat.")
-
-        self._accumulator[-1][3].append(predicate)
         return self
 
 
@@ -135,15 +156,4 @@ class DSL:
         :return: The constructed specification.
         :rtype: Abstraction | Type
         """
-        return_type: Abstraction | Type = ty
-        for spec in reversed(self._accumulator):
-            name, group, values, predicates = spec
-            if isinstance(group, str):
-                # Literal variable
-                return_type = Abstraction(LiteralParameter(name, group, DSL._wrap_predicates(predicates), values), return_type)
-            elif isinstance(group, Type):
-                # Type variable
-                return_type = Abstraction(TermParameter(name, group, DSL._wrap_predicates(predicates)), return_type)
-            else:
-                raise TypeError(f"Invalid type {group} for variable {name}")
-        return return_type
+        return ty

@@ -37,6 +37,8 @@ from .types import (
     LiteralParameter,
     TermParameter,
     Abstraction,
+    Implication,
+    Predicate,
     Type,
     Var,
 )
@@ -45,7 +47,7 @@ from .types import (
 C = TypeVar("C")
 
 # type of component specifications
-Specification = Abstraction | Type
+Specification = Abstraction | Implication | Type
 
 class Contains(Protocol):
     def __contains__(self, value: object) -> bool: ...
@@ -75,8 +77,9 @@ class MultiArrow:
 @dataclass
 class ParamInfo:
     # information on parameters of a combinator
-    literal_params: list[LiteralParameter]
-    term_params: list[TermParameter]
+    #literal_params: list[LiteralParameter]
+    #term_params: list[TermParameter]
+    prefix: list[LiteralParameter | TermParameter | Predicate]
     lvar_to_group: dict[str, str]
     param_names: list[Var | str]
 
@@ -113,18 +116,21 @@ class Synthesizer(Generic[C]):
                     case Intersection(sigma, tau):
                         tys.extend((sigma, tau))
 
-        parameters = ParamInfo([], [], {}, [])
-        while isinstance(parameterizedType, Abstraction):
-            param = parameterizedType.parameter
-            #TODO account for parameters.variable_names.append(param.name)
-            if isinstance(param, LiteralParameter):
-                parameters.literal_params.append(param)
-                parameters.lvar_to_group[param.name] = param.group
-                parameters.param_names.append(Var(param.name))
-            elif isinstance(param, TermParameter):
-                parameters.term_params.append(param)
-                parameters.param_names.append(param.name)
-            parameterizedType = parameterizedType.body
+        parameters = ParamInfo([], {}, [])
+        while not isinstance(parameterizedType, Type):
+            if isinstance(parameterizedType, Abstraction):
+                param = parameterizedType.parameter
+                if isinstance(param, LiteralParameter):
+                    parameters.prefix.append(param)
+                    parameters.lvar_to_group[param.name] = param.group
+                    parameters.param_names.append(Var(param.name))
+                elif isinstance(param, TermParameter):
+                    parameters.prefix.append(param)
+                    parameters.param_names.append(param.name)
+                parameterizedType = parameterizedType.body
+            elif isinstance(parameterizedType, Implication):
+                parameters.prefix.append(parameterizedType.predicate)
+                parameterizedType = parameterizedType.body
 
         current: list[MultiArrow] = [MultiArrow([], parameterizedType)]
 
@@ -148,40 +154,47 @@ class Synthesizer(Generic[C]):
 
         substitutions: deque[dict[str, Literal]] = deque([{}])
 
-        for literal_parameter in parameters.literal_params:
-            if literal_parameter.group not in self.literals:
-                return []
-            if not substitutions:
-                return []
-            else:
+        for parameter in parameters.prefix:
+            if isinstance(parameter, LiteralParameter):
+                if parameter.group not in self.literals:
+                    return []
+                if not substitutions:
+                    return []
+                else:
+                    new_substitutions: deque[dict[str, Literal]] = deque()
+                    for substitution in substitutions:
+                        values: Sequence[Literal]
+                        if parameter.name in initial_substitution:
+                            value = initial_substitution[parameter.name]
+                            if parameter.values is not None and value not in parameter.values(substitution):
+                                # the inferred value is not in the set of values
+                                continue
+                            if not value.value in self.literals[parameter.group]:
+                                # the inferred value is not in the group
+                                continue
+                            values = [value]
+                        elif parameter.values is not None:
+                            values = [value
+                                    for value in parameter.values(substitution)
+                                    if value.value in self.literals[parameter.group]]
+                        else:
+                            concrete_values = self.literals[parameter.group]
+                            if not isinstance(concrete_values, Iterable):
+                                raise RuntimeError(
+                                    f"The value of variable {parameter.name} could not be inferred."
+                                )
+                            values = [Literal(value, parameter.group) for value in concrete_values]
+
+                        for value in values:
+                            new_substitutions.append(substitution | {parameter.name: value})
+                        substitutions = new_substitutions
+
+            if isinstance(parameter, Predicate) and parameter.only_literals:
                 new_substitutions: deque[dict[str, Literal]] = deque()
                 for substitution in substitutions:
-                    values: Sequence[Literal]
-                    if literal_parameter.name in initial_substitution:
-                        value = initial_substitution[literal_parameter.name]
-                        if literal_parameter.values is not None and value not in literal_parameter.values(substitution):
-                            # the inferred value is not in the set of values
-                            continue
-                        if not value.value in self.literals[literal_parameter.group]:
-                            # the inferred value is not in the group
-                            continue
-                        values = [value]
-                    elif literal_parameter.values is not None:
-                        values = [value
-                                  for value in literal_parameter.values(substitution)
-                                  if value.value in self.literals[literal_parameter.group]]
-                    else:
-                        concrete_values = self.literals[literal_parameter.group]
-                        if not isinstance(concrete_values, Iterable):
-                            raise RuntimeError(
-                                f"The value of variable {literal_parameter.name} could not be inferred."
-                            )
-                        values = [Literal(value, literal_parameter.group) for value in concrete_values]
-
-                    for value in values:
-                        new_substitution = substitution | {literal_parameter.name: value}
-                        if literal_parameter.predicate(new_substitution):
-                            new_substitutions.append(new_substitution)
+                    if parameter.constraint(substitution):
+                        new_substitutions.append(substitution)
+                                
                 substitutions = new_substitutions
 
         return list(substitutions)
@@ -326,7 +339,8 @@ class Synthesizer(Generic[C]):
                             if not specific_params:  # do this only once for each instantiation
                                 specific_params = {
                                     param.name: param.group.subst(instantiation)
-                                    for param in parameters.term_params
+                                    for param in parameters.prefix
+                                    if isinstance(param, TermParameter)
                                 }
 
                                 type_targets.extend(specific_params.values())
@@ -335,7 +349,7 @@ class Synthesizer(Generic[C]):
                                                            if isinstance(n, Var) else NonTerminalArgument[Type](n, specific_params[n])
                                                            for n in parameters.param_names)
 
-                            term_predicates = tuple(term_param.predicate for term_param in parameters.term_params)
+                            term_predicates = tuple(p.constraint for p in parameters.prefix if isinstance(p, Predicate) and not p.only_literals)
                             for subquery in (
                                 [ty.subst(instantiation) for ty in query]
                                 for query in arguments
