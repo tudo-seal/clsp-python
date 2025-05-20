@@ -110,14 +110,16 @@ class Synthesizer(Generic[C]):
                     case Intersection(sigma, tau):
                         tys.extend((sigma, tau))
 
-        prefix = []
-        lvar_to_group = {}
+        prefix: list[LiteralParameter | TermParameter | Predicate] = []
+        lvar_to_group: dict[str, str] = {}
         while not isinstance(parameterizedType, Type):
             if isinstance(parameterizedType, Abstraction):
                 param = parameterizedType.parameter
-                prefix.append(param)
                 if isinstance(param, LiteralParameter):
+                    prefix.append(param)
                     lvar_to_group[param.name] = param.group
+                elif isinstance(param, TermParameter):
+                    prefix.append(param)
                 parameterizedType = parameterizedType.body
             elif isinstance(parameterizedType, Implication):
                 prefix.append(parameterizedType.predicate)
