@@ -22,18 +22,17 @@ __all__ = [
     "SolutionSpace",
 ]
 
-T = TypeVar("T", bound=Hashable, covariant=True)
-C = TypeVar("C")
+T = TypeVar("T", bound=Hashable)
 
-class CoSy(Generic[C]):
-    componentSpecifications: Mapping[C, Specification]
+class CoSy(Generic[T]):
+    componentSpecifications: Mapping[T, Specification]
     parameterSpace: ParameterSpace | None = None
     taxonomy: Taxonomy = {}
     _synthesizer : Synthesizer
     
     def __init__(
         self,
-        componentSpecifications: Mapping[C, Specification],
+        componentSpecifications: Mapping[T, Specification],
         parameterSpace: ParameterSpace | None = None,
         taxonomy: Taxonomy = {},
     ) -> None:

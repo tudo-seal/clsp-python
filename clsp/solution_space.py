@@ -1,14 +1,14 @@
 from __future__ import annotations
 from collections import defaultdict, deque
-from collections.abc import Callable, Iterable, Sequence, Mapping
+from collections.abc import Callable, Iterable, Sequence, Mapping, Hashable
 from queue import PriorityQueue
 from dataclasses import dataclass, field
 from itertools import product
 from typing import Generic, TypeVar, Any, Optional
 from .tree import Tree
 
-NT = TypeVar("NT") # type of non-terminals
-T = TypeVar("T") # type of terminals
+NT = TypeVar("NT", bound=Hashable) # type of non-terminals
+T = TypeVar("T", bound=Hashable) # type of terminals
 
 @dataclass(frozen=True)
 class TerminalArgument(Generic[T]):

@@ -11,6 +11,7 @@ from collections.abc import (
     Iterable,
     Mapping,
     Sequence,
+    Hashable,
 )
 from dataclasses import dataclass
 from functools import reduce
@@ -44,7 +45,7 @@ from .types import (
 )
 
 # type of components
-C = TypeVar("C")
+C = TypeVar("C", bound=Hashable)
 
 # type of component specifications
 Specification = Abstraction | Implication | Type
