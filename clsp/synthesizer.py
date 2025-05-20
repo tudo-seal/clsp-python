@@ -86,7 +86,7 @@ class Synthesizer(Generic[C]):
         self.literals: ParameterSpace = {} if parameterSpace is None else parameterSpace
         self.repository: MutableMapping[
             C,
-            tuple[list[LiteralParameter | TermParameter | Predicate], dict[str, str], list[dict[str, Literal]] | None, list[list[MultiArrow]]],
+            tuple[list[LiteralParameter | TermParameter | Predicate], dict[str, str], dict[frozenset[tuple[str, Literal]], list[dict[str, Literal]] | None], list[list[MultiArrow]]],
         ] = {c: Synthesizer._function_types(ty) for c, ty in componentSpecifications.items()}
         self.subtypes = Subtypes(taxonomy)
 
@@ -135,7 +135,7 @@ class Synthesizer(Generic[C]):
                 for c in current
                 for (new_arg, new_tgt) in unary_function_types(c.target)
             ]
-        return (prefix, lvar_to_group, None, multiarrows)
+        return (prefix, lvar_to_group, dict(), multiarrows)
 
     def _enumerate_substitutions(
         self,
@@ -299,23 +299,16 @@ class Synthesizer(Generic[C]):
                         continue
 
                     # If there is a unique substitution, use it directly
-                    if substitution:
+                    
+                    key = frozenset(substitution.items()) #TODO rename
+                    if key not in instantiations:
                         # Keep necessary substitutions and enumerate the rest
                         selected_instantiations = self._enumerate_substitutions(prefix, substitution)
+                        instantiations[key] = selected_instantiations
                     else:
-                        # otherwise enumerate all substitutions (only the first time).
-                        # update the repository with the enumerated substitutions.
-                        if instantiations is None:
-                            selected_instantiations = self._enumerate_substitutions(prefix)
-                            self.repository[combinator] = (
-                                prefix,
-                                lvar_to_group,
-                                selected_instantiations,
-                                combinator_type,
-                            )
-                        else:
-                            selected_instantiations = instantiations                
-
+                        # otherwise enumerate all (only the first time).
+                        selected_instantiations = instantiations[key]
+                    
                     # consider all possible instantiations
                     for instantiation in selected_instantiations:
                         specific_params = None
