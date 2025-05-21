@@ -8,7 +8,8 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
-from .types import Literal, LiteralParameter, TermParameter, Predicate, Type, Abstraction, Implication
+from .types import LiteralParameter, TermParameter, Predicate, Type, Abstraction, Implication
+from .synthesizer import Specification
 
 class DSL:
     """
@@ -37,30 +38,7 @@ class DSL:
         Initialize the DSL object
         """
 
-        self._result: Callable[[Abstraction | Implication | Type], Abstraction | Implication | Type] = lambda suffix: suffix
-
-    @staticmethod
-    def _wrap_constraint(
-        constraint: Callable[[Mapping[str, Any]], bool],
-    ) -> Callable[[Mapping[str, Literal]], bool]:
-        """
-        Transforms a constraint, that directly use the values of `vars` to one
-        that uses the `Literal` values of `vars` instead.
-        """
-        return lambda vars: constraint({k: v.value if isinstance(v, Literal) else v for k, v in vars.items()})
-
-    @staticmethod
-    def _wrap_sequence(
-        group: str,
-        values: Callable[[dict[str, Any]], Sequence[Any]],
-    ) -> Callable[[dict[str, Literal]], Sequence[Literal]]:
-        """
-        Transforms a parameterized sequence, that directly uses the values of `vars` to one
-        that refers to the `Literal` values of `vars` instead.
-        """
-
-        return lambda vars: [Literal(value, group) for value in values({k: v.value for k, v in vars.items()})]
-    
+        self._result: Callable[[Specification], Specification] = lambda suffix: suffix    
     
     def Parameter(self, name: str, group: str, candidates: Callable[[dict[str, Any]], Sequence[Any]] | None = None) -> DSL:
         """
@@ -84,9 +62,8 @@ class DSL:
         :return: The DSL object.
         :rtype: DSL
         """
-        wrapped_candidates = DSL._wrap_sequence(group, candidates) if candidates else None
-        def new_result(suffix: Abstraction | Implication | Type, result=self._result) -> Abstraction | Implication | Type:
-            return result(Abstraction(LiteralParameter(name, group, wrapped_candidates), suffix))
+        def new_result(suffix: Specification, result=self._result) -> Specification:
+            return result(Abstraction(LiteralParameter(name, group, candidates), suffix))
         self._result = new_result
         return self
     
@@ -105,7 +82,7 @@ class DSL:
         :return: The DSL object.
         :rtype: DSL
         """
-        def new_result(suffix: Abstraction | Implication | Type, result=self._result) -> Abstraction | Implication | Type:
+        def new_result(suffix: Specification, result=self._result) -> Specification:
             return result(Abstraction(TermParameter(name, specification), suffix))
         self._result = new_result
         return self
@@ -121,9 +98,8 @@ class DSL:
         :return: The DSL object.
         :rtype: DSL
         """
-        wrapped_constraint = DSL._wrap_constraint(constraint)
-        def new_result(suffix: Abstraction | Implication | Type, result=self._result) -> Abstraction | Implication | Type:
-            return result(Implication(Predicate(wrapped_constraint, True), suffix))
+        def new_result(suffix: Specification, result=self._result) -> Specification:
+            return result(Implication(Predicate(constraint, True), suffix))
         self._result = new_result
         return self
     
@@ -138,13 +114,12 @@ class DSL:
         :return: The DSL object.
         :rtype: DSL
         """
-        wrapped_constraint = DSL._wrap_constraint(constraint)
-        def new_result(suffix: Abstraction | Implication | Type, result=self._result) -> Abstraction | Implication | Type:
-            return result(Implication(Predicate(wrapped_constraint, False), suffix))
+        def new_result(suffix: Specification, result=self._result) -> Specification:
+            return result(Implication(Predicate(constraint, False), suffix))
         self._result = new_result
         return self
     
-    def Suffix(self, suffix: Type) -> Abstraction | Implication | Type:
+    def Suffix(self, suffix: Type) -> Specification:
         """
         Constructs the final specification wrapping the given `Type` `suffix`.
 

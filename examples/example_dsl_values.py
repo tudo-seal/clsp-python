@@ -5,7 +5,8 @@
 import logging
 import unittest
 from clsp.dsl import DSL
-from clsp.synthesizer import Contains, Synthesizer
+from clsp.synthesizer import Synthesizer
+from collections.abc import Container
 from clsp.types import Type, Constructor, Var, Literal, Omega
 
 class TestDSLUse(unittest.TestCase):
@@ -98,7 +99,7 @@ class TestDSLUse(unittest.TestCase):
 
     def test_infinite_values(self) -> None:
         # the number of values for a literal variable can be infinite
-        class Nat(Contains):
+        class Nat(Container):
             # represents the set of (arbitrary large) natural numbers
             def __contains__(self, value: object) -> bool:
                 return isinstance(value, int) and value >= 0

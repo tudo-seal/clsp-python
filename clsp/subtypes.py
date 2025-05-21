@@ -5,7 +5,7 @@ between types in the intersection type system.
 
 from collections import deque
 from collections.abc import Mapping
-
+from typing import Any
 from .types import Arrow, Constructor, Intersection, Literal, Var, Type
 
 # a mapping from a concept to the set it its subconcepts
@@ -19,19 +19,20 @@ class Subtypes:
         self,
         subtypes: deque[Type],
         supertype: Type,
+        groups: Mapping[str, str],
         substitutions: Mapping[str, Literal],
     ) -> bool:
         if supertype.is_omega:
             return True
         match supertype:
-            case Literal(name2, group2):
+            case Literal(value2, group2):
                 while subtypes:
                     match subtypes.pop():
-                        case Literal(name1, group1):
-                            if name2 == name1 and group1 == group2:
+                        case Literal(value1, group1):
+                            if value2 == value1 and group1 == group2:
                                 return True
                         case Var(name1):
-                            if substitutions[name1] == supertype:
+                            if groups[name1] == supertype.group and substitutions[name1] == supertype.value:
                                 return True
                         case Intersection(l, r):
                             subtypes.extend((l, r))
@@ -46,30 +47,29 @@ class Subtypes:
                         case Intersection(l, r):
                             subtypes.extend((l, r))
                 return len(casted_constr) != 0 and self._check_subtype_rec(
-                    casted_constr, arg2, substitutions
+                    casted_constr, arg2, groups, substitutions
                 )
             case Arrow(src2, tgt2):
                 casted_arr: deque[Type] = deque()
                 while subtypes:
                     match subtypes.pop():
                         case Arrow(src1, tgt1):
-                            if self._check_subtype_rec(deque((src2,)), src1, substitutions):
+                            if self._check_subtype_rec(deque((src2,)), src1, groups, substitutions):
                                 casted_arr.append(tgt1)
                         case Intersection(l, r):
                             subtypes.extend((l, r))
                 return len(casted_arr) != 0 and self._check_subtype_rec(
-                    casted_arr, tgt2, substitutions
+                    casted_arr, tgt2, groups, substitutions
                 )
             case Intersection(l, r):
                 return self._check_subtype_rec(
-                    subtypes.copy(), l, substitutions
-                ) and self._check_subtype_rec(subtypes, r, substitutions)
+                    subtypes.copy(), l, groups, substitutions
+                ) and self._check_subtype_rec(subtypes, r, groups, substitutions)
             case Var(name):
                 while subtypes:
                     match subtypes.pop():
                         case Literal(value, group):
-                            x = substitutions[name]
-                            if x.value == value and x.group == group:
+                            if groups[name] == group and substitutions[name] == value:
                                 return True
                         case Intersection(l, r):
                             subtypes.extend((l, r))
@@ -78,15 +78,15 @@ class Subtypes:
                 raise TypeError(f"Unsupported type in check_subtype: {supertype}")
 
     def check_subtype(
-        self, subtype: Type, supertype: Type, substitutions: Mapping[str, Literal]
+        self, subtype: Type, supertype: Type, groups: Mapping[str, str], substitutions: Mapping[str, Literal]
     ) -> bool:
         """Decides whether subtype <= supertype with respect to intersection type subtyping."""
 
-        return self._check_subtype_rec(deque((subtype,)), supertype, substitutions)
+        return self._check_subtype_rec(deque((subtype,)), supertype, groups, substitutions)
 
     def infer_substitution(
         self, subtype: Type, path: Type, groups: Mapping[str, str]
-    ) -> dict[str, Literal] | None:
+    ) -> dict[str, Any] | None:
         """Infers a unique substitution S such that S(subtype) <= path where path is closed. Returns None or Ambiguous is no solution exists or multiple solutions exist respectively."""
 
         if subtype.is_omega:
@@ -112,7 +112,7 @@ class Subtypes:
                         if substitution is None:
                             return None
                         if all(name in substitution for name in src1.free_vars):
-                            if self.check_subtype(src2, src1, substitution):
+                            if self.check_subtype(src2, src1, groups, substitution):
                                 return substitution
                             else:
                                 return None
@@ -144,9 +144,9 @@ class Subtypes:
                 return {}
             case Var(name):
                 match path:
-                    case Literal(name2, group2):
+                    case Literal(value2, group2):
                         if groups[name] == group2:
-                            return dict([(name, path)])
+                            return dict([(name, value2)])
             case _:
                 raise TypeError(f"Unsupported type in infer_substitution: {subtype}")
         return None

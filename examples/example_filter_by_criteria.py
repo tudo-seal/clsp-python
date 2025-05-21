@@ -2,15 +2,14 @@ from __future__ import annotations
 
 import logging
 import unittest
-
+from collections.abc import Container
 from clsp import CoSy
 from clsp.dsl import DSL
-from clsp.synthesizer import Contains, Specification, ParameterSpace
+from clsp.synthesizer import Specification, ParameterSpace
 from clsp.tree import Tree
 from clsp.types import (
     Constructor,
     Literal,
-    Omega,
     Var,
 )
 
@@ -116,7 +115,7 @@ class TestFilterByCriteria(unittest.TestCase):
             .Suffix(Constructor("Structural") & Var("target_weight")),
         }
 
-        class Float(Contains):
+        class Float(Container):
             def __contains__(self, value: object) -> bool:
                 return isinstance(value, int) and value >= 0
 

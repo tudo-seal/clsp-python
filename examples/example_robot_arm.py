@@ -1,7 +1,8 @@
 from __future__ import annotations
 import logging
 import unittest
-from clsp.synthesizer import Synthesizer, Specification, Contains
+from collections.abc import Container
+from clsp.synthesizer import Synthesizer, Specification
 from clsp.dsl import DSL
 from clsp.types import (
     Constructor,
@@ -57,7 +58,7 @@ class TestRobotArm(unittest.TestCase):
             ),
         }
 
-        class Int(Contains):
+        class Int(Container):
             # represents the set of (arbitrary large) natural numbers
             def __contains__(self, value: object) -> bool:
                 return isinstance(value, int) and value >= 0

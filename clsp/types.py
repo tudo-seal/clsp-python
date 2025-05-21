@@ -6,7 +6,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Mapping
 
 @dataclass(frozen=True)
 class Type(ABC):
@@ -39,7 +39,7 @@ class Type(ABC):
         pass
 
     @abstractmethod
-    def subst(self, substitution: dict[str, Literal]) -> Type:
+    def subst(self, groups: Mapping[str, str], substitution: dict[str, Any]) -> Type:
         pass
 
     @staticmethod
@@ -110,7 +110,7 @@ class Omega(Type):
     def _free_vars(self) -> set[str]:
         return set()
 
-    def subst(self, substitution: dict[str, Literal]) -> Type:
+    def subst(self, groups: Mapping[str, str], substitution: dict[str, Any]) -> Type:
         return self
 
 
@@ -152,10 +152,10 @@ class Constructor(Type):
         else:
             return f"{str(self.name)}({str(self.arg)})"
 
-    def subst(self, substitution: dict[str, Literal]) -> Type:
+    def subst(self, groups: Mapping[str, str], substitution: dict[str, Any]) -> Type:
         if not any(var in substitution for var in self.free_vars):
             return self
-        return Constructor(self.name, self.arg.subst(substitution))
+        return Constructor(self.name, self.arg.subst(groups, substitution))
 
 
 @dataclass(frozen=True)
@@ -208,10 +208,10 @@ class Arrow(Type):
                 )
         return Type._parens(result) if prec > arrow_prec else result
 
-    def subst(self, substitution: dict[str, Literal]) -> Type:
+    def subst(self, groups: Mapping[str, str], substitution: dict[str, Any]) -> Type:
         if not any(var in substitution for var in self.free_vars):
             return self
-        return Arrow(self.source.subst(substitution), self.target.subst(substitution))
+        return Arrow(self.source.subst(groups, substitution), self.target.subst(groups, substitution))
 
 
 @dataclass(frozen=True)
@@ -256,15 +256,15 @@ class Intersection(Type):
         result: str = f"{intersection_str_prec(self.left)} & {intersection_str_prec(self.right)}"
         return Type._parens(result) if prec > intersection_prec else result
 
-    def subst(self, substitution: dict[str, Literal]) -> Type:
+    def subst(self, groups: Mapping[str, str], substitution: dict[str, Any]) -> Type:
         if not any(var in substitution for var in self.free_vars):
             return self
-        return Intersection(self.left.subst(substitution), self.right.subst(substitution))
+        return Intersection(self.left.subst(groups, substitution), self.right.subst(groups, substitution))
 
 
 @dataclass(frozen=True)
 class Literal(Type):
-    value: Any
+    value: Any # has to be Hashable
     group: str
     is_omega: bool = field(init=False, compare=False)
     size: int = field(init=False, compare=False)
@@ -294,7 +294,7 @@ class Literal(Type):
     def _str_prec(self, prec: int) -> str:
         return f"[{str(self.value)}, {self.group}]"
 
-    def subst(self, substitution: dict[str, Literal]) -> Type:
+    def subst(self, groups: Mapping[str, str], substitution: dict[str, Any]) -> Type:
         return self
 
 
@@ -329,9 +329,9 @@ class Var(Type):
     def _str_prec(self, prec: int) -> str:
         return f"<{str(self.name)}>"
 
-    def subst(self, substitution: dict[str, Literal]) -> Type:
+    def subst(self, groups: Mapping[str, str], substitution: dict[str, Any]) -> Type:
         if self.name in substitution:
-            return substitution[self.name]
+            return Literal(substitution[self.name], groups[self.name])
         else:
             return self
 
@@ -352,7 +352,7 @@ class LiteralParameter(Parameter):
 
     group: str
     #  Specification of literal assignment from a collection
-    values: Callable[[dict[str, Literal]], Sequence[Literal]] | None = field(default=None)
+    values: Callable[[dict[str, Any]], Sequence[Any]] | None = field(default=None)
 
 @dataclass(frozen=True)
 class TermParameter(Parameter):
