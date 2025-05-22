@@ -15,7 +15,6 @@ from dataclasses import dataclass, field
 
 T = TypeVar("T", bound=Hashable)
 
-# Tree: TypeAlias = tuple[T, tuple["Tree[T]", ...]]
 @dataclass(slots=True)
 class Tree(Generic[T]):
     root: T

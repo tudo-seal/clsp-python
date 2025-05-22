@@ -4,6 +4,7 @@ import logging
 import unittest
 from collections.abc import Container
 from clsp import CoSy
+from clsp.inspector import Inspector
 from clsp.dsl import DSL
 from clsp.synthesizer import Specification, ParameterSpace
 from clsp.tree import Tree
@@ -30,7 +31,7 @@ class Part:
 class BranchingPart(Part):
 
     # TODO what if not hashable?
-    def __call__(self, left_part, right_part, *rest):
+    def __call__(self, target_wight, left_part, right_part):
         return self.weight + left_part + right_part
     
     # TODO is a combinator is a string then this is not possible
@@ -94,9 +95,9 @@ class TestFilterByCriteria(unittest.TestCase):
         # TODO private fields
         componentSpecifications: dict[Part, Specification] = {
             BranchingPart("Double Motor", 10): DSL()
+            .Parameter("target_weight", "float")
             .Argument("left_part", Constructor("Structural") & Var("target_weight"))
             .Argument("right_part", Constructor("Structural") & Var("target_weight"))
-            .Parameter("target_weight", "float") # private = True
             .Constraint(lambda vars: vars["target_weight"]
                 > self.compute_weight(vars["left_part"])
                 + self.compute_weight(vars["right_part"])
@@ -121,6 +122,8 @@ class TestFilterByCriteria(unittest.TestCase):
 
         parameterSpace: ParameterSpace = {"float": Float()}
         cosy = CoSy(componentSpecifications, parameterSpace)
+        inspector = Inspector()
+        inspector.inspect(componentSpecifications, parameterSpace)
         self.solutions = list(
             cosy.solve(Constructor("Structural") & Literal(20, "float"), max_count=1249)
         )

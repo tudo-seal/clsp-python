@@ -4,6 +4,7 @@ import unittest
 from clsp.dsl import DSL
 from clsp.synthesizer import Synthesizer, Specification
 from clsp.types import Constructor, Literal, Var
+from clsp.inspector import Inspector
 
 def motorcount(robot: Any) -> Any:
     # self.logger.info("Robot")
@@ -57,6 +58,8 @@ class TestRobotArm(unittest.TestCase):
         parameterSpace = {"int": list(range(10))}
 
         synthesizer: Synthesizer[Part] = Synthesizer(componentSpecifications, parameterSpace)
+        inspector = Inspector()
+        inspector.inspect(componentSpecifications, parameterSpace)
         query = Constructor("Base") & ("c" @ Literal(3, "int"))
         grammar = synthesizer.constructSolutionSpace(query)
         self.trees = list(grammar.enumerate_trees(query, 5, 10))

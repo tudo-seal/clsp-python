@@ -45,7 +45,7 @@ class RHSRule(Generic[NT, T]):
 
 @dataclass
 class SolutionSpace(Generic[NT, T]):
-    _rules: dict[NT, deque[RHSRule[NT, T]]] = field(default_factory=lambda: defaultdict(deque))
+    _rules: defaultdict[NT, deque[RHSRule[NT, T]]] = field(default_factory=lambda: defaultdict(deque))
 
     def get(self, nonterminal: NT) -> Optional[deque[RHSRule[NT, T]]]:
         return self._rules.get(nonterminal)
@@ -103,14 +103,14 @@ class SolutionSpace(Generic[NT, T]):
                     if m not in ground_types and all(t in ground_types for t in non_terminals):
                         queue.add(m)
 
-        result = SolutionSpace[NT, T]({
+        result = SolutionSpace[NT, T](defaultdict(deque, {
                 target: deque(
                     possibility
                     for possibility in self._rules[target]
                     if all(t in ground_types for t in possibility.non_terminals)
                 )
                 for target in ground_types
-            })
+            }))
         return result
     
     def _enumerate_tree_vectors(

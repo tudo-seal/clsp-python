@@ -59,7 +59,7 @@ class MultiArrow:
 
 @dataclass()
 class CombinatorInfo:
-    # container for auximiary information about a combinator
+    # container for auxiliary information about a combinator
     prefix: list[LiteralParameter | TermParameter | Predicate]
     groups: dict[str, str]
     term_predicates: tuple[Callable[[dict[str, Any]], bool], ...]
@@ -71,16 +71,17 @@ class Synthesizer(Generic[C]):
         self,
         componentSpecifications: Mapping[C, Specification],
         parameterSpace: ParameterSpace | None = None,
-        taxonomy: Taxonomy = {},
+        taxonomy: Taxonomy | None = None
     ):
         self.literals: ParameterSpace = {} if parameterSpace is None else {
             k: frozenset(vs) if isinstance(vs, Iterable) and all(isinstance(v, Hashable) for v in vs) else vs for k, vs in parameterSpace.items()
             }
-        self.repository: tuple[tuple[C, CombinatorInfo], ...] = tuple((c, Synthesizer._function_types(ty)) for c, ty in componentSpecifications.items())
-        self.subtypes = Subtypes(taxonomy)
+        self.repository: tuple[tuple[C, CombinatorInfo], ...] = tuple((c, Synthesizer._function_types(self.literals, ty)) for c, ty in componentSpecifications.items())
+        self.subtypes = Subtypes(taxonomy if taxonomy is not None else {})
 
     @staticmethod
     def _function_types(
+        literals: ParameterSpace,
         parameterizedType: Specification,
     ) -> CombinatorInfo:
         """Presents a type as a list of 0-ary, 1-ary, ..., n-ary function types."""
@@ -95,20 +96,37 @@ class Synthesizer(Generic[C]):
                         tys.extend((sigma, tau))
 
         prefix: list[LiteralParameter | TermParameter | Predicate] = []
+        vars: set[str] = set()
         groups: dict[str, str] = {}
         while not isinstance(parameterizedType, Type):
             if isinstance(parameterizedType, Abstraction):
                 param = parameterizedType.parameter
+                if param.name in vars:
+                    # check if parameter names are unique
+                    raise ValueError(f"Duplicate name: {param.name}")
+                vars.add(param.name)
                 if isinstance(param, LiteralParameter):
                     prefix.append(param)
                     groups[param.name] = param.group
+                    # check if group is defined in the parameter space
+                    if param.group not in literals:
+                        raise ValueError(f"Group {param.group} is not defined in the parameter space.")
                 elif isinstance(param, TermParameter):
                     prefix.append(param)
+                    for free_var in param.group.free_vars:
+                        if free_var not in groups:
+                            # check if each parameter variable is abstracted
+                            raise ValueError(f"Parameter {free_var} is not abstracted.")
                 parameterizedType = parameterizedType.body
             elif isinstance(parameterizedType, Implication):
                 prefix.append(parameterizedType.predicate)
                 parameterizedType = parameterizedType.body
 
+        for free_var in parameterizedType.free_vars:
+            if free_var not in groups:
+                # check if each parameter variable is abstracted
+                raise ValueError(f"Parameter {free_var} is not abstracted.")
+        
         current: list[MultiArrow] = [MultiArrow(tuple(), parameterizedType)]
 
         multiarrows = []

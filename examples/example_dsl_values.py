@@ -8,6 +8,7 @@ from clsp.dsl import DSL
 from clsp.synthesizer import Synthesizer
 from collections.abc import Container
 from clsp.types import Type, Constructor, Var, Literal, Omega
+from clsp.inspector import Inspector
 
 class TestDSLUse(unittest.TestCase):
     logger = logging.getLogger(__name__)
@@ -15,6 +16,9 @@ class TestDSLUse(unittest.TestCase):
         format="%(module)s %(levelname)s: %(message)s",
         # level=logging.INFO,
     )
+
+    def setUp(self) -> None:
+        self.inspector = Inspector()
 
     def test_param(self) -> None:
         # literal varibles can be assigned computed values
@@ -41,7 +45,10 @@ class TestDSLUse(unittest.TestCase):
                 & Constructor("c", Omega() if z is None else Literal(z, "bool"))
             )
 
-        synthesizer = Synthesizer(componentSpecifications, parameterSpace={"bool": [True, False]})
+        parameterSpace={"bool": [True, False]}
+        synthesizer = Synthesizer(componentSpecifications, parameterSpace)
+        
+        self.inspector.inspect(componentSpecifications, parameterSpace)
 
         for x in [True, False, None]:
             for y in [True, False, None]:
@@ -69,6 +76,7 @@ class TestDSLUse(unittest.TestCase):
         }
 
         synthesizer = Synthesizer(componentSpecifications, parameterSpace)
+        self.inspector.inspect(componentSpecifications, parameterSpace)
         target = Constructor("c", Literal(0, "int"))
 
         result = synthesizer.constructSolutionSpace(target)
@@ -90,6 +98,7 @@ class TestDSLUse(unittest.TestCase):
         }
 
         synthesizer = Synthesizer(componentSpecifications, parameterSpace)
+        self.inspector.inspect(componentSpecifications, parameterSpace)
         target = Constructor("c", Literal(1, "int"))
 
         result = synthesizer.constructSolutionSpace(target)
@@ -119,6 +128,7 @@ class TestDSLUse(unittest.TestCase):
         }
 
         synthesizer = Synthesizer(componentSpecifications, parameterSpace)
+        self.inspector.inspect(componentSpecifications, parameterSpace)
         grammar = synthesizer.constructSolutionSpace(target)
 
         self.assertEqual(["X 3 (X 2 (X 1 (ZERO)))"], [tree.interpret() for tree in grammar.enumerate_trees(target)])

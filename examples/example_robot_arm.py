@@ -9,6 +9,7 @@ from clsp.types import (
     Literal,
     Var,
 )
+from clsp.inspector import Inspector
 
 class Part:
     def __init__(self, name: str):
@@ -64,8 +65,9 @@ class TestRobotArm(unittest.TestCase):
                 return isinstance(value, int) and value >= 0
 
         parameterSpace = {"int": Int()}
-
         synthesizer: Synthesizer[Part] = Synthesizer(componentSpecifications, parameterSpace)
+        inspector = Inspector()
+        inspector.inspect(componentSpecifications, parameterSpace)
         query = Constructor("Base") & ("c" @ (Literal(3, "int")))
         grammar = synthesizer.constructSolutionSpace(query)
         self.trees = list(grammar.enumerate_trees(query))

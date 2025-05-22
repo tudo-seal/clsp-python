@@ -34,12 +34,12 @@ class CoSy(Generic[T]):
         self,
         componentSpecifications: Mapping[T, Specification],
         parameterSpace: ParameterSpace | None = None,
-        taxonomy: Taxonomy = {},
+        taxonomy: Taxonomy | None = None,
     ) -> None:
         self.componentSpecifications = componentSpecifications
         self.parameterSpace = parameterSpace
-        self.taxonomy = taxonomy
-        self._synthesizer = Synthesizer(componentSpecifications, parameterSpace, taxonomy)
+        self.taxonomy = taxonomy if taxonomy is not None else {}
+        self._synthesizer = Synthesizer(componentSpecifications, parameterSpace, self.taxonomy)
 
 
     def solve(self, query: Type, max_count: int = 100) -> Iterable[Any]:

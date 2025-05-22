@@ -10,7 +10,7 @@ def partition(predicate: Callable[[E], bool], elements: Iterable[E]) -> tuple[de
 
     Returns: (elements not satisfying predicate, elements satisfying predicate)."""
 
-    partitioning: tuple[deque[E], deque[E]] = (deque(), deque())
+    partitioning: tuple[deque[E], deque[E]] = (deque[E](), deque[E]())
     for element in elements:
         if predicate(element):
             partitioning[1].append(element)
