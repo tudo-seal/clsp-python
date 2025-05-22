@@ -253,7 +253,7 @@ class GenerateAndTest(Search[T, V]):
         """
         Search for a tree with maximum fitness.
         """
-        return max(self.sample(size=1000), key=fitness)
+        return max(self.sample(size=100), key=fitness)
 
     def search_fittest(self, fitness: Callable[[Tree[Type, T]], V], size: int) -> Iterable[Tree[Type, T]]:
         """
