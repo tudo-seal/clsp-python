@@ -66,13 +66,17 @@ class TestDSLUse(unittest.TestCase):
 
         target = Constructor("a")
 
+        # intermediate solution space
         solution_space = SolutionSpace()
 
         solutions_of_interest = ["A", "(X 2 1 (Y 2) (Z 1) A)", "(X 0 1 (Y 0) (Z 1) (X 1 0 (Z 1) (Z 0) A))"]
         bound = 300
 
+        # iterate over (infinitely many) rules which in the solutions space
         for nt, rule in synthesizer.constructSolutionSpaceRules(target):
+            # add the rule to the intermediate solution space
             solution_space.add_rule(nt, rule.terminal, rule.arguments, rule.predicates)
+            # check if the intermediate solution space contains all solutions of interest
             solutions = frozenset(tree.interpret() for tree in solution_space.enumerate_trees(target, bound))
             if all(solution in solutions for solution in solutions_of_interest):
                 print("all solutions of interest are in the solution space")
