@@ -22,7 +22,7 @@ from typing import (
     Generic,
     TypeVar,
 )
-from .solution_space import SolutionSpace, TerminalArgument, NonTerminalArgument
+from .solution_space import SolutionSpace, TerminalArgument, NonTerminalArgument, RHSRule
 from .combinatorics import maximal_elements, minimal_covers
 from .subtypes import Subtypes, Taxonomy
 from .types import (
@@ -266,8 +266,8 @@ class Synthesizer(Generic[C]):
 
         return result
 
-    def constructSolutionSpaceRules(self, *targets: Type) -> Generator:
-        # TODO type info and documentation
+    def constructSolutionSpaceRules(self, *targets: Type) -> Generator[tuple[Type, RHSRule]]:
+        """Generate logic program rules for the given target types."""
         type_targets = deque(targets)
         seen: set[Type] = set()
 
@@ -317,7 +317,7 @@ class Synthesizer(Generic[C]):
                                         type_targets.extendleft(argument.value for argument in named_arguments if isinstance(argument, NonTerminalArgument))
 
                                 anonymous_arguments = tuple(NonTerminalArgument(None, ty.subst(combinator_info.groups, instantiation)) for ty in subquery)
-                                yield (current_target, combinator, named_arguments + anonymous_arguments, combinator_info.term_predicates)
+                                yield (current_target, RHSRule[Type, Any](named_arguments + anonymous_arguments, combinator_info.term_predicates, combinator))
                                 type_targets.extendleft(q.value for q in anonymous_arguments)
 
         
@@ -325,7 +325,7 @@ class Synthesizer(Generic[C]):
         """Constructs a logic program in the current environment for the given target types."""
         
         solution_space: SolutionSpace[Type, C] = SolutionSpace()
-        for rule in self.constructSolutionSpaceRules(*targets):
-            solution_space.add_rule(*rule)
+        for nt, rule in self.constructSolutionSpaceRules(*targets):
+            solution_space.add_rule(nt, rule.terminal, rule.arguments, rule.predicates)
         
         return solution_space
