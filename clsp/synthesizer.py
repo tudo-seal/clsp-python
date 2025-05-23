@@ -13,6 +13,7 @@ from collections.abc import (
     Hashable,
     Container,
     Generator,
+    Iterator,
 )
 from dataclasses import dataclass
 from functools import reduce
@@ -75,7 +76,7 @@ class Synthesizer(Generic[C]):
         taxonomy: Taxonomy | None = None
     ):
         self.literals: ParameterSpace = {} if parameterSpace is None else {
-            k: frozenset(vs) if isinstance(vs, Iterable) and all(isinstance(v, Hashable) for v in vs) else vs for k, vs in parameterSpace.items()
+            k: vs for k, vs in parameterSpace.items()
             }
         self.repository: tuple[tuple[C, CombinatorInfo], ...] = tuple((c, Synthesizer._function_types(self.literals, ty)) for c, ty in componentSpecifications.items())
         self.subtypes = Subtypes(taxonomy if taxonomy is not None else {})
@@ -145,48 +146,111 @@ class Synthesizer(Generic[C]):
     def _enumerate_substitutions(
         self,
         prefix: list[LiteralParameter | TermParameter | Predicate],
-        initial_substitution: dict[str, Any] = {},
-    ) -> deque[dict[str, Any]]:
+        substitution: dict[str, Any],
+    ) -> Iterable[dict[str, Any]]:
+        
+        """Enumerate all substitutions for the given parameters fairly.
+           Take initial_substitution with inferred literals into account."""
+
+        stack: deque[tuple[dict[str, Any], int, Iterator[Any] | None]] = deque([(substitution, 0, None)])
+
+        while stack:
+            substitution, index, generator = stack.pop()
+            if index >= len(prefix):
+                # no more parameters to process
+                yield substitution
+                continue
+            parameter = prefix[index]
+            if isinstance(parameter, LiteralParameter):
+                if generator is None:
+                    if parameter.name in substitution:
+                        value = substitution[parameter.name]
+                        if parameter.values is not None and value not in parameter.values(substitution):
+                            # the inferred value is not in the set of values
+                            continue
+                        if not value in self.literals[parameter.group]:
+                            # the inferred value is not in the group
+                            continue
+                        stack.appendleft((substitution, index + 1, None))
+                    elif parameter.values is not None:
+                        # TODO currently unfair
+                        #for value in parameter.values(substitution):
+                        #    if value in self.literals[parameter.group]:
+                        #        stack.appendleft(({**substitution, parameter.name: value}, start_index + 1))
+                        stack.appendleft((substitution, index, iter(parameter.values(substitution))))
+                    else:
+                        concrete_values = self.literals[parameter.group]
+                        if not isinstance(concrete_values, Iterable):
+                            raise RuntimeError(
+                                f"The value of {parameter.name} could not be inferred."
+                            )
+                        else:
+                        #for value in concrete_values:
+                        #    stack.appendleft(({**substitution, parameter.name: value}, start_index + 1))
+                            stack.appendleft((substitution, index, iter(concrete_values)))
+                else:
+                    try:
+                        value = next(generator)
+                    except StopIteration:
+                        continue
+                    if value in self.literals[parameter.group]:
+                        stack.appendleft(({**substitution, parameter.name: value}, index + 1, None))
+                    stack.appendleft((substitution, index, generator))
+
+            elif isinstance(parameter, Predicate) and parameter.only_literals:
+                if parameter.constraint(substitution):
+                    # the predicate is satisfied
+                    stack.appendleft((substitution, index + 1, None))
+            else:
+                stack.appendleft((substitution, index + 1, None))
+
+
+    def _enumerate_substitutions2(
+        self,
+        prefix: list[LiteralParameter | TermParameter | Predicate],
+        substitution: dict[str, Any],
+        start_index: int = 0,
+    ) -> Iterable[dict[str, Any]]:
+        
         """Enumerate all substitutions for the given parameters.
            Take initial_substitution with inferred literals into account."""
 
-        substitutions: deque[dict[str, Any]] = deque([{}])
 
-        for parameter in prefix:
-            new_substitutions: deque[dict[str, Any]] = deque()
-            if isinstance(parameter, LiteralParameter):
-                if parameter.group not in self.literals or not substitutions:
-                    return deque()
-                else:
-                    for substitution in substitutions:
-                        if parameter.name in initial_substitution:
-                            value = initial_substitution[parameter.name]
-                            if parameter.values is not None and value not in parameter.values(substitution):
-                                # the inferred value is not in the set of values
-                                continue
-                            if not value in self.literals[parameter.group]:
-                                # the inferred value is not in the group
-                                continue
-                            new_substitutions.append({**substitution, parameter.name: value})
-                        elif parameter.values is not None:
-                            for value in parameter.values(substitution):
-                                if value in self.literals[parameter.group]:
-                                    new_substitutions.append({**substitution, parameter.name: value})
-                        else:
-                            concrete_values = self.literals[parameter.group]
-                            if not isinstance(concrete_values, Iterable):
-                                raise RuntimeError(
-                                    f"The value of variable {parameter.name} could not be inferred."
-                                )
-                            for value in concrete_values:
-                                new_substitutions.append({**substitution, parameter.name: value})
+        if start_index >= len(prefix):
+            # no more parameters to process
+            yield substitution
+            return
+        parameter = prefix[start_index]
+        if isinstance(parameter, LiteralParameter):
+            if parameter.name in substitution:
+                value = substitution[parameter.name]
+                if parameter.values is not None and value not in parameter.values(substitution):
+                    # the inferred value is not in the set of values
+                    return
+                if not value in self.literals[parameter.group]:
+                    # the inferred value is not in the group
+                    return
+                yield from self._enumerate_substitutions2(prefix, substitution, start_index + 1)
+            elif parameter.values is not None:
+                for value in parameter.values(substitution):
+                    if value in self.literals[parameter.group]:
+                        yield from self._enumerate_substitutions2(prefix, {**substitution, parameter.name: value}, start_index + 1)
+            else:
+                concrete_values = self.literals[parameter.group]
+                if not isinstance(concrete_values, Iterable):
+                    raise RuntimeError(
+                        f"The value of variable {parameter.name} could not be inferred."
+                    )
+                for value in concrete_values:
+                    yield from self._enumerate_substitutions2(prefix, {**substitution, parameter.name: value}, start_index + 1)
 
-                    substitutions = new_substitutions
-
-            if isinstance(parameter, Predicate) and parameter.only_literals:
-                substitutions = deque(substitution for substitution in substitutions if parameter.constraint(substitution))
-
-        return substitutions
+        elif isinstance(parameter, Predicate) and parameter.only_literals:
+            if parameter.constraint(substitution):
+                # the predicate is satisfied
+                yield from self._enumerate_substitutions2(prefix, substitution, start_index + 1)
+        else:
+            yield from self._enumerate_substitutions2(prefix, substitution, start_index + 1)
+        return
 
     def _subqueries(
         self,
@@ -268,40 +332,38 @@ class Synthesizer(Generic[C]):
 
     def constructSolutionSpaceRules(self, *targets: Type) -> Generator[tuple[Type, RHSRule]]:
         """Generate logic program rules for the given target types."""
-        type_targets = deque(targets)
+        
+        # current target types
+        stack: deque[tuple[Type, tuple[C, CombinatorInfo, Iterator] | None]] = deque((target, None) for target in targets)
         seen: set[Type] = set()
 
-        while type_targets:
-            current_target = type_targets.pop()
+        while stack:
+            current_target, current_target_info = stack.pop()
+            # if the target is omega, then the result is junk
+            if current_target.is_omega:
+                raise ValueError(f"Target type {current_target} is omega.")
+            
+            # target type was not initialized before
+            if current_target not in seen or current_target_info is not None:
+                if current_target_info is None:
+                    seen.add(current_target)
+                    # try each combinator
+                    for combinator, combinator_info in self.repository:
+                        # Compute necessary substitutions
+                        substitution = self._necessary_substitution(current_target.organized, combinator_info.type, combinator_info.groups)
 
-            # target type was not seen before
-            if current_target not in seen:
-                seen.add(current_target)
-                # If the target is omega, then the result is junk
-                if current_target.is_omega:
-                    raise ValueError(f"Target type {current_target} is omega.")
+                        # If there cannot be a suitable substitution, ignore this combinator
+                        if substitution is None:
+                            continue
 
-                # try each combinator
-                for combinator, combinator_info in self.repository:
-                    # Compute necessary substitutions
-                    substitution = self._necessary_substitution(current_target.organized, combinator_info.type, combinator_info.groups)
-
-                    # If there cannot be a suitable substitution, ignore this combinator
-                    if substitution is None:
-                        continue
-
-                    # If there is a unique substitution, use it directly
-                    if substitution:
                         # Keep necessary substitutions and enumerate the rest
-                        selected_instantiations = self._enumerate_substitutions(combinator_info.prefix, substitution)
-                    else:
-                        # Enumerate all substitutions (only the first time).
-                        if combinator_info.instantiations is None:
-                            combinator_info.instantiations = self._enumerate_substitutions(combinator_info.prefix)
-                        selected_instantiations = combinator_info.instantiations                
-
-                    # consider all possible instantiations
-                    for instantiation in selected_instantiations:
+                        selected_instantiations = self._enumerate_substitutions(combinator_info.prefix, substitution) #TODO generator
+                        stack.appendleft((current_target, (combinator, combinator_info, iter(selected_instantiations))))
+                else:
+                    combinator, combinator_info, selected_instantiations = current_target_info
+                    instantiation = next(selected_instantiations, None)
+                    if instantiation is not None:
+                        stack.appendleft((current_target, current_target_info))
                         named_arguments = None
 
                         # and every arity of the combinator type
@@ -314,11 +376,11 @@ class Synthesizer(Generic[C]):
                                                                     else NonTerminalArgument[Type](param.name, param.group.subst(combinator_info.groups, instantiation))
                                                                     for param in combinator_info.prefix
                                                                     if isinstance(param, Parameter))
-                                        type_targets.extendleft(argument.value for argument in named_arguments if isinstance(argument, NonTerminalArgument))
+                                        stack.extendleft((argument.value, None) for argument in named_arguments if isinstance(argument, NonTerminalArgument))
 
                                 anonymous_arguments = tuple(NonTerminalArgument(None, ty.subst(combinator_info.groups, instantiation)) for ty in subquery)
                                 yield (current_target, RHSRule[Type, Any](named_arguments + anonymous_arguments, combinator_info.term_predicates, combinator))
-                                type_targets.extendleft(q.value for q in anonymous_arguments)
+                                stack.extendleft((q.value, None) for q in anonymous_arguments)
 
         
     def constructSolutionSpace(self, *targets: Type) -> SolutionSpace[Type, C]:

@@ -59,7 +59,7 @@ def main(SIZE: int = 400, output: bool = False) -> float:
     }
 
     # literals = {"int": list(range(SIZE))}
-    literals = {"int2": list(filter(is_free, product(range(SIZE), range(SIZE))))}
+    literals = {"int2": frozenset(filter(is_free, product(range(SIZE), range(SIZE))))}
 
     if output:
         for row in range(SIZE):
