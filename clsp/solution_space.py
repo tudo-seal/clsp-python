@@ -220,15 +220,17 @@ class SolutionSpace(Generic[NT, T]):
 
         for n, exprs in self._rules.items():
             for expr in exprs:
-                for m in expr.non_terminals:
-                    inverse_grammar[m].append((n, expr))
-                for new_term in self._generate_new_trees(expr, existing_terms):
-                    queues[n].put(new_term)
-                    if n == start and new_term not in all_results:
-                        if max_count is not None and len(all_results) >= max_count:
-                            return
-                        yield new_term
-                        all_results.add(new_term)
+                if expr.non_terminals.issubset(self.nonterminals()):
+                    for m in expr.non_terminals:
+                        if m in self.nonterminals():
+                            inverse_grammar[m].append((n, expr))
+                    for new_term in self._generate_new_trees(expr, existing_terms):
+                        queues[n].put(new_term)
+                        if n == start and new_term not in all_results:
+                            if max_count is not None and len(all_results) >= max_count:
+                                return
+                            yield new_term
+                            all_results.add(new_term)
 
         current_bucket_size = 1
 
