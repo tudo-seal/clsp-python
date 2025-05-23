@@ -69,7 +69,7 @@ class TestRobotArm(unittest.TestCase):
         inspector = Inspector()
         inspector.inspect(componentSpecifications, parameterSpace)
         query = Constructor("Base") & ("c" @ (Literal(3, "int")))
-        grammar = synthesizer.constructSolutionSpace(query)
+        grammar = synthesizer.constructSolutionSpace(query).prune() #TODO not use pruned grammar in enumerate
         self.trees = list(grammar.enumerate_trees(query))
         # self.logger.info(grammar.show())
 

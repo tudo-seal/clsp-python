@@ -52,7 +52,7 @@ class CoSy(Generic[T]):
         """
         if not isinstance(query, Type):
             raise TypeError("Query must be of type Type")
-        solutionSpace = self._synthesizer.constructSolutionSpace(query)
+        solutionSpace = self._synthesizer.constructSolutionSpace(query).prune()
 
         trees = solutionSpace.enumerate_trees(query, max_count=max_count)
         for tree in trees:

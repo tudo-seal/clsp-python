@@ -24,8 +24,10 @@ def maximal_elements(elements: Iterable[E], compare: Callable[[E, E], bool]) -> 
 
     `compare(e1, e2) == True` iff `e1` smaller or equal to `e2`.
     """
-
     candidates: deque[E] = deque(elements)
+    if len(candidates) <= 1:
+        return candidates
+
     result: deque[E] = deque()
     while candidates:
         new_candidates: deque[E] = deque()

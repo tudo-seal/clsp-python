@@ -92,7 +92,7 @@ class TestFilterByCriteria(unittest.TestCase):
 
         :return:
         """
-        # TODO private fields
+
         componentSpecifications: dict[Part, Specification] = {
             BranchingPart("Double Motor", 10): DSL()
             .Parameter("target_weight", "float")

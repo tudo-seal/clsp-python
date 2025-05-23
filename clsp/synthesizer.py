@@ -12,6 +12,7 @@ from collections.abc import (
     Sequence,
     Hashable,
     Container,
+    Generator,
 )
 from dataclasses import dataclass
 from functools import reduce
@@ -206,8 +207,8 @@ class Synthesizer(Generic[C]):
         intersect_args: Callable[[Iterable[Type], Iterable[Type]], tuple[Type, ...]] = (
             lambda args1, args2: tuple(Intersection(a, b) for a, b in zip(args1, args2))
         )
+        intersected_args: Generator[list[Type]] = (list(reduce(intersect_args, (m.args for m in ms))) for ms in covers)
 
-        intersected_args = (list(reduce(intersect_args, (m.args for m in ms))) for ms in covers)
         # consider only maximal argument vectors
         compare_args = lambda args1, args2: all(
             map(
@@ -265,13 +266,9 @@ class Synthesizer(Generic[C]):
 
         return result
 
-    def constructSolutionSpace(self, *targets: Type) -> SolutionSpace[Type, C]:
-        """Constructs a logic program in the current environment for the given target types."""
+    def constructSolutionSpaceRules(self, *targets: Type) -> Generator:
+        # TODO type info and documentation
         type_targets = deque(targets)
-
-        # constructed logic program
-        memo: SolutionSpace[Type, C] = SolutionSpace()
-
         seen: set[Type] = set()
 
         while type_targets:
@@ -282,12 +279,12 @@ class Synthesizer(Generic[C]):
                 seen.add(current_target)
                 # If the target is omega, then the result is junk
                 if current_target.is_omega:
-                    continue
+                    raise ValueError(f"Target type {current_target} is omega.")
 
                 # try each combinator
-                for combinator, combinatorInfo in self.repository:
+                for combinator, combinator_info in self.repository:
                     # Compute necessary substitutions
-                    substitution = self._necessary_substitution(current_target.organized, combinatorInfo.type, combinatorInfo.groups)
+                    substitution = self._necessary_substitution(current_target.organized, combinator_info.type, combinator_info.groups)
 
                     # If there cannot be a suitable substitution, ignore this combinator
                     if substitution is None:
@@ -296,38 +293,39 @@ class Synthesizer(Generic[C]):
                     # If there is a unique substitution, use it directly
                     if substitution:
                         # Keep necessary substitutions and enumerate the rest
-                        selected_instantiations = self._enumerate_substitutions(combinatorInfo.prefix, substitution)
+                        selected_instantiations = self._enumerate_substitutions(combinator_info.prefix, substitution)
                     else:
                         # Enumerate all substitutions (only the first time).
-                        if combinatorInfo.instantiations is None:
-                            combinatorInfo.instantiations = self._enumerate_substitutions(combinatorInfo.prefix)
-                        selected_instantiations = combinatorInfo.instantiations                
+                        if combinator_info.instantiations is None:
+                            combinator_info.instantiations = self._enumerate_substitutions(combinator_info.prefix)
+                        selected_instantiations = combinator_info.instantiations                
 
                     # consider all possible instantiations
                     for instantiation in selected_instantiations:
-                        parameter_arguments = None
+                        named_arguments = None
 
                         # and every arity of the combinator type
-                        for nary_types in combinatorInfo.type:
-                            arguments: Sequence[list[Type]] = self._subqueries(nary_types, current_target.organized, combinatorInfo.groups, instantiation)
+                        for nary_types in combinator_info.type:
+                            for subquery in self._subqueries(nary_types, current_target.organized, combinator_info.groups, instantiation):
 
-                            if len(arguments) == 0:
-                                continue
+                                if named_arguments is None: # do this only once for each instantiation
+                                        named_arguments = tuple(TerminalArgument(param.name, instantiation[param.name])
+                                                                    if isinstance(param, LiteralParameter)
+                                                                    else NonTerminalArgument[Type](param.name, param.group.subst(combinator_info.groups, instantiation))
+                                                                    for param in combinator_info.prefix
+                                                                    if isinstance(param, Parameter))
+                                        type_targets.extendleft(argument.value for argument in named_arguments if isinstance(argument, NonTerminalArgument))
 
-                            if not parameter_arguments: # do this only once for each instantiation
-                                    parameter_arguments = tuple(TerminalArgument(param.name, instantiation[param.name])
-                                                                if isinstance(param, LiteralParameter)
-                                                                else NonTerminalArgument[Type](param.name, param.group.subst(combinatorInfo.groups, instantiation))
-                                                                for param in combinatorInfo.prefix
-                                                                if isinstance(param, Parameter))
-                                    type_targets.extend(argument.value for argument in parameter_arguments if isinstance(argument, NonTerminalArgument))
+                                anonymous_arguments = tuple(NonTerminalArgument(None, ty.subst(combinator_info.groups, instantiation)) for ty in subquery)
+                                yield (current_target, combinator, named_arguments + anonymous_arguments, combinator_info.term_predicates)
+                                type_targets.extendleft(q.value for q in anonymous_arguments)
 
-                            for subquery in (
-                                tuple(NonTerminalArgument(None, ty.subst(combinatorInfo.groups, instantiation)) for ty in query)
-                                for query in arguments
-                            ):
-                                memo.add_rule(current_target, combinator, parameter_arguments + subquery, combinatorInfo.term_predicates)
-                                type_targets.extendleft(q.value for q in subquery)
-
-        # prune not inhabited types
-        return memo.prune()
+        
+    def constructSolutionSpace(self, *targets: Type) -> SolutionSpace[Type, C]:
+        """Constructs a logic program in the current environment for the given target types."""
+        
+        solution_space: SolutionSpace[Type, C] = SolutionSpace()
+        for rule in self.constructSolutionSpaceRules(*targets):
+            solution_space.add_rule(*rule)
+        
+        return solution_space

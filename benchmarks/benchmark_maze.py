@@ -64,7 +64,7 @@ def main(SIZE: int = 400, output: bool = False) -> float:
     if output:
         for row in range(SIZE):
             for col in range(SIZE):
-                if is_free((row, col)):
+                if is_free((col, row)):
                     print("-", end="")
                 else:
                     print("#", end="")
@@ -79,10 +79,11 @@ def main(SIZE: int = 400, output: bool = False) -> float:
     start = timeit.default_timer()
     grammar = synthesizer.constructSolutionSpace(fin)
 
-    #for term in grammar.enumerate_trees(fin, 3):
-    #    t = term.interpret()
-    #    if output:
-    #        print(t)
+    if output:
+        for term in grammar.enumerate_trees(fin, 3):
+            t = term.interpret()
+            if output:
+                print(t)
 
     print(timeit.default_timer() - start)
     return timeit.default_timer() - start
