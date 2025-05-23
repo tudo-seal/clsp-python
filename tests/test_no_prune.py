@@ -1,13 +1,9 @@
-# Demonstration of the DSL for assigning values to lietral variables
-
-#TODO more tests on different variants how values can be created, also infinite contains
+# regression test for recursive unproductive specification
 
 import logging
 import unittest
-from clsp.dsl import DSL
 from clsp.synthesizer import Synthesizer
-from collections.abc import Container
-from clsp.types import Type, Constructor, Var, Literal, Omega, Arrow
+from clsp.types import Constructor, Arrow
 from clsp.inspector import Inspector
 
 class TestDSLUse(unittest.TestCase):

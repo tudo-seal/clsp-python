@@ -1,4 +1,4 @@
-# Demonstration of the DSL for assigning values to lietral variables
+# Demonstration of the DSL for assigning values to literal variables
 
 #TODO more tests on different variants how values can be created, also infinite contains
 
