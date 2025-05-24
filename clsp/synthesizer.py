@@ -204,54 +204,6 @@ class Synthesizer(Generic[C]):
             else:
                 stack.appendleft((substitution, index + 1, None))
 
-
-    def _enumerate_substitutions2(
-        self,
-        prefix: list[LiteralParameter | TermParameter | Predicate],
-        substitution: dict[str, Any],
-        start_index: int = 0,
-    ) -> Iterable[dict[str, Any]]:
-        
-        """Enumerate all substitutions for the given parameters.
-           Take initial_substitution with inferred literals into account."""
-
-
-        if start_index >= len(prefix):
-            # no more parameters to process
-            yield substitution
-            return
-        parameter = prefix[start_index]
-        if isinstance(parameter, LiteralParameter):
-            if parameter.name in substitution:
-                value = substitution[parameter.name]
-                if parameter.values is not None and value not in parameter.values(substitution):
-                    # the inferred value is not in the set of values
-                    return
-                if not value in self.literals[parameter.group]:
-                    # the inferred value is not in the group
-                    return
-                yield from self._enumerate_substitutions2(prefix, substitution, start_index + 1)
-            elif parameter.values is not None:
-                for value in parameter.values(substitution):
-                    if value in self.literals[parameter.group]:
-                        yield from self._enumerate_substitutions2(prefix, {**substitution, parameter.name: value}, start_index + 1)
-            else:
-                concrete_values = self.literals[parameter.group]
-                if not isinstance(concrete_values, Iterable):
-                    raise RuntimeError(
-                        f"The value of variable {parameter.name} could not be inferred."
-                    )
-                for value in concrete_values:
-                    yield from self._enumerate_substitutions2(prefix, {**substitution, parameter.name: value}, start_index + 1)
-
-        elif isinstance(parameter, Predicate) and parameter.only_literals:
-            if parameter.constraint(substitution):
-                # the predicate is satisfied
-                yield from self._enumerate_substitutions2(prefix, substitution, start_index + 1)
-        else:
-            yield from self._enumerate_substitutions2(prefix, substitution, start_index + 1)
-        return
-
     def _subqueries(
         self,
         nary_types: list[MultiArrow],

@@ -1,6 +1,6 @@
 from collections import deque
 from collections.abc import Callable, Iterable, Sequence
-from typing import Generic, TypeGuard, TypeVar, cast
+from typing import TypeVar
 
 S = TypeVar("S")  # Type of Sets
 E = TypeVar("E")  # Type of Elements
@@ -17,8 +17,7 @@ def partition(predicate: Callable[[E], bool], elements: Iterable[E]) -> tuple[de
         else:
             partitioning[0].append(element)
     return partitioning
-
-
+ 
 def maximal_elements(elements: Iterable[E], compare: Callable[[E, E], bool]) -> Sequence[E]:
     """Enumerate maximal elements with respect to compare.
 
@@ -27,10 +26,9 @@ def maximal_elements(elements: Iterable[E], compare: Callable[[E, E], bool]) -> 
     candidates: deque[E] = deque(elements)
     if len(candidates) <= 1:
         return candidates
-
+    new_candidates: deque[E] = deque()
     result: deque[E] = deque()
     while candidates:
-        new_candidates: deque[E] = deque()
         e1 = candidates.pop()
         while candidates:
             e2 = candidates.pop()
@@ -42,7 +40,7 @@ def maximal_elements(elements: Iterable[E], compare: Callable[[E, E], bool]) -> 
                 new_candidates.clear()
             else:
                 new_candidates.appendleft(e2)
-        candidates = new_candidates
+        candidates, new_candidates = new_candidates, candidates
         result.appendleft(e1)
     return result
 
